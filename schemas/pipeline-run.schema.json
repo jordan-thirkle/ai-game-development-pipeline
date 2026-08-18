@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://games.byjtt.com/schemas/pipeline-run.schema.json",
+  "title": "By JTT AI Game Pipeline Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "startedAt",
+    "scope",
+    "inputs",
+    "execution",
+    "evidence",
+    "outcome"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "runId": { "type": "string", "minLength": 1 },
+    "experimentId": { "type": ["string", "null"] },
+    "gameId": { "type": ["string", "null"] },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "endedAt": { "type": ["string", "null"], "format": "date-time" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskType", "objective"],
+      "properties": {
+        "taskType": {
+          "type": "string",
+          "enum": [
+            "research",
+            "prototype",
+            "implementation",
+            "asset-production",
+            "debugging",
+            "playtest",
+            "benchmark",
+            "release",
+            "maintenance",
+            "publication",
+            "other"
+          ]
+        },
+        "objective": { "type": "string", "minLength": 1 },
+        "candidate": { "type": ["string", "null"] },
+        "targetPlatforms": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceCommit", "technologyVersions"],
+      "properties": {
+        "sourceCommit": { "type": "string", "minLength": 1 },
+        "technologyVersions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "sharedAssetSet": { "type": ["string", "null"] },
+        "specVersion": { "type": ["string", "null"] }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "models",
+        "toolCalls",
+        "failedToolCalls",
+        "humanInterventions",
+        "iterations",
+        "bespokeLinesChanged",
+        "reusedComponents"
+      ],
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "role"],
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "inputTokens": { "type": ["integer", "null"], "minimum": 0 },
+              "outputTokens": { "type": ["integer", "null"], "minimum": 0 },
+              "estimatedCostUsd": { "type": ["number", "null"], "minimum": 0 }
+            }
+          }
+        },
+        "toolCalls": { "type": "integer", "minimum": 0 },
+        "failedToolCalls": { "type": "integer", "minimum": 0 },
+        "humanInterventions": { "type": "integer", "minimum": 0 },
+        "humanMinutes": { "type": ["number", "null"], "minimum": 0 },
+        "elapsedSeconds": { "type": ["number", "null"], "minimum": 0 },
+        "iterations": { "type": "integer", "minimum": 0 },
+        "bespokeLinesChanged": { "type": "integer", "minimum": 0 },
+        "reusedComponents": { "type": "array", "items": { "type": "string" } },
+        "estimatedReuseRatio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "externalServiceCostUsd": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executionVerified", "artifacts"],
+      "properties": {
+        "executionVerified": { "type": "boolean" },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "screenshots": { "type": "array", "items": { "type": "string" } },
+        "videos": { "type": "array", "items": { "type": "string" } },
+        "logs": { "type": "array", "items": { "type": "string" } },
+        "profiles": { "type": "array", "items": { "type": "string" } },
+        "deviceResults": { "type": "array", "items": { "type": "string" } },
+        "automatedTestsPassed": { "type": ["integer", "null"], "minimum": 0 },
+        "automatedTestsFailed": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "functionalScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "visualScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "gameplayScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "maintainabilityScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "performanceScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "failures", "nextAction"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pass", "partial", "fail", "blocked", "rejected", "promoted"]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "failures": { "type": "array", "items": { "type": "string" } },
+        "nextAction": { "type": "string", "minLength": 1 },
+        "promotedComponentIds": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
