@@ -8,6 +8,12 @@ const requiredFiles = [
   'AGENTS.md',
   'docs/METHOD.md',
   'docs/PUBLISHING.md',
+  'docs/PIPELINE.md',
+  'docs/MONETIZATION-AND-LIVEOPS.md',
+  'agents/PIPELINE-GOVERNOR.md',
+  'workflows/commercial-game-lifecycle.md',
+  'schemas/pipeline-run.schema.json',
+  'schemas/game-graduation.schema.json',
   'experiments/BYJTT-LAB-001/spec.md',
   'registry/technologies.json'
 ];
@@ -19,6 +25,23 @@ for (const path of requiredFiles) {
     await access(path);
   } catch {
     failures.push(`Missing required file: ${path}`);
+  }
+}
+
+for (const schemaPath of [
+  'schemas/pipeline-run.schema.json',
+  'schemas/game-graduation.schema.json'
+]) {
+  try {
+    const schema = JSON.parse(await readFile(schemaPath, 'utf8'));
+    if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
+      failures.push(`${schemaPath} must declare JSON Schema draft 2020-12`);
+    }
+    if (!schema.$id || !schema.title || schema.type !== 'object') {
+      failures.push(`${schemaPath} requires $id, title, and object type`);
+    }
+  } catch (error) {
+    failures.push(`Unable to parse ${schemaPath}: ${error.message}`);
   }
 }
 
@@ -62,4 +85,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Repository structure and technology registry are valid.');
+console.log('Repository structure, lifecycle contracts, schemas, and technology registry are valid.');
