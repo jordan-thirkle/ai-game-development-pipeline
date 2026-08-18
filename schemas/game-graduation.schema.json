@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://games.byjtt.com/schemas/game-graduation.schema.json",
+  "title": "By JTT Game Graduation Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "candidateId",
+    "sourceExperimentIds",
+    "decision",
+    "evidence",
+    "product",
+    "commercial",
+    "operations",
+    "risks",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "candidateId": { "type": "string", "minLength": 1 },
+    "sourceExperimentIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["graduate", "continue-research", "hold", "kill"]
+    },
+    "decisionDate": { "type": "string", "format": "date" },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playableBuild", "playerValue", "technicalViability", "references"],
+      "properties": {
+        "playableBuild": { "type": "boolean" },
+        "playerValue": { "type": "string", "minLength": 1 },
+        "technicalViability": { "type": "string", "minLength": 1 },
+        "references": { "type": "array", "items": { "type": "string" } },
+        "playtestSummary": { "type": ["string", "null"] },
+        "performanceSummary": { "type": ["string", "null"] }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerFantasy", "coreLoop", "differentiation", "targetPlatforms", "releaseScope"],
+      "properties": {
+        "playerFantasy": { "type": "string", "minLength": 1 },
+        "coreLoop": { "type": "string", "minLength": 1 },
+        "differentiation": { "type": "string", "minLength": 1 },
+        "targetPlatforms": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "releaseScope": { "type": "string", "minLength": 1 },
+        "returnReasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "technical": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "proposedRuntime": { "type": ["string", "null"] },
+        "runtimeDecisionEvidence": { "type": ["string", "null"] },
+        "reusableComponentIds": { "type": "array", "items": { "type": "string" } },
+        "knownMigrationNeeds": { "type": "array", "items": { "type": "string" } },
+        "performanceRisks": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "commercial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["monetisationHypotheses", "distributionHypotheses", "costRisks"],
+      "properties": {
+        "monetisationHypotheses": { "type": "array", "items": { "type": "string" } },
+        "distributionHypotheses": { "type": "array", "items": { "type": "string" } },
+        "costRisks": { "type": "array", "items": { "type": "string" } },
+        "revenueHypotheses": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["telemetryRequired", "releaseAutomationRequired", "supportRequired", "maintenanceRisks"],
+      "properties": {
+        "telemetryRequired": { "type": "boolean" },
+        "releaseAutomationRequired": { "type": "boolean" },
+        "supportRequired": { "type": "boolean" },
+        "maintenanceRisks": { "type": "array", "items": { "type": "string" } },
+        "backendRequirements": { "type": "array", "items": { "type": "string" } },
+        "complianceRequirements": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "risk", "mitigation"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+          "risk": { "type": "string", "minLength": 1 },
+          "mitigation": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "killCriteria": { "type": "array", "items": { "type": "string" } },
+    "nextActions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}
