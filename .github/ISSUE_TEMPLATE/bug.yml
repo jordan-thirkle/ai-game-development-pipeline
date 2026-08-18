@@ -1,0 +1,38 @@
+name: Pipeline or benchmark defect
+description: Report a reproducible defect in lab tooling, experiment infrastructure, or a benchmark implementation.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected experiment/component
+      description: Include experiment ID, implementation/runtime, version, and commit where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour and evidence
+      description: Include logs, screenshots, captures, profiler output, or deterministic replay details where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS/device, engine/runtime versions, browser where applicable, hardware, and relevant dependencies.
+    validations:
+      required: true
