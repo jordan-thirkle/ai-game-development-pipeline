@@ -1,0 +1,13 @@
+{
+  "name": "ai-game-development-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evidence-driven AI game development lab and production pipeline by By JTT",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "validate": "node tools/validate-repo.mjs"
+  }
+}
