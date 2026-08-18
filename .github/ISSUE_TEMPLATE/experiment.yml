@@ -1,0 +1,45 @@
+name: Experiment proposal
+description: Propose a reproducible AI game-development experiment or benchmark.
+title: "experiment: "
+labels: [experiment]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Research question
+      description: What production decision should this experiment resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+      description: State the expected result before running the experiment.
+    validations:
+      required: true
+  - type: textarea
+    id: candidates
+    attributes:
+      label: Candidates
+      description: Engines, runtimes, libraries, models, workflows, or other options to compare.
+    validations:
+      required: true
+  - type: textarea
+    id: fairness
+    attributes:
+      label: Shared constraints and fairness controls
+      description: Describe assets, budgets, test sequences, hardware, and other conditions that should be held constant.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required evidence and success criteria
+      description: What measurements and executable proof are required for a valid conclusion?
+    validations:
+      required: true
+  - type: textarea
+    id: reuse
+    attributes:
+      label: Solved systems to investigate first
+      description: Known engine-native, open-source, commercial, or internal options that could eliminate bespoke work.

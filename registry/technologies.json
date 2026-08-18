@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "updated": "2026-08-19",
+  "technologies": [
+    {
+      "id": "three-webgpu",
+      "name": "Three.js / WebGPU",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["browser-3d", "rapid-ai-prototyping", "mobile-web"],
+      "evidence": []
+    },
+    {
+      "id": "playcanvas",
+      "name": "PlayCanvas",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["browser-3d", "mobile-web", "web-game-engine"],
+      "evidence": []
+    },
+    {
+      "id": "babylonjs",
+      "name": "Babylon.js",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["browser-3d", "web-game-engine"],
+      "evidence": []
+    },
+    {
+      "id": "godot",
+      "name": "Godot",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["native-mobile", "desktop", "2d", "3d", "open-source-engine"],
+      "evidence": []
+    },
+    {
+      "id": "unity",
+      "name": "Unity",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["native-mobile", "desktop", "commercial-ecosystem"],
+      "evidence": []
+    },
+    {
+      "id": "defold",
+      "name": "Defold",
+      "category": "engine-runtime",
+      "status": "candidate",
+      "contexts": ["native-mobile", "lightweight", "2d", "3d"],
+      "evidence": []
+    }
+  ]
+}
