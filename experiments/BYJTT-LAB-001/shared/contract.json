@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-001",
+  "units": {
+    "distance": "metres",
+    "time": "seconds",
+    "angles": "degrees",
+    "world_up": "+Y"
+  },
+  "viewport": {
+    "reference_width": 390,
+    "reference_height": 844,
+    "orientation": "portrait",
+    "target_fps": 60
+  },
+  "arena": {
+    "width": 24,
+    "depth": 32,
+    "player_spawn": [0, 0, 10],
+    "enemy_spawn": [0, 0, -6],
+    "salvage_spawn": [5, 0, 0]
+  },
+  "player": {
+    "max_health": 100,
+    "walk_speed": 3.5,
+    "run_speed": 5.5,
+    "acceleration": 18,
+    "deceleration": 22,
+    "turn_response_seconds": 0.12,
+    "attack_damage": 34,
+    "attack_range": 1.8,
+    "attack_cooldown": 0.55,
+    "hit_invulnerability": 0.2
+  },
+  "enemy": {
+    "max_health": 100,
+    "move_speed": 2.7,
+    "acquire_range": 12,
+    "attack_range": 1.6,
+    "attack_damage": 20,
+    "attack_cooldown": 1.1,
+    "lose_target_range": 18
+  },
+  "salvage": {
+    "max_health": 34,
+    "reward_count": 1,
+    "pickup_radius": 1.25
+  },
+  "upgrade": {
+    "id": "damage-up-1",
+    "label": "+20% damage",
+    "damage_multiplier": 1.2
+  },
+  "input_actions": [
+    "move",
+    "camera",
+    "attack",
+    "interact",
+    "pause"
+  ],
+  "save_contract": {
+    "required_fields": [
+      "schema_version",
+      "reward_count",
+      "selected_upgrades"
+    ],
+    "must_survive_restart": [
+      "reward_count",
+      "selected_upgrades"
+    ]
+  },
+  "repeatable_playthrough": [
+    "cold-launch",
+    "enter-gameplay",
+    "move-player",
+    "exercise-camera",
+    "acquire-enemy",
+    "exchange-damage",
+    "break-salvage",
+    "collect-reward",
+    "select-upgrade",
+    "kill-or-evade-enemy",
+    "save-state",
+    "restart-runtime",
+    "verify-restored-state"
+  ],
+  "fairness": {
+    "engine_native_systems_allowed": true,
+    "mature_open_source_systems_allowed": true,
+    "bespoke_only_after_solved_system_gate": true,
+    "runtime_specific_optimisation_allowed": true,
+    "deviations_must_be_recorded": true
+  }
+}

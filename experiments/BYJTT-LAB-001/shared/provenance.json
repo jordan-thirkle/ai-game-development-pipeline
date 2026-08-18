@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-001",
+  "status": "candidate-baseline",
+  "assets": [
+    {
+      "id": "quaternius-universal-base-characters",
+      "purpose": "player-and-enemy-character-source",
+      "source": "https://quaternius.com/packs/universalbasecharacters.html",
+      "license": "CC0",
+      "preferred_formats": ["glTF", "Blend", "FBX"],
+      "download_verified": false,
+      "hashes_recorded": false,
+      "cross_runtime_import_verified": false
+    },
+    {
+      "id": "quaternius-universal-animation-library-2",
+      "purpose": "shared-humanoid-animation-source",
+      "source": "https://quaternius.com/packs/universalanimationlibrary2.html",
+      "license": "CC0",
+      "preferred_formats": ["GLB", "Blend", "FBX"],
+      "required_clip_roles": ["idle", "locomotion", "attack", "hit-reaction", "death"],
+      "download_verified": false,
+      "hashes_recorded": false,
+      "cross_runtime_import_verified": false
+    },
+    {
+      "id": "kenney-prototype-kit",
+      "purpose": "arena-and-salvage-source",
+      "source": "https://www.kenney.nl/assets/prototype-kit",
+      "license": "CC0",
+      "download_verified": false,
+      "hashes_recorded": false,
+      "cross_runtime_import_verified": false
+    },
+    {
+      "id": "poly-haven-optional",
+      "purpose": "optional-neutral-hdri-material-model-source",
+      "source": "https://polyhaven.com/license",
+      "license": "CC0",
+      "optional": true,
+      "download_verified": false,
+      "hashes_recorded": false,
+      "cross_runtime_import_verified": false
+    }
+  ]
+}

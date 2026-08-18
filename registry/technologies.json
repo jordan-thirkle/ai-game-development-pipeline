@@ -8,7 +8,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["browser-3d", "rapid-ai-prototyping", "mobile-web"],
-      "evidence": []
+      "benchmark_pin": "r185",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     },
     {
       "id": "playcanvas",
@@ -16,7 +19,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["browser-3d", "mobile-web", "web-game-engine"],
-      "evidence": []
+      "benchmark_pin": "2.21.3",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     },
     {
       "id": "babylonjs",
@@ -24,7 +30,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["browser-3d", "web-game-engine"],
-      "evidence": []
+      "benchmark_pin": "9.20.0",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     },
     {
       "id": "godot",
@@ -32,7 +41,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["native-mobile", "desktop", "2d", "3d", "open-source-engine"],
-      "evidence": []
+      "benchmark_pin": "4.7.1-stable",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     },
     {
       "id": "unity",
@@ -40,7 +52,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["native-mobile", "desktop", "commercial-ecosystem"],
-      "evidence": []
+      "benchmark_pin": "6.3 LTS",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     },
     {
       "id": "defold",
@@ -48,7 +63,10 @@
       "category": "engine-runtime",
       "status": "candidate",
       "contexts": ["native-mobile", "lightweight", "2d", "3d"],
-      "evidence": []
+      "benchmark_pin": "1.13.0",
+      "evidence": [
+        "experiments/BYJTT-LAB-001/preflight-2026-08-19.md"
+      ]
     }
   ]
 }
