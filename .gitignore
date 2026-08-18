@@ -1,0 +1,51 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.keystore
+*.jks
+
+# Node / web tooling
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.cache/
+
+# Godot
+.godot/
+.android/
+
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Defold
+.internal/
+build/default/
+
+# Generated evidence and captures that are not intentionally committed
+*.log
+*.tmp
+artifacts/local/
+evidence/local/
+
+# Large generated media should be deliberately curated before commit
+*.mp4
+*.mov
+*.webm
