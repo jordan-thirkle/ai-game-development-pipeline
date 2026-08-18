@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-XXX",
+  "title": "Replace with experiment title",
+  "status": "planned",
+  "hypothesis": "",
+  "started_at": null,
+  "completed_at": null,
+  "candidates": [],
+  "shared_constraints": {
+    "assets": [],
+    "hardware": [],
+    "agent_budget": null,
+    "test_sequence": null
+  },
+  "metrics": {
+    "ai_efficiency": {},
+    "product_quality": {},
+    "engineering_quality": {},
+    "performance": {},
+    "economics": {}
+  },
+  "evidence": [],
+  "limitations": [],
+  "conclusion": null,
+  "promotion_decisions": []
+}
