@@ -17,6 +17,8 @@ const requiredFiles = [
   'experiments/BYJTT-LAB-001/spec.md',
   'experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
   'experiments/BYJTT-LAB-001/shared/contract.json',
+  'experiments/BYJTT-LAB-001/shared/assets.md',
+  'experiments/BYJTT-LAB-001/shared/provenance.json',
   'registry/technologies.json'
 ];
 
@@ -62,6 +64,26 @@ try {
   }
 } catch (error) {
   failures.push(`Unable to validate Benchmark 001 shared contract: ${error.message}`);
+}
+
+try {
+  const provenance = JSON.parse(
+    await readFile('experiments/BYJTT-LAB-001/shared/provenance.json', 'utf8')
+  );
+  if (provenance.schema_version !== 1 || provenance.experiment_id !== 'BYJTT-LAB-001') {
+    failures.push('Benchmark 001 provenance ledger must use schema_version 1 and experiment_id BYJTT-LAB-001');
+  }
+  if (!Array.isArray(provenance.assets) || provenance.assets.length < 3) {
+    failures.push('Benchmark 001 provenance ledger requires shared character, animation, and environment candidates');
+  } else {
+    for (const asset of provenance.assets) {
+      if (!asset.id || !asset.source || !asset.license) {
+        failures.push('Every Benchmark 001 provenance asset requires id, source, and license');
+      }
+    }
+  }
+} catch (error) {
+  failures.push(`Unable to validate Benchmark 001 provenance ledger: ${error.message}`);
 }
 
 try {
@@ -115,4 +137,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Repository structure, lifecycle contracts, schemas, Benchmark 001 contract, and technology registry are valid.');
+console.log('Repository structure, lifecycle contracts, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
