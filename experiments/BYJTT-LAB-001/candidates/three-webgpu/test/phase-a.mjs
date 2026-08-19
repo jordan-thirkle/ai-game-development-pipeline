@@ -159,7 +159,6 @@ try {
   const acquireDistance = Math.hypot(current['enemy.position'].x - current['player.position'].x, current['enemy.position'].z - current['player.position'].z);
   result('05-acquire-enemy', current['enemy.target_state'] === 'acquired' ? 'pass' : 'fail', { acquireDistance, enemy: current['enemy.position'], player: current['player.position'] });
 
-  // Move through the normal player controller into combat range instead of coupling success to headless render cadence.
   await moveToward(current['enemy.position'].x, current['enemy.position'].z, 1.35, 24);
   current = await waitFor((s) => s['player.health'] < 100, 'enemy damage', 3500);
   const playerHealthAfterEnemy = current['player.health'];
@@ -171,12 +170,16 @@ try {
   await moveToward(5, 0, 1.25);
   await attack(1);
   current = await waitFor((s) => s['salvage.broken'] === true, 'salvage break');
-  result('07-break-salvage', current['salvage.broken'] && current['reward.available'] ? 'pass' : 'fail', { salvageHealth: current['salvage.health'], rewardAvailable: current['reward.available'] });
+  result('07-break-salvage', current['salvage.broken'] ? 'pass' : 'fail', { salvageHealth: current['salvage.health'], rewardAvailable: current['reward.available'], rewardCount: current['reward.count'] }, ['07-break-salvage.png'], current['reward.count'] === 1 ? ['Reward auto-collected through normal proximity before step 7 capture completed.'] : []);
   await page.screenshot({ path: path.join(artifacts, '07-break-salvage.png'), fullPage: true });
 
-  const rewardTarget = { x: 5, z: -1.7 };
-  await moveToward(rewardTarget.x, rewardTarget.z, 0.9);
-  current = await waitFor((s) => s['reward.count'] === 1, 'reward collection');
+  // Equivalent real gameplay may cross the pickup radius while breaking salvage. Treat observed state as authoritative.
+  current = await snapshot();
+  if (current['reward.count'] !== 1) {
+    if (!current['reward.available']) throw new Error(`Reward neither collected nor available after salvage; state=${JSON.stringify(current)}`);
+    await moveToward(5, -1.7, 0.9);
+    current = await waitFor((s) => s['reward.count'] === 1, 'reward collection');
+  }
   result('08-collect-reward', current['reward.count'] === 1 && current['reward.available'] === false ? 'pass' : 'fail', { rewardCount: current['reward.count'], rewardAvailable: current['reward.available'] });
 
   await waitFor((s) => s['upgrade.menu_visible'] === true, 'upgrade menu');
