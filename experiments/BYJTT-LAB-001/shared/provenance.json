@@ -2,35 +2,72 @@
   "schema_version": 1,
   "experiment_id": "BYJTT-LAB-001",
   "status": "candidate-baseline",
+  "source_research_checked_at": "2026-08-19",
+  "source_research_policy": "Publisher-page facts may establish identity, licence and advertised formats/features; only downloaded binaries, hashes and runtime import/playback can promote execution fields.",
   "assets": [
     {
       "id": "quaternius-universal-base-characters",
       "purpose": "player-and-enemy-character-source",
       "source": "https://quaternius.com/packs/universalbasecharacters.html",
+      "publisher": "Quaternius",
+      "publisher_release": "August 2025",
       "license": "CC0",
+      "publisher_claims_verified": true,
+      "publisher_claims": {
+        "base_models": 6,
+        "approx_triangles_per_character": 13000,
+        "humanoid_rig": true,
+        "animation_friendly_topology": true,
+        "compatible_with_universal_animation_library": true,
+        "formats": ["FBX", "OBJ", "Blend", "glTF"],
+        "publisher_engine_examples": ["Godot", "Unity", "Unreal Engine"]
+      },
       "preferred_formats": ["glTF", "Blend", "FBX"],
       "download_verified": false,
       "hashes_recorded": false,
+      "binary_inspected": false,
       "cross_runtime_import_verified": false
     },
     {
       "id": "quaternius-universal-animation-library-2",
       "purpose": "shared-humanoid-animation-source",
       "source": "https://quaternius.com/packs/universalanimationlibrary2.html",
+      "publisher": "Quaternius",
+      "publisher_release": "January 2026",
       "license": "CC0",
+      "publisher_claims_verified": true,
+      "publisher_claims": {
+        "animation_count_minimum": 130,
+        "universal_humanoid_rig": true,
+        "retargeting_intended": true,
+        "formats": ["GLB", "FBX", "Blend"],
+        "publisher_engine_examples": ["Godot", "Unity", "Unreal Engine"]
+      },
       "preferred_formats": ["GLB", "Blend", "FBX"],
       "required_clip_roles": ["idle", "locomotion", "attack", "hit-reaction", "death"],
       "download_verified": false,
       "hashes_recorded": false,
+      "binary_inspected": false,
+      "required_clips_mapped": false,
       "cross_runtime_import_verified": false
     },
     {
       "id": "kenney-prototype-kit",
       "purpose": "arena-and-salvage-source",
       "source": "https://www.kenney.nl/assets/prototype-kit",
+      "publisher": "Kenney",
+      "publisher_release": "1.0",
       "license": "CC0",
+      "publisher_claims_verified": true,
+      "publisher_claims": {
+        "asset_count": 145,
+        "category": "3D",
+        "animation_feature": true,
+        "variations_feature": true
+      },
       "download_verified": false,
       "hashes_recorded": false,
+      "binary_inspected": false,
       "cross_runtime_import_verified": false
     },
     {
@@ -39,9 +76,21 @@
       "source": "https://polyhaven.com/license",
       "license": "CC0",
       "optional": true,
+      "publisher_claims_verified": false,
       "download_verified": false,
       "hashes_recorded": false,
+      "binary_inspected": false,
       "cross_runtime_import_verified": false
     }
+  ],
+  "promotion_requirements": [
+    "downloaded source files retained or reproducibly reacquirable",
+    "sha256 recorded for every selected binary",
+    "licence text or publisher licence evidence retained",
+    "character skeleton and skin inspected",
+    "required animation clips mapped by actual file/clip name",
+    "scale and orientation recorded",
+    "same selected source files imported by every retained runtime candidate or incompatibility documented",
+    "no publisher compatibility claim substituted for our own runtime evidence"
   ]
 }
