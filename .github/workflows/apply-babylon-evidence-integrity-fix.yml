@@ -1,0 +1,110 @@
+name: Apply Babylon evidence integrity fix
+on:
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.head_ref == 'test/babylon-evidence-integrity-fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: benchmark/001-babylonjs
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply assertion-guarded evidence fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          phase = Path('experiments/BYJTT-LAB-001/candidates/babylonjs/tools/phase-a.mjs')
+          text = phase.read_text()
+
+          replacements = []
+          replacements.append((
+              "import { mkdir, writeFile } from 'node:fs/promises';",
+              "import { access, mkdir, writeFile } from 'node:fs/promises';",
+          ))
+          replacements.append((
+              "let finalEvidence = null;",
+              "let finalEvidence = null;\nlet finalSnapshotForEvidence = null;",
+          ))
+          replacements.append((
+              """async function writeEvidence(extraFailure = null) {
+            const finalSnapshot = await snapshot().catch(() => null);
+            if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
+            const feedbackSource = feedbackBeforeRestart || finalSnapshot;
+            const evidence = {""",
+              """async function writeEvidence(extraFailure = null, finalSnapshot = null) {
+            if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
+            const screenshotCandidates = ['01-cold-launch.png', '04-exercise-camera.png', '07-break-salvage.png', '11-save-state.png', '13-restored-state.png'];
+            const capturedScreenshots = [];
+            for (const filename of screenshotCandidates) {
+              try {
+                await access(path.join(artifacts, filename));
+                capturedScreenshots.push(filename);
+              } catch {}
+            }
+            let capturedTrace = null;
+            try {
+              await access(path.join(artifacts, 'phase-a-trace.zip'));
+              capturedTrace = 'phase-a-trace.zip';
+            } catch {}
+            const feedbackSource = feedbackBeforeRestart || finalSnapshot;
+            const evidence = {""",
+          ))
+          replacements.append((
+              """    capture: {
+                trace: 'phase-a-trace.zip',
+                screenshots: ['01-cold-launch.png', '04-exercise-camera.png', '07-break-salvage.png', '11-save-state.png', '13-restored-state.png'],
+              },""",
+              """    capture: {
+                trace: capturedTrace,
+                screenshots: capturedScreenshots,
+              },""",
+          ))
+          replacements.append((
+              """} finally {
+            await releaseMovementIntent().catch(() => {});
+            if (context && tracingStarted) {""",
+              """} finally {
+            await releaseMovementIntent().catch(() => {});
+            finalSnapshotForEvidence = await snapshot().catch(() => null);
+            if (context && tracingStarted) {""",
+          ))
+          replacements.append((
+              "finalEvidence = await writeEvidence(pendingMessage);",
+              "finalEvidence = await writeEvidence(pendingMessage, finalSnapshotForEvidence);",
+          ))
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one replacement target, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          phase.write_text(text)
+
+          log = Path('experiments/BYJTT-LAB-001/candidates/babylonjs/implementation-log.md')
+          log_text = log.read_text()
+          marker = '## Final evidence-snapshot integrity remediation'
+          if marker not in log_text:
+              log_text += """
+
+          ## Final evidence-snapshot integrity remediation
+
+          A later CodeRabbit review found that the harness serialized final evidence after browser shutdown, which could reduce `final_snapshot`, renderer, Havok and performance fields to unknown despite a successful gameplay run. The harness now captures the final benchmark snapshot while the browser is still open, passes that immutable observation into evidence writing after cleanup, and derives trace/screenshot capture paths from files that actually exist rather than from a fixed claimed list. This changed evidence integrity only; gameplay behavior was not altered. The candidate must be rerun revision-exact after this change before landing.
+          """
+              log.write_text(log_text)
+          PY
+      - name: Validate patched harness syntax
+        run: node --check experiments/BYJTT-LAB-001/candidates/babylonjs/tools/phase-a.mjs
+      - name: Commit and push candidate fix
+        run: |
+          git config user.name 'By JTT'
+          git config user.email '29462570+jordan-thirkle@users.noreply.github.com'
+          git add experiments/BYJTT-LAB-001/candidates/babylonjs/tools/phase-a.mjs experiments/BYJTT-LAB-001/candidates/babylonjs/implementation-log.md
+          git diff --cached --check
+          git commit -m 'Preserve final Babylon execution evidence'
+          git push origin HEAD:benchmark/001-babylonjs
