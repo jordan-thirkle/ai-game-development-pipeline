@@ -13,7 +13,7 @@
     "correlationId":{"type":"string","minLength":1},"causationId":{"type":["string","null"]},"idempotencyKey":{"type":["string","null"]},"payload":{"type":"object"}
   },
   "allOf":[
-    {"if":{"properties":{"type":{"const":"work.claimed"}},"required":["type"]},"then":{"required":["payload"],"properties":{"payload":{"type":"object","required":["leaseId"],"properties":{"leaseId":{"type":"string","minLength":1}},"additionalProperties":true}}}},
+    {"if":{"properties":{"type":{"enum":["work.claimed","work.released"]}},"required":["type"]},"then":{"required":["payload"],"properties":{"payload":{"type":"object","required":["leaseId"],"properties":{"leaseId":{"type":"string","minLength":1}},"additionalProperties":true}}}},
     {"if":{"properties":{"type":{"const":"human.verdict"}},"required":["type"]},"then":{"properties":{"actor":{"type":"object","required":["kind","id"],"properties":{"kind":{"const":"human"},"id":{"type":"string"},"role":{"type":["string","null"]}},"additionalProperties":false}}}}
   ],
   "additionalProperties":false
