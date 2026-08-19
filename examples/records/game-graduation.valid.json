@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0.0",
+  "candidateId": "fixture-game",
+  "sourceExperimentIds": ["BYJTT-LAB-001"],
+  "decision": "graduate",
+  "decisionDate": "2026-08-19",
+  "evidence": {
+    "playableBuild": true,
+    "playerValue": "Fixture demonstrates the executable graduation contract.",
+    "technicalViability": "The fixture is intentionally minimal and schema-valid.",
+    "references": ["examples/records/game-graduation.valid.json"],
+    "playtestSummary": "Fixture only.",
+    "performanceSummary": "Fixture only."
+  },
+  "product": {
+    "playerFantasy": "Demonstrate a validated graduation decision.",
+    "coreLoop": "Validate -> gate -> report.",
+    "differentiation": "Executable evidence gate rather than prose-only approval.",
+    "targetPlatforms": ["ci"],
+    "releaseScope": "Fixture only.",
+    "returnReasons": []
+  },
+  "technical": {
+    "proposedRuntime": "fixture-runtime",
+    "runtimeDecisionEvidence": "Validated by the repository CI fixture.",
+    "reusableComponentIds": ["ajv"],
+    "knownMigrationNeeds": [],
+    "performanceRisks": []
+  },
+  "commercial": {
+    "monetisationHypotheses": ["No monetisation; fixture demonstrates required commercial reasoning."],
+    "distributionHypotheses": ["CI-only fixture."],
+    "costRisks": [],
+    "revenueHypotheses": []
+  },
+  "operations": {
+    "telemetryRequired": true,
+    "releaseAutomationRequired": true,
+    "supportRequired": false,
+    "maintenanceRisks": [],
+    "backendRequirements": [],
+    "complianceRequirements": []
+  },
+  "risks": [],
+  "killCriteria": [],
+  "nextActions": ["Use the same gate on real game candidates."]
+}
