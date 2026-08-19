@@ -3,11 +3,15 @@ on:
   pull_request:
   push:
     branches: [main]
+concurrency:
+  group: control-plane-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   browser-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7.0.1
         with:
