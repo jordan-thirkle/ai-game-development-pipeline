@@ -6,37 +6,47 @@ Should the pipeline build its own durable multi-agent orchestration runtime, or 
 
 ## Requirements
 
-The orchestration substrate should support durable long-running work, retries/idempotency, concurrency control, event-driven coordination, human-in-the-loop waits, observability/tracing, resumability across crashes/deploys, structured inputs/outputs, and a reactive UI/control-plane integration. It must not become the canonical source of game-development decisions; repository schemas/evidence remain portable.
+The substrate should support durable long-running work, retries/idempotency, concurrency control, event-driven coordination, human-in-the-loop waits, observability/tracing, resumability, structured I/O, and reactive control-plane integration while repository contracts remain portable.
 
 ## Current candidates
 
 ### Trigger.dev
 
-Strong fit for a TypeScript-first control plane. Current product material exposes long-running durable tasks, retries, queues, concurrency keys, human-in-the-loop approval, realtime/streaming, structured inputs/outputs, observability, versioning, Python/system-package/browser/FFmpeg execution and GitHub/Vercel integration. Its 2026 AI Agents release adds durable chat agents/sessions that survive refreshes, redeploys and crashes.
+Strong TypeScript-first fit: durable long-running tasks, retries, queues/concurrency, HITL approval, realtime/streaming, structured I/O, observability, versioning, Python/system packages/browser/FFmpeg execution and integrations. Its 2026 AI Agents release adds durable sessions that survive refreshes, redeploys and crashes.
+
+Sources: `https://trigger.dev/product/ai-agents`, `https://trigger.dev/product`, `https://trigger.dev/changelog/v4-5-0`.
 
 ### Inngest
 
-Strong fit for event-driven durable execution. Current documentation exposes independently persisted/retried steps, durable agent loops, dynamic multi-agent coordination, human waits via events, observability/debugging, event coordination and production agent evaluation. Its 2026 checkpointing work targets the latency tax common to durable workflow engines.
+Strong event-driven fit: independently persisted/retried steps, durable dynamic agent loops, multi-agent coordination, human waits via events, observability, event coordination and production agent evaluation. 2026 checkpointing specifically targets durable-workflow latency.
+
+Sources: `https://www.inngest.com/docs/learn/durable-agents`, `https://www.inngest.com/docs/patterns/durable`, `https://www.inngest.com/docs/learn/agent-evals`, `https://www.inngest.com/blog/introducing-checkpointing`.
 
 ### Temporal
 
-Strongest mature general-purpose durability model among the candidates reviewed. Temporal's current AI reference architecture keeps durable orchestration state in workflows while external/non-deterministic work occurs in activities, with update-driven interaction. It is powerful but likely carries more operational/conceptual weight than this pipeline needs initially.
+Strong mature general-purpose durability reference. Its current AI architecture keeps durable orchestration state in workflows and external/non-deterministic work in activities with update-driven interaction. Likely more operational/conceptual weight than needed initially.
+
+Source: `https://go.temporal.io/platform-hub/ai-engineering/ai-reference-architecture`.
 
 ### LangGraph / LangSmith ecosystem
 
-Strong agent graph/runtime and evaluation story. Current LangChain material emphasises durable execution, memory, human-in-the-loop and observability for long-running agents, plus run/trace/thread-level evaluation. Useful reference and possible substrate, but we should avoid coupling the whole game factory to one agent-framework abstraction unless benchmarks show a clear advantage.
+Strong agent-runtime/evaluation reference: durable execution, memory, HITL, observability and run/trace/thread-level evaluation. Avoid coupling the factory to one agent-framework abstraction unless benchmark evidence justifies it.
+
+Sources: `https://www.langchain.com/blog/runtime-behind-production-deep-agents`, `https://www.langchain.com/resources/agent-evals`.
 
 ### OpenAI Agents SDK
 
-Relevant as a model-native agent harness rather than the sole cross-provider orchestration substrate. OpenAI's 2026 Agents SDK direction includes long-horizon computer/file/command work and native sandbox execution. It should be supported as a worker/harness option while canonical pipeline state remains provider-neutral.
+Relevant as a model-native worker harness, not the sole cross-provider orchestration authority. OpenAI's 2026 direction includes long-horizon file/command/computer work and native sandbox execution.
+
+Source: `https://openai.com/index/the-next-evolution-of-the-agents-sdk/`.
 
 ## Provisional decision
 
 Do **not** build a bespoke durable workflow engine.
 
-Benchmark **Trigger.dev and Inngest first** for the initial TypeScript web/control-plane implementation. Keep Temporal as the durability reference/scale-up candidate and support OpenAI Agents SDK/Codex as worker execution harnesses rather than making them the global state authority.
+Benchmark **Trigger.dev and Inngest first** for the TypeScript control-plane implementation. Keep Temporal as the durability reference/scale-up candidate and OpenAI Agents SDK/Codex as worker execution harnesses rather than global state authorities.
 
-The By JTT-specific code should focus on the thin domain layer that these systems do not solve for us: game lifecycle semantics, solved-system gates, evidence freshness, gameplay/human gates, asset provenance, commercial graduation, persistent roles, context compilation and projections into the Studio UI.
+By JTT-specific code should remain the thin domain layer these systems do not solve: game lifecycle semantics, solved-system gates, evidence freshness, gameplay/human gates, asset provenance, commercial graduation, persistent roles, context compilation and Studio projections.
 
 ## Benchmark criteria
 
@@ -50,10 +60,10 @@ The By JTT-specific code should focus on the thin domain layer that these system
 - TypeScript ergonomics;
 - sandbox/browser/native-tool integration;
 - vendor lock-in and migration path;
-- ability to preserve repository-owned canonical contracts;
+- repository-owned canonical contracts;
 - measured orchestration latency/cost;
-- AI-agent integration without forcing one model/provider.
+- model/provider neutrality.
 
 ## Decision rule
 
-Adopt the smallest solved substrate that demonstrably satisfies the first real cross-session game-development workflow. Do not adopt infrastructure because its feature list is impressive. If a plain repository + GitHub coordination projection remains simpler and more reliable at current scale, retain it until durable execution earns its complexity.
+Adopt the smallest solved substrate that demonstrably satisfies the first real cross-session game-development workflow. If repository + GitHub coordination remains simpler and more reliable at current scale, retain it until durable execution earns its complexity.
