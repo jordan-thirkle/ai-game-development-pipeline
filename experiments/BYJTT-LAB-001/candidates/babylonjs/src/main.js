@@ -27,6 +27,26 @@ const state = {
   errors: [],
 };
 
+function snapshot() {
+  return Object.freeze({
+    'runtime.ready': state.ready,
+    'renderer.backend': state.backend,
+    'renderer.webgpu_supported': state.webgpuSupported,
+    'physics.havok_ready': state.havokReady,
+    'physics.plugin_version': state.havokPluginVersion,
+    'startup.ms': state.startupMs,
+    'render.frames': state.renderFrames,
+    'runtime.errors': [...state.errors],
+  });
+}
+
+Object.defineProperty(window, '__BYJTT_BENCHMARK__', {
+  configurable: false,
+  enumerable: false,
+  writable: false,
+  value: Object.freeze({ snapshot }),
+});
+
 async function createEngine() {
   state.webgpuSupported = Boolean(await WebGPUEngine.IsSupportedAsync);
   if (state.webgpuSupported) {
@@ -95,19 +115,6 @@ async function createScene(engine) {
 try {
   const engine = await createEngine();
   const scene = await createScene(engine);
-
-  window.__BYJTT_BENCHMARK__ = Object.freeze({
-    snapshot: () => Object.freeze({
-      'runtime.ready': state.ready,
-      'renderer.backend': state.backend,
-      'renderer.webgpu_supported': state.webgpuSupported,
-      'physics.havok_ready': state.havokReady,
-      'physics.plugin_version': state.havokPluginVersion,
-      'startup.ms': state.startupMs,
-      'render.frames': state.renderFrames,
-      'runtime.errors': [...state.errors],
-    }),
-  });
 
   state.ready = true;
   state.startupMs = Math.round((performance.now() - startedAt) * 100) / 100;
