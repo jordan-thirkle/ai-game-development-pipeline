@@ -29,9 +29,9 @@
     {"id":"ev-preflight","type":"document","label":"Benchmark 001 candidate preflight","status":"current","uri":"experiments/BYJTT-LAB-001/preflight-2026-08-19.md","revision":"8c261b45deb34d331db58c52b4a7071653e4a2f7","capturedAt":"2026-08-19T00:41:04+01:00"},
     {"id":"ev-baseline","type":"document","label":"Shared gameplay baseline contract","status":"current","uri":"experiments/BYJTT-LAB-001/shared/contract.json","revision":"1f5dfcedac236524e00082ff00118c782264104b","capturedAt":"2026-08-19T00:41:04+01:00"},
     {"id":"ev-provenance","type":"provenance","label":"Shared asset provenance ledger","status":"current","uri":"experiments/BYJTT-LAB-001/shared/provenance.json","revision":"1c47fc5c9ea6941dcee9b4146b4fb0f093306084","capturedAt":"2026-08-19T00:41:04+01:00"},
-    {"id":"ev-playcanvas-tracer","type":"runtime","label":"PlayCanvas tracer browser proof","status":"current","uri":"github-actions:32212343706/artifact/9351178495","revision":"7a486b74748a1fe2d1a9c548b05de4a134d73de5","capturedAt":"2026-08-19T04:30:32+01:00"},
-    {"id":"ev-three-phase-a","type":"runtime","label":"Three.js/WebGPU Phase A execution","status":"current","uri":"experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md","revision":"integrated-main","capturedAt":"2026-08-19T05:00:00+01:00"},
-    {"id":"ev-babylon-phase-a","type":"runtime","label":"Babylon.js 13-step hosted-browser execution","status":"verification","uri":"github-actions:32213971781/artifact/9351705372","revision":"c7b3115dff72c198c9c4c1c6a4fc4fcb511c96d0","capturedAt":"2026-08-19T04:58:00+01:00"}
+    {"id":"ev-playcanvas-tracer","type":"test","label":"PlayCanvas tracer browser proof","status":"current","uri":"github-actions:32212343706/artifact/9351178495","revision":"7a486b74748a1fe2d1a9c548b05de4a134d73de5","capturedAt":"2026-08-19T04:30:32+01:00"},
+    {"id":"ev-three-phase-a","type":"benchmark","label":"Three.js/WebGPU Phase A execution","status":"current","uri":"experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md","revision":"integrated-main","capturedAt":"2026-08-19T05:00:00+01:00"},
+    {"id":"ev-babylon-phase-a","type":"benchmark","label":"Babylon.js 13-step hosted-browser execution","status":"current","uri":"github-actions:32213971781/artifact/9351705372","revision":"c7b3115dff72c198c9c4c1c6a4fc4fcb511c96d0","capturedAt":"2026-08-19T04:58:00+01:00"}
   ],
   "builds":[]
 }
