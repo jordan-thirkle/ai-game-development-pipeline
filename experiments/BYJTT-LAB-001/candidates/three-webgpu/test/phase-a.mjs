@@ -66,6 +66,16 @@ async function sprint(code, ms) {
   await page.keyboard.up('ShiftLeft');
 }
 
+async function sprintAxes(codes, ms) {
+  const active = [...new Set(codes.filter(Boolean))];
+  if (!active.length) return;
+  await page.keyboard.down('ShiftLeft');
+  for (const code of active) await page.keyboard.down(code);
+  await page.waitForTimeout(ms);
+  for (const code of active.reverse()) await page.keyboard.up(code);
+  await page.keyboard.up('ShiftLeft');
+}
+
 async function attack(count = 1) {
   for (let i = 0; i < count; i++) {
     await page.keyboard.press('Space');
@@ -93,11 +103,10 @@ async function moveToward(targetX, targetZ, tolerance = 1.35, maxSteps = 30, sto
 
     const axisX = Math.abs(dx) >= 0.25 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
     const axisZ = Math.abs(dz) >= 0.25 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
-    if (axisX) await sprint(axisX, Math.min(280, Math.max(90, Math.abs(dx) / 5.5 * 1000)));
+    const duration = Math.min(260, Math.max(80, Math.max(Math.abs(dx), Math.abs(dz)) / 5.5 * 1000));
+    await sprintAxes([axisX, axisZ], duration);
     current = await snapshot();
     if (stopPredicate?.(current)) return current;
-    if (!current['player.alive']) continue;
-    if (axisZ) await sprint(axisZ, Math.min(280, Math.max(90, Math.abs(dz) / 5.5 * 1000)));
   }
   throw new Error(`Could not reach target (${targetX}, ${targetZ}) with normal movement; final=${JSON.stringify(await snapshot())}`);
 }
@@ -116,11 +125,8 @@ async function moveTowardEnemy(tolerance = 1.45, maxSteps = 30) {
 
     const axisX = Math.abs(dx) >= 0.25 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
     const axisZ = Math.abs(dz) >= 0.25 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
-    if (axisX) await sprint(axisX, Math.min(240, Math.max(80, Math.abs(dx) / 5.5 * 1000)));
-    current = await snapshot();
-    if (!current['enemy.alive']) return current;
-    if (!current['player.alive']) continue;
-    if (axisZ) await sprint(axisZ, Math.min(240, Math.max(80, Math.abs(dz) / 5.5 * 1000)));
+    const duration = Math.min(220, Math.max(70, Math.max(Math.abs(dx), Math.abs(dz)) / 5.5 * 1000));
+    await sprintAxes([axisX, axisZ], duration);
   }
   throw new Error(`Could not reach moving enemy with normal movement; final=${JSON.stringify(await snapshot())}`);
 }
