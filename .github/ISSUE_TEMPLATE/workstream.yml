@@ -1,0 +1,107 @@
+name: Agent workstream
+description: Claim a bounded ChatGPT/Codex/engine workstream before implementation
+title: "Workstream: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when an agent/session needs to own a bounded implementation or research lane. Read `docs/MULTI-AGENT-OPERATING-MODEL.md` first. GitHub is canonical state; chat history is not.
+  - type: input
+    id: parent
+    attributes:
+      label: Parent issue / program map
+      description: Link the authoritative parent issue, benchmark, game, or program map.
+      placeholder: "#2 / #10"
+    validations:
+      required: true
+  - type: input
+    id: session
+    attributes:
+      label: Session / workstream ID
+      description: Unique human-readable identifier for this worker/session.
+      placeholder: "codex-three-webgpu-2026-08-19-a"
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Bounded objective
+      description: State the executable outcome. If this is still vague, do not claim implementation yet.
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      placeholder: "benchmark/001-three-webgpu"
+    validations:
+      required: true
+  - type: input
+    id: base
+    attributes:
+      label: Base / dependency
+      description: Current main SHA, branch, or dependency PR this work is based on.
+      placeholder: "main @ <sha> / stacked on PR #..."
+    validations:
+      required: true
+  - type: textarea
+    id: owned
+    attributes:
+      label: Owned paths
+      description: Files/subtrees this workstream may intentionally modify.
+      placeholder: "experiments/BYJTT-LAB-001/candidates/three-webgpu/**"
+    validations:
+      required: true
+  - type: textarea
+    id: avoided
+    attributes:
+      label: Avoided / concurrently owned paths
+      description: Known hotspots or paths owned by other live workstreams.
+      placeholder: "shared/**; apps/studio/**"
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies / concurrent PRs inspected
+      description: Link dependencies and list open PRs checked for path/outcome overlap.
+      placeholder: "Depends on #34; inspected PR #8"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Primary execution environment
+      options:
+        - ChatGPT + GitHub
+        - Codex / local execution
+        - Codex + browser automation
+        - Engine/editor runtime tooling
+        - Simulator/emulator/device
+        - CI/release environment
+        - Mixed / specify below
+    validations:
+      required: true
+  - type: textarea
+    id: environment_notes
+    attributes:
+      label: Environment notes
+      description: Explain the mixed/specialised environment or why this environment can prove the requested outcome.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required completion evidence
+      description: Tests, builds, runtime captures, profiler/device evidence, cited research, records, or other proof required before completion.
+    validations:
+      required: true
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I reloaded live repository/issue/PR state before claiming this work.
+          required: true
+        - label: I checked for meaningful unstacked path/outcome overlap with active work.
+          required: true
+        - label: The objective, ownership, dependencies, environment, and evidence plan are clear enough to transition to execution now.
+          required: true
