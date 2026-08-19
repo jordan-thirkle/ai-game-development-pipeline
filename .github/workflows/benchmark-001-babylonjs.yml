@@ -1,0 +1,49 @@
+name: Benchmark 001 Babylon Phase A
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  phase-a-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Record execution environment
+        run: |
+          mkdir -p artifacts/phase-a
+          {
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version || true)"
+            echo "github_sha=$GITHUB_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+          } | tee artifacts/phase-a/environment.txt
+        env:
+          CANDIDATE_HEAD_SHA: 19004afb5a2a541ccd7bc7b95f3f0c9ce69f244e
+      - name: Install pinned candidate dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build Babylon candidate
+        run: npm run build
+      - name: Run shared Phase A playtest in Chrome
+        env:
+          CANDIDATE_HEAD_SHA: 19004afb5a2a541ccd7bc7b95f3f0c9ce69f244e
+        run: npm run test:phase-a
+      - name: Upload Phase A execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byjtt-lab-001-babylonjs-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/babylonjs/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/babylonjs/dist/**
+            experiments/BYJTT-LAB-001/candidates/babylonjs/package-lock.json
+          if-no-files-found: warn
