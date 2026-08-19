@@ -1,20 +1,25 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const baseURL=process.env.CONTROL_PLANE_URL||'http://127.0.0.1:4173/apps/studio/';
 const artifacts=process.env.BROWSER_ARTIFACTS||'artifacts/control-plane-browser';
+const fixturePath='fixtures/control-plane/BYJTT-LAB-001.json';
+const fixtureData=JSON.parse(await readFile(fixturePath,'utf8'));
 await mkdir(artifacts,{recursive:true});
 
 const browser=await chromium.launch({headless:true});
 const failures=[];
 const record=(name,fn)=>fn().then(()=>console.log(`PASS ${name}`)).catch(error=>{failures.push(`${name}: ${error.message}`);console.error(`FAIL ${name}: ${error.message}`)});
 
-async function open(viewport){
+async function open(viewport,overrideFixture=null){
   const page=await browser.newPage({viewport});
   const consoleErrors=[];
   page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});
   page.on('pageerror',error=>consoleErrors.push(error.message));
+  if(overrideFixture){
+    await page.route('**/fixtures/control-plane/BYJTT-LAB-001.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(overrideFixture)}));
+  }
   const response=await page.goto(baseURL,{waitUntil:'networkidle'});
   assert(response?.ok(),`HTTP ${response?.status()}`);
   await page.waitForSelector('#name');
@@ -24,7 +29,7 @@ async function open(viewport){
 
 await record('desktop page load and console',async()=>{
   const {page,consoleErrors}=await open({width:1440,height:900});
-  assert.equal(await page.locator('#name').textContent(),'Mobile 3D Action Slice');
+  assert.equal(await page.locator('#name').textContent(),fixtureData.project.name);
   assert.deepEqual(consoleErrors,[]);
   await page.screenshot({path:`${artifacts}/desktop-overview.png`,fullPage:true});
   await page.close();
@@ -62,13 +67,40 @@ await record('workstream coordination is legible',async()=>{
   await page.locator('[data-view="workstreams"]').click();
   const cards=page.locator('#workstream-list .item');
   assert((await cards.count())>0,'no projected workstreams rendered');
-  const fixture=await page.evaluate(async()=>fetch('../../fixtures/control-plane/BYJTT-LAB-001.json',{cache:'no-store'}).then(r=>r.json()));
-  const expected=fixture.workstreams[0];
+  const expected=fixtureData.workstreams[0];
   const text=await cards.first().textContent();
   assert(text.includes(expected.branch),`missing current branch ${expected.branch}`);
   assert(text.includes(expected.environment),`missing current environment ${expected.environment}`);
   assert(text.includes('next:'),'missing next-safe-action label');
   assert(text.includes(expected.nextSafeAction),`missing current next safe action`);
+  await page.close();
+});
+
+await record('hostile fixture content is inert and unsafe launch URLs are rejected',async()=>{
+  const hostile=structuredClone(fixtureData);
+  hostile.project.name='<img id="fixture-xss" src=x onerror="window.__fixtureXss=1">';
+  hostile.project.latestBuildId='hostile-build';
+  hostile.builds=[{id:'hostile-build',label:'Unsafe <b>build</b>',status:'ready',target:'web',revision:'hostile-r1',launchUri:'javascript:window.__fixtureXss=2',evidenceIds:[]}];
+  const {page,consoleErrors}=await open({width:1280,height:800},hostile);
+  assert.equal(await page.locator('#name').textContent(),hostile.project.name,'hostile project name was not rendered literally');
+  assert.equal(await page.locator('#fixture-xss').count(),0,'fixture markup became executable DOM');
+  await page.locator('[data-view="playtest"]').click();
+  assert.equal(await page.locator('#playtest-copy a').count(),0,'unsafe launch URL became a clickable link');
+  assert.match(await page.locator('#playtest-copy').textContent(),/launch URL is not permitted/i);
+  assert.equal(await page.evaluate(()=>window.__fixtureXss),undefined,'hostile fixture code executed');
+  assert.deepEqual(consoleErrors,[]);
+  await page.close();
+});
+
+await record('reload re-fetches canonical state predictably',async()=>{
+  const {page,consoleErrors}=await open({width:1280,height:800});
+  const nextResponse=page.waitForResponse(response=>response.url().includes('/fixtures/control-plane/BYJTT-LAB-001.json')&&response.request().resourceType()==='fetch');
+  await page.locator('#reload').click();
+  const response=await nextResponse;
+  assert.equal(response.ok(),true,'reload fixture request failed');
+  await page.waitForFunction(expected=>document.querySelector('#name')?.textContent===expected,fixtureData.project.name);
+  assert.equal(await page.locator('#name').textContent(),fixtureData.project.name);
+  assert.deepEqual(consoleErrors,[]);
   await page.close();
 });
 
