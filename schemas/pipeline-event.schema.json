@@ -1,16 +1,20 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://byjtt.com/schemas/pipeline-event.schema.json",
-  "title": "Pipeline Event",
-  "type": "object",
-  "required": ["schemaVersion", "id", "type", "occurredAt", "projectId", "actor", "correlationId"],
-  "properties": {
-    "schemaVersion": {"type": "string"}, "id": {"type": "string", "minLength": 1},
-    "type": {"enum": ["work.created", "work.claimed", "work.released", "work.blocked", "research.completed", "decision.proposed", "decision.accepted", "implementation.changed", "build.ready", "build.failed", "qa.passed", "qa.failed", "human.verdict", "component.promoted", "release.shipped", "incident.detected", "recovery.attempted", "coordination.conflict"]},
-    "occurredAt": {"type": "string", "format": "date-time"}, "projectId": {"type": "string", "minLength": 1}, "workUnitId": {"type": ["string", "null"]}, "stageId": {"type": ["string", "null"]},
-    "actor": {"type": "object", "required": ["kind", "id"], "properties": {"kind": {"enum": ["human", "agent", "system"]}, "id": {"type": "string"}, "role": {"type": ["string", "null"]}}, "additionalProperties": false},
-    "repositoryRevision": {"type": ["string", "null"]}, "evidenceIds": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "correlationId": {"type": "string", "minLength": 1}, "causationId": {"type": ["string", "null"]}, "idempotencyKey": {"type": ["string", "null"]}, "payload": {"type": "object"}
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://byjtt.com/schemas/pipeline-event.schema.json",
+  "title":"Pipeline Event",
+  "type":"object",
+  "required":["schemaVersion","id","type","occurredAt","projectId","actor","correlationId"],
+  "properties":{
+    "schemaVersion":{"type":"string"},"id":{"type":"string","minLength":1},
+    "type":{"enum":["work.created","work.claimed","work.released","work.blocked","research.completed","decision.proposed","decision.accepted","implementation.changed","build.ready","build.failed","qa.passed","qa.failed","human.verdict","component.promoted","release.shipped","incident.detected","recovery.attempted","coordination.conflict"]},
+    "occurredAt":{"type":"string","format":"date-time"},"projectId":{"type":"string","minLength":1},"workUnitId":{"type":["string","null"]},"stageId":{"type":["string","null"]},
+    "actor":{"type":"object","required":["kind","id"],"properties":{"kind":{"enum":["human","agent","system"]},"id":{"type":"string"},"role":{"type":["string","null"]}},"additionalProperties":false},
+    "repositoryRevision":{"type":["string","null"]},"evidenceIds":{"type":"array","items":{"type":"string"},"uniqueItems":true},
+    "correlationId":{"type":"string","minLength":1},"causationId":{"type":["string","null"]},"idempotencyKey":{"type":["string","null"]},"payload":{"type":"object"}
   },
-  "additionalProperties": false
+  "allOf":[
+    {"if":{"properties":{"type":{"const":"work.claimed"}},"required":["type"]},"then":{"required":["payload"],"properties":{"payload":{"type":"object","required":["leaseId"],"properties":{"leaseId":{"type":"string","minLength":1}},"additionalProperties":true}}}},
+    {"if":{"properties":{"type":{"const":"human.verdict"}},"required":["type"]},"then":{"properties":{"actor":{"type":"object","required":["kind","id"],"properties":{"kind":{"const":"human"},"id":{"type":"string"},"role":{"type":["string","null"]}},"additionalProperties":false}}}}
+  ],
+  "additionalProperties":false
 }
