@@ -24,10 +24,18 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
-          PUSH_HEAD_SHA: ${{ github.sha }}
+          PUSH_HEAD_SHA: ${{ github.event.after }}
         run: |
+          zero='0000000000000000000000000000000000000000'
           if [ "$EVENT_NAME" = "pull_request" ]; then
             range="$PR_BASE_SHA...$PR_HEAD_SHA"
+          elif [ "$PUSH_HEAD_SHA" = "$zero" ]; then
+            echo 'Deleted ref has no resulting revision to browser-test.'
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "$PUSH_BEFORE_SHA" = "$zero" ]; then
+            empty_tree="$(git hash-object -t tree /dev/null)"
+            range="$empty_tree..$PUSH_HEAD_SHA"
           else
             range="$PUSH_BEFORE_SHA..$PUSH_HEAD_SHA"
           fi
