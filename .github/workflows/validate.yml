@@ -18,5 +18,13 @@ jobs:
         uses: actions/setup-node@v7.0.0
         with:
           node-version: '26'
+      - name: Install validation dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Validate repository
         run: npm run validate
+      - name: Validate pipeline record fixture
+        run: npm run validate:record -- pipeline-run examples/records/pipeline-run.valid.json
+      - name: Validate graduation record fixture
+        run: npm run validate:record -- game-graduation examples/records/game-graduation.valid.json
+      - name: Exercise graduation gate
+        run: npm run gate:graduation -- examples/records/game-graduation.valid.json

@@ -14,6 +14,10 @@ const requiredFiles = [
   'workflows/commercial-game-lifecycle.md',
   'schemas/pipeline-run.schema.json',
   'schemas/game-graduation.schema.json',
+  'tools/validate-record.mjs',
+  'tools/check-graduation-gate.mjs',
+  'examples/records/pipeline-run.valid.json',
+  'examples/records/game-graduation.valid.json',
   'experiments/BYJTT-LAB-001/spec.md',
   'experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
   'experiments/BYJTT-LAB-001/shared/contract.json',
@@ -47,6 +51,21 @@ for (const schemaPath of [
   } catch (error) {
     failures.push(`Unable to parse ${schemaPath}: ${error.message}`);
   }
+}
+
+try {
+  const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+  if (packageJson.dependencies?.ajv !== '8.20.0') {
+    failures.push('Ajv must remain pinned to the verified 8.20.0 baseline until deliberately upgraded');
+  }
+  if (packageJson.dependencies?.['ajv-formats'] !== '2.1.1') {
+    failures.push('ajv-formats must remain pinned to the verified 2.1.1 stable baseline until deliberately upgraded');
+  }
+  for (const script of ['validate:record', 'gate:graduation']) {
+    if (!packageJson.scripts?.[script]) failures.push(`package.json requires ${script} script`);
+  }
+} catch (error) {
+  failures.push(`Unable to validate package.json lifecycle tooling: ${error.message}`);
 }
 
 try {
@@ -137,4 +156,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Repository structure, lifecycle contracts, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
+console.log('Repository structure, lifecycle tooling, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
