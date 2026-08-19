@@ -103,6 +103,21 @@ test('maintenance requires dated dependency and platform reviews', () => {
   assert.ok(outcome.blockers.includes('Platform review date is missing.'));
 });
 
+test('maintenance can pass with paused releases once maintenance evidence is current', () => {
+  const candidate = record({
+    lifecycleStage: 'liveops',
+    releases: [{ platform: 'web', channel: 'production', status: 'paused', version: '1.4.0', buildId: 'build-14', releasedAt: '2026-08-01T09:00:00Z' }],
+    maintenance: {
+      ...record().maintenance,
+      lastDependencyReview: '2026-08-18',
+      lastPlatformReview: '2026-08-18'
+    }
+  });
+  const outcome = evaluateLifecycleStatus(candidate, 'maintenance');
+  assert.equal(outcome.result, 'pass');
+  assert.deepEqual(outcome.blockers, []);
+});
+
 test('retirement requires every release to be paused or retired', () => {
   const candidate = record({ lifecycleStage: 'maintenance' });
   const outcome = evaluateLifecycleStatus(candidate, 'retirement');
