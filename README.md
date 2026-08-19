@@ -30,10 +30,10 @@ Its job is to improve or challenge the pipeline rather than defend previous deci
 
 - `experiments/` — benchmark specifications, implementations, and results;
 - `registry/` — candidate/verified/preferred/superseded technologies and components;
-- `docs/` — methodology, lifecycle, monetisation, production-repository, and publication contracts;
+- `docs/` — methodology, lifecycle, monetisation, and publication contracts;
 - `agents/` — durable specialist roles such as the Pipeline Governor;
 - `workflows/` — implementable recurring lifecycle workflows;
-- `schemas/` — machine-readable experiment, pipeline, graduation, and production-game contracts;
+- `schemas/` — machine-readable experiment, pipeline, and graduation contracts;
 - `audits/` — dated evidence-based reviews of the factory itself;
 - `tools/` — experiment, validation, evidence, and automation utilities;
 - `.github/` — CI, issue intake, ownership, dependency maintenance, and review rules.
@@ -57,34 +57,13 @@ No engine or tool is declared the universal winner. Results are scoped to capabi
 
 [`docs/PIPELINE.md`](docs/PIPELINE.md) defines the complete product lifecycle. [`workflows/commercial-game-lifecycle.md`](workflows/commercial-game-lifecycle.md) defines the implementable graduation/release/iteration/maintenance workflow, and [`docs/MONETIZATION-AND-LIVEOPS.md`](docs/MONETIZATION-AND-LIVEOPS.md) governs sustainable monetisation and post-launch content operations.
 
-A promising prototype must earn graduation. A published game remains owned software with observability, release, rollback, support, migration, maintenance, and eventual retirement obligations. Graduated repositories follow [`docs/GAME-REPOSITORY-CONTRACT.md`](docs/GAME-REPOSITORY-CONTRACT.md) and can expose a validated `game-status` record without copying sensitive operational data into this public lab.
+A promising prototype must earn graduation. A published game remains owned software with observability, release, rollback, support, migration, maintenance, and eventual retirement obligations.
 
 ## Measuring the factory
 
 AI-development speed must be evidenced rather than advertised. [`schemas/pipeline-run.schema.json`](schemas/pipeline-run.schema.json) captures reusable pipeline metrics including model/tool usage, human interventions, iterations, bespoke/reused work, execution evidence, quality, and outcome.
 
-Game graduation decisions use [`schemas/game-graduation.schema.json`](schemas/game-graduation.schema.json), preserving the evidence and commercial/operational reasoning behind `graduate`, `continue-research`, `hold`, or `kill` decisions. Published/production games use [`schemas/game-status.schema.json`](schemas/game-status.schema.json) for cross-game lifecycle and maintenance visibility.
-
-### Record tooling
-
-Create safe, fail-closed scaffolds instead of inventing record shapes in individual chats or agents:
-
-```bash
-npm run new:record -- pipeline-run path/to/run.json RUN-ID
-npm run new:record -- game-graduation path/to/graduation.json GAME-ID
-npm run new:record -- game-status path/to/status.json GAME-ID
-```
-
-Generated records intentionally start with blocked/continue-research/unknown state. Validate populated records with:
-
-```bash
-npm run validate:record -- pipeline-run path/to/run.json
-npm run validate:record -- game-graduation path/to/graduation.json
-npm run validate:record -- game-status path/to/status.json
-npm run gate:graduation -- path/to/graduation.json
-```
-
-Missing evidence is never treated as a pass.
+Game graduation decisions use [`schemas/game-graduation.schema.json`](schemas/game-graduation.schema.json), preserving the evidence and commercial/operational reasoning behind `graduate`, `continue-research`, `hold`, or `kill` decisions.
 
 ## Reproducibility and evidence
 
@@ -98,7 +77,7 @@ The public research contract lives in [`docs/PUBLISHING.md`](docs/PUBLISHING.md)
 
 ## Current status
 
-**Lab v1 + commercial lifecycle foundation.** Benchmark 001 preflight, shared contracts/provenance, lifecycle telemetry/graduation tooling, production-game status contracts, and safe record scaffolding are established. The next execution milestone is running instrumented competing implementations with real executable/playtest evidence.
+**Lab v1 + commercial lifecycle foundation.** The next execution milestone is implementing `BYJTT-LAB-001`, instrumenting pipeline telemetry, establishing shared source assets/evidence capture, and running the first competing implementations.
 
 ## License
 
