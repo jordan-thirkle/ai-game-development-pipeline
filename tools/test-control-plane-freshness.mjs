@@ -11,6 +11,8 @@ const cases=[
   ['boundary','2026-08-19T16:30:00+01:00',true,'fresh'],
   ['stale','2026-08-19T12:00:00+01:00',false,'stale'],
   ['invalid generatedAt','not-a-date',false,'invalid-generated-at'],
+  ['impossible calendar date','2026-02-30T20:00:00Z',false,'invalid-generated-at'],
+  ['invalid offset','2026-08-19T20:00:00+24:00',false,'invalid-generated-at'],
   ['future','2026-08-20T00:00:00+01:00',false,'future']
 ];
 for(const [name,generatedAt,ok,status] of cases){
@@ -19,6 +21,7 @@ for(const [name,generatedAt,ok,status] of cases){
   assert.equal(result.status,status,`${name} status`);
 }
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:'not-a-date'}).status,'invalid-now');
+assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:'2026-02-30T20:00:00Z'}).status,'invalid-now');
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:fixedNow,maxAgeHours:0}).status,'invalid-config');
 
 const dir=await mkdtemp(join(tmpdir(),'byjtt-freshness-'));
@@ -33,9 +36,13 @@ result=await cli('2026-08-19T12:00:00+01:00');
 assert.equal(result.status,1);assert.match(result.stderr,/stale/i);
 result=await cli('not-a-date');
 assert.equal(result.status,1);assert.match(result.stderr,/invalid generatedAt/i);
+result=await cli('2026-02-30T20:00:00Z');
+assert.equal(result.status,1);assert.match(result.stderr,/invalid generatedAt/i);
 result=await cli('2026-08-20T00:00:00+01:00');
 assert.equal(result.status,1);assert.match(result.stderr,/future/i);
 result=await cli('2026-08-19T20:00:00+01:00','not-a-date');
+assert.equal(result.status,2);assert.match(result.stderr,/invalid comparison clock/i);
+result=await cli('2026-08-19T20:00:00+01:00','2026-02-30T20:00:00Z');
 assert.equal(result.status,2);assert.match(result.stderr,/invalid comparison clock/i);
 result=await cli('2026-08-19T20:00:00+01:00',fixedNow,'0');
 assert.equal(result.status,2);assert.match(result.stderr,/max age must be a positive number/i);
