@@ -1,0 +1,16 @@
+{
+  "schemaVersion":"0.1.0",
+  "id":"EVT-WU-001-CREATED",
+  "type":"work.created",
+  "occurredAt":"2026-08-19T01:25:00+01:00",
+  "projectId":"BYJTT-LAB-001",
+  "workUnitId":"WU-BYJTT-LAB-001-ORCHESTRATION-BENCHMARK",
+  "stageId":"implement",
+  "actor":{"kind":"agent","id":"chatgpt-session","role":"Pipeline Governor"},
+  "repositoryRevision":null,
+  "evidenceIds":[],
+  "correlationId":"CORR-BYJTT-LAB-001-ORCHESTRATION",
+  "causationId":null,
+  "idempotencyKey":"work-created:WU-BYJTT-LAB-001-ORCHESTRATION-BENCHMARK",
+  "payload":{"reason":"Create a durable bounded unit for solved-system orchestration benchmarking."}
+}
