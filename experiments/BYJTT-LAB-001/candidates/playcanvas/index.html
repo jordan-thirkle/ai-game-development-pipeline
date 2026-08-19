@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#11151b" />
+  <title>BYJTT-LAB-001 · PlayCanvas Phase A</title>
+</head>
+<body>
+  <main id="app-shell">
+    <canvas id="application" aria-label="Mobile 3D action benchmark"></canvas>
+    <section id="hud" aria-live="polite">
+      <div class="topbar">
+        <span id="status">Booting PlayCanvas…</span>
+        <span id="health">HP 100</span>
+      </div>
+      <button id="start" type="button">Enter gameplay</button>
+      <div id="touch" aria-label="Touch controls">
+        <div class="move-pad">
+          <button data-move="forward" aria-label="Move forward">▲</button>
+          <div>
+            <button data-move="left" aria-label="Move left">◀</button>
+            <button data-move="back" aria-label="Move backward">▼</button>
+            <button data-move="right" aria-label="Move right">▶</button>
+          </div>
+        </div>
+        <button id="attack" type="button">Attack</button>
+      </div>
+      <p id="help">WASD / arrows · drag to orbit · Space to attack</p>
+    </section>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
