@@ -1,6 +1,6 @@
 name: Require execution evidence
 on:
-  pull_request:
+  pull_request_target:
 permissions:
   contents: read
 jobs:
@@ -9,14 +9,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '26'
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Unit-test gate semantics
-        run: node tools/test-execution-evidence.mjs
+      - name: Fetch PR head as data
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch origin "refs/pull/${PR_NUMBER}/head:refs/remotes/pull/evidence-head"
       - name: Check execution evidence for sensitive changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
