@@ -36,7 +36,9 @@ const heldMovementKeys = new Set();
 let page = null;
 let browser = null;
 let context = null;
+let cdp = null;
 let tracingStarted = false;
+let feedbackBeforeRestart = null;
 
 function result(id, status, observation = {}, evidence = [], notes = []) {
   results.push({ id, status, observations: observation, evidence, notes });
@@ -187,6 +189,7 @@ async function breakSalvageThroughGameplay(maxAttempts = 4) {
 async function writeEvidence(extraFailure = null) {
   const finalSnapshot = await snapshot().catch(() => null);
   if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
+  const feedbackSource = feedbackBeforeRestart || finalSnapshot;
   const evidence = {
     contract_version: 1,
     scenario_id: 'mobile-action-slice-v1',
@@ -204,13 +207,13 @@ async function writeEvidence(extraFailure = null) {
       simulation_steps: finalSnapshot?.['simulation.steps'] ?? null,
       dropped_simulation_seconds: finalSnapshot?.['simulation.dropped_seconds'] ?? null,
     },
-    feedback: {
-      vfx_events: finalSnapshot?.['feedback.vfx_events'] ?? null,
-      hit_reactions: finalSnapshot?.['feedback.hit_reactions'] ?? null,
-      audio_supported: finalSnapshot?.['audio.supported'] ?? null,
-      audio_events: finalSnapshot?.['audio.events'] ?? null,
-      audio_context_state: finalSnapshot?.['audio.context_state'] ?? null,
-      audio_failures: finalSnapshot?.['audio.failures'] ?? [],
+    feedback_before_restart: {
+      vfx_events: feedbackSource?.['feedback.vfx_events'] ?? null,
+      hit_reactions: feedbackSource?.['feedback.hit_reactions'] ?? null,
+      audio_supported: feedbackSource?.['audio.supported'] ?? null,
+      audio_events: feedbackSource?.['audio.events'] ?? null,
+      audio_context_state: feedbackSource?.['audio.context_state'] ?? null,
+      audio_failures: feedbackSource?.['audio.failures'] ?? [],
     },
     capture: {
       trace: 'phase-a-trace.zip',
@@ -240,6 +243,7 @@ try {
   await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
   tracingStarted = true;
   page = await context.newPage();
+  cdp = await context.newCDPSession(page);
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('pageerror', (error) => consoleErrors.push(error.stack || error.message));
 
@@ -281,12 +285,15 @@ try {
 
   const touchBefore = current['player.position'];
   const touchRight = page.locator('[data-hold="KeyD"]');
-  await touchRight.dispatchEvent('pointerdown', { pointerId: 17, pointerType: 'touch', isPrimary: true, buttons: 1 });
+  const touchBox = await touchRight.boundingBox();
+  if (!touchBox) throw new Error('Touch movement control has no bounding box');
+  const touchPoint = { x: touchBox.x + touchBox.width / 2, y: touchBox.y + touchBox.height / 2 };
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchPoint] });
   await page.waitForTimeout(320);
   const touchDuring = await snapshot();
-  await touchRight.dispatchEvent('pointerup', { pointerId: 17, pointerType: 'touch', isPrimary: true, buttons: 0 });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   const touchMoved = Math.hypot(touchDuring['player.position'].x - touchBefore.x, touchDuring['player.position'].z - touchBefore.z);
-  observations.push({ touchMovementMetres: touchMoved, touchAnimation: touchDuring['player.animation_state'] });
+  observations.push({ touchMovementMetres: touchMoved, touchAnimation: touchDuring['player.animation_state'], touchPoint });
   if (touchMoved <= 0.35) failures.push(`touch movement did not move player enough: ${touchMoved}`);
 
   await page.keyboard.press('ArrowLeft');
@@ -371,6 +378,17 @@ try {
   result('11-save-state', current['save.schema_version'] === 1 && current['reward.count'] === 1 && current['upgrade.selected_ids'].includes('damage-up-1') ? 'pass' : 'fail', {
     saveSchemaVersion: current['save.schema_version'], rewardCount: current['reward.count'], upgrades: current['upgrade.selected_ids'],
   });
+  feedbackBeforeRestart = current;
+  observations.push({
+    feedbackBeforeRestart: {
+      vfxEvents: current['feedback.vfx_events'],
+      hitReactions: current['feedback.hit_reactions'],
+      audioSupported: current['audio.supported'],
+      audioEvents: current['audio.events'],
+      audioContextState: current['audio.context_state'],
+      audioFailures: current['audio.failures'],
+    },
+  });
   await page.screenshot({ path: path.join(artifacts, '11-save-state.png'), fullPage: true });
 
   const restartAt = Date.now();
@@ -409,11 +427,11 @@ try {
     failures.push(`mobile controls/layout: buttons=${touchButtons}, viewport=${JSON.stringify(viewport)}`);
   }
   if (!mutationIsolation) failures.push('snapshot mutation affected later observations');
-  if (!current['audio.supported'] || current['audio.events'] < 1 || current['audio.failures'].length) {
-    failures.push(`audio feedback unavailable or failed: supported=${current['audio.supported']} events=${current['audio.events']} failures=${JSON.stringify(current['audio.failures'])}`);
+  if (!feedbackBeforeRestart?.['audio.supported'] || feedbackBeforeRestart['audio.events'] < 1 || feedbackBeforeRestart['audio.failures'].length) {
+    failures.push(`audio feedback unavailable or failed before restart: supported=${feedbackBeforeRestart?.['audio.supported']} events=${feedbackBeforeRestart?.['audio.events']} failures=${JSON.stringify(feedbackBeforeRestart?.['audio.failures'] ?? [])}`);
   }
-  if (current['feedback.vfx_events'] < 1 || current['feedback.hit_reactions'] < 1) {
-    failures.push(`visual feedback evidence missing: vfx=${current['feedback.vfx_events']} hitReactions=${current['feedback.hit_reactions']}`);
+  if ((feedbackBeforeRestart?.['feedback.vfx_events'] ?? 0) < 1 || (feedbackBeforeRestart?.['feedback.hit_reactions'] ?? 0) < 1) {
+    failures.push(`visual feedback evidence missing before restart: vfx=${feedbackBeforeRestart?.['feedback.vfx_events']} hitReactions=${feedbackBeforeRestart?.['feedback.hit_reactions']}`);
   }
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
 
