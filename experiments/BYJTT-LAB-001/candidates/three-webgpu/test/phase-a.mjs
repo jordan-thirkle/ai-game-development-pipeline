@@ -150,7 +150,6 @@ try {
   current = await snapshot();
   result('04-exercise-camera', current['player.alive'] ? 'pass' : 'fail', { playerStillControllable: current['player.alive'] }, [], ['Camera response is captured in browser screenshots; progression state remained intact.']);
 
-  // Normal input only. Do not assume a fixed wall-clock duration maps to a fixed distance across real runtimes.
   for (let attempt = 0; attempt < 12; attempt++) {
     current = await snapshot();
     if (current['enemy.target_state'] === 'acquired') break;
@@ -160,12 +159,13 @@ try {
   const acquireDistance = Math.hypot(current['enemy.position'].x - current['player.position'].x, current['enemy.position'].z - current['player.position'].z);
   result('05-acquire-enemy', current['enemy.target_state'] === 'acquired' ? 'pass' : 'fail', { acquireDistance, enemy: current['enemy.position'], player: current['player.position'] });
 
-  current = await waitFor((s) => s['player.health'] < 100, 'enemy damage', 8000);
+  // Move through the normal player controller into combat range instead of coupling success to headless render cadence.
+  await moveToward(current['enemy.position'].x, current['enemy.position'].z, 1.35, 24);
+  current = await waitFor((s) => s['player.health'] < 100, 'enemy damage', 3500);
   const playerHealthAfterEnemy = current['player.health'];
-  await waitFor((s) => Math.hypot(s['enemy.position'].x - s['player.position'].x, s['enemy.position'].z - s['player.position'].z) <= 1.8, 'enemy melee range', 5000);
-  const enemyBeforeHit = (await snapshot())['enemy.health'];
+  const enemyBeforeHit = current['enemy.health'];
   await attack(1);
-  current = await waitFor((s) => s['enemy.health'] < enemyBeforeHit, 'player damage to enemy');
+  current = await waitFor((s) => s['enemy.health'] < enemyBeforeHit, 'player damage to enemy', 3500);
   result('06-exchange-damage', current['player.health'] < 100 && current['enemy.health'] < 100 && current['player.health'] >= 0 && current['enemy.health'] >= 0 ? 'pass' : 'fail', { playerHealthAfterEnemy, playerHealth: current['player.health'], enemyHealth: current['enemy.health'] });
 
   await moveToward(5, 0, 1.25);
