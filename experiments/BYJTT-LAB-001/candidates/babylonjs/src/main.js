@@ -176,12 +176,16 @@ function distanceXZ(a, b) {
   return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
-function playTone(frequency, duration = 0.065) {
+async function playTone(frequency, duration = 0.065) {
   const AudioCtor = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtor) return;
   try {
     if (!audioContext) audioContext = new AudioCtor();
-    if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    if (audioContext.state !== 'running') {
+      runtime.audioFailures.push(`audio context not running: ${audioContext.state}`);
+      return;
+    }
     const now = audioContext.currentTime;
     const oscillator = audioContext.createOscillator();
     const gain = audioContext.createGain();
@@ -322,14 +326,14 @@ function attack() {
   if (salvageDistance <= CONTRACT.player.attackRange && salvageDistance <= enemyDistance) {
     state.salvage.health = Math.max(0, state.salvage.health - effectiveAttackDamage());
     spawnImpact(salvageMesh.position, new Color3(1, 0.72, 0.22));
-    playTone(230);
+    void playTone(230);
     if (state.salvage.health <= 0) {
       state.salvage.broken = true;
       salvageMesh.setEnabled(false);
       state.reward.available = true;
       rewardMesh.setEnabled(true);
       spawnImpact(salvageMesh.position, new Color3(1, 0.9, 0.28));
-      playTone(360, 0.1);
+      void playTone(360, 0.1);
     }
     return;
   }
@@ -339,12 +343,12 @@ function attack() {
     state.enemy.hitReaction = 0.16;
     runtime.hitReactions += 1;
     spawnImpact(state.enemy.position, new Color3(1, 0.3, 0.18));
-    playTone(190);
+    void playTone(190);
     if (state.enemy.health <= 0) {
       state.enemy.alive = false;
       state.enemy.targetState = 'dead';
       enemyMesh.setEnabled(false);
-      playTone(120, 0.12);
+      void playTone(120, 0.12);
     }
   }
 }
@@ -358,7 +362,7 @@ function collectRewardIfClose() {
     state.upgrade.menuVisible = true;
     upgradeEl.hidden = false;
     spawnImpact(rewardMesh.position, new Color3(0.35, 1, 0.4));
-    playTone(520, 0.1);
+    void playTone(520, 0.1);
   }
 }
 
@@ -368,7 +372,7 @@ function chooseDamageUpgrade() {
   state.upgrade.menuVisible = false;
   upgradeEl.hidden = true;
   spawnImpact(state.player.position, new Color3(0.3, 0.7, 1));
-  playTone(660, 0.12);
+  void playTone(660, 0.12);
 }
 
 function saveProgress() {
@@ -501,7 +505,7 @@ function updateEnemy(dt) {
       runtime.hitReactions += 1;
       state.player.health = Math.max(0, state.player.health - CONTRACT.enemy.attackDamage);
       spawnImpact(state.player.position, new Color3(0.35, 0.65, 1));
-      playTone(145);
+      void playTone(145);
       if (state.player.health <= 0) {
         state.player.alive = false;
         state.player.animationState = 'dead';
