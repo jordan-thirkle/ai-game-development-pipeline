@@ -1,5 +1,30 @@
 export const DEFAULT_CONTROL_PLANE_MAX_AGE_HOURS=6;
 
+const RFC3339=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
+
+function parseStrictTimestamp(value){
+  if(typeof value!=='string') return NaN;
+  const match=RFC3339.exec(value);
+  if(!match) return NaN;
+  const [,yearText,monthText,dayText,hourText,minuteText,secondText,,offset]=match;
+  const year=Number(yearText),month=Number(monthText),day=Number(dayText);
+  const hour=Number(hourText),minute=Number(minuteText),second=Number(secondText);
+  if(month<1||month>12||hour>23||minute>59||second>59) return NaN;
+  const calendarCheck=new Date(Date.UTC(year,month-1,day));
+  if(
+    calendarCheck.getUTCFullYear()!==year||
+    calendarCheck.getUTCMonth()!==month-1||
+    calendarCheck.getUTCDate()!==day
+  ) return NaN;
+  if(offset!=='Z'){
+    const offsetHour=Number(offset.slice(1,3));
+    const offsetMinute=Number(offset.slice(4,6));
+    if(offsetHour>23||offsetMinute>59) return NaN;
+  }
+  const parsed=Date.parse(value);
+  return Number.isFinite(parsed)?parsed:NaN;
+}
+
 export function evaluateControlPlaneFreshness(state,{now=Date.now(),maxAgeHours=DEFAULT_CONTROL_PLANE_MAX_AGE_HOURS}={}){
   const limit=Number(maxAgeHours);
   if(!Number.isFinite(limit)||limit<=0){
@@ -7,12 +32,12 @@ export function evaluateControlPlaneFreshness(state,{now=Date.now(),maxAgeHours=
   }
 
   const generatedAtInput=state?.generatedAt;
-  const generatedAt=Date.parse(generatedAtInput);
+  const generatedAt=parseStrictTimestamp(generatedAtInput);
   if(!Number.isFinite(generatedAt)){
     return {ok:false,status:'invalid-generated-at',classification:'snapshot',ageHours:null,maxAgeHours:limit,message:`has invalid generatedAt: ${generatedAtInput}`};
   }
 
-  const nowMs=typeof now==='number'?now:Date.parse(now);
+  const nowMs=typeof now==='number'?now:parseStrictTimestamp(now);
   if(!Number.isFinite(nowMs)){
     return {ok:false,status:'invalid-now',classification:'configuration',ageHours:null,maxAgeHours:limit,message:`has invalid comparison clock: ${now}`};
   }
