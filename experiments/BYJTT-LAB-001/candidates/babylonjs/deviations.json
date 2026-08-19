@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "candidate_id": "babylonjs",
+  "phase": "A-tracer",
+  "deviations": [
+    {
+      "id": "greybox-primitives",
+      "status": "temporary",
+      "reason": "Shared production assets remain a Phase B dependency; the tracer uses engine-native primitives only."
+    },
+    {
+      "id": "no-gameplay-contract-yet",
+      "status": "blocking-phase-a-pass",
+      "reason": "The current tracer validates renderer/Havok/browser boot only and does not yet implement the shared 13-step gameplay contract."
+    },
+    {
+      "id": "no-navmesh-yet",
+      "status": "intentional",
+      "reason": "The Phase A arena is unobstructed; Recast will be added only if later pathfinding evidence requires it."
+    }
+  ]
+}
