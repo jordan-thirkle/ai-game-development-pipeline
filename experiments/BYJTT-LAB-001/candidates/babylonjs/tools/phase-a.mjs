@@ -14,11 +14,18 @@ const server = spawn(process.execPath, [
 ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
 let serverLog = '';
+let serverSpawnError = null;
+server.on('error', (error) => {
+  serverSpawnError = error;
+  serverLog += `\nspawn-error: ${error.stack || error.message}`;
+});
 server.stdout.on('data', (chunk) => { serverLog += chunk.toString(); });
 server.stderr.on('data', (chunk) => { serverLog += chunk.toString(); });
 
 async function waitForServer() {
   for (let i = 0; i < 40; i += 1) {
+    if (serverSpawnError) throw new Error(`Preview server could not start: ${serverSpawnError.message}`);
+    if (server.exitCode !== null) throw new Error(`Preview server exited early with code ${server.exitCode}:\n${serverLog}`);
     try {
       const response = await fetch(URL);
       if (response.ok) return;
@@ -26,6 +33,23 @@ async function waitForServer() {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`Preview server failed to start:\n${serverLog}`);
+}
+
+async function stopServer() {
+  if (server.exitCode !== null || server.signalCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill('SIGTERM');
+  await Promise.race([
+    exited,
+    new Promise((resolve) => {
+      const timer = setTimeout(resolve, 5000);
+      timer.unref?.();
+    }),
+  ]);
+  if (server.exitCode === null && server.signalCode === null) {
+    server.kill('SIGKILL');
+    await new Promise((resolve) => server.once('exit', resolve));
+  }
 }
 
 const results = [];
@@ -105,7 +129,7 @@ async function attack(count = 1) {
 
 async function ensurePlayerAlive(label = 'normal player respawn') {
   let current = await snapshot();
-  if (!current['player.alive']) {
+  if (!current?.['player.alive']) {
     await releaseMovementIntent();
     current = await waitFor((s) => s['player.alive'] === true, label, 4000);
   }
@@ -125,6 +149,9 @@ async function driveToward(targetProvider, {
   try {
     while (Date.now() - wallStart < maxWallMs && current['elapsed_seconds'] - simulationStart < maxSimulationSeconds) {
       current = await snapshot();
+      if (!current) {
+        current = await waitFor((s) => Boolean(s), `snapshot while driving toward ${label}`, 2000);
+      }
       if (stopPredicate?.(current)) return current;
       if (!current['player.alive']) {
         current = await ensurePlayerAlive(`normal respawn while driving toward ${label}`);
@@ -165,7 +192,7 @@ async function moveTowardEnemy(tolerance = 1.45, maxSimulationSeconds = 10) {
 async function breakSalvageThroughGameplay(maxAttempts = 4) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     let current = await snapshot();
-    if (current['salvage.broken']) return current;
+    if (current?.['salvage.broken']) return current;
     await ensurePlayerAlive('normal respawn before salvage attempt');
     await moveToward(5, 0, 1.2, 12, (s) => s['salvage.broken']);
     current = await ensurePlayerAlive('normal respawn at salvage');
@@ -181,7 +208,7 @@ async function breakSalvageThroughGameplay(maxAttempts = 4) {
     } catch {
       current = await snapshot();
     }
-    if (current['salvage.broken']) return current;
+    if (current?.['salvage.broken']) return current;
   }
   throw new Error(`Could not break salvage through bounded normal gameplay; final=${JSON.stringify(await snapshot())}`);
 }
@@ -201,6 +228,7 @@ async function writeEvidence(extraFailure = null) {
     renderer: finalSnapshot?.['renderer.backend'] ?? 'unknown',
     navigator_gpu: finalSnapshot?.['renderer.navigator_gpu'] ?? null,
     havok_plugin_version: finalSnapshot?.['physics.plugin_version'] ?? null,
+    runtime_warnings: finalSnapshot?.['runtime.warnings'] ?? [],
     performance: {
       startup_ms: finalSnapshot?.['startup.ms'] ?? null,
       render_frames: finalSnapshot?.['render.frames'] ?? null,
@@ -255,7 +283,11 @@ try {
   const startupMs = Date.now() - coldStart;
   await page.screenshot({ path: path.join(artifacts, '01-cold-launch.png'), fullPage: true });
   result('01-cold-launch', current['reward.count'] === 0 && current['upgrade.selected_ids'].length === 0 ? 'pass' : 'fail', {
-    startupMs, renderer: current['renderer.backend'], navigatorGpu: current['renderer.navigator_gpu'], havok: current['physics.plugin_version'],
+    startupMs,
+    renderer: current['renderer.backend'],
+    navigatorGpu: current['renderer.navigator_gpu'],
+    havok: current['physics.plugin_version'],
+    runtimeWarnings: current['runtime.warnings'] ?? [],
   }, ['01-cold-launch.png']);
 
   current = await snapshot();
@@ -345,13 +377,16 @@ try {
   }, ['07-break-salvage.png']);
 
   current = await snapshot();
-  if (current['reward.count'] !== 1) {
-    if (!current['reward.available']) throw new Error(`Reward neither collected nor available after salvage; state=${JSON.stringify(current)}`);
-    await moveToward(5, -1.7, 0.9, 12, (s) => s['reward.count'] === 1);
-    current = await waitFor((s) => s['reward.count'] === 1, 'reward collection');
+  if (!current['reward.available']) throw new Error(`Reward not available after salvage; state=${JSON.stringify(current)}`);
+  await moveToward(5, -1.7, 0.9, 12);
+  current = await snapshot();
+  if (current['reward.count'] !== 0 || !current['reward.available']) {
+    throw new Error(`Reward changed before Interact action; state=${JSON.stringify(current)}`);
   }
+  await page.keyboard.press('KeyE');
+  current = await waitFor((s) => s['reward.count'] === 1, 'reward collection through interact action');
   result('08-collect-reward', current['reward.count'] === 1 && current['reward.available'] === false ? 'pass' : 'fail', {
-    rewardCount: current['reward.count'], rewardAvailable: current['reward.available'],
+    rewardCount: current['reward.count'], rewardAvailable: current['reward.available'], interaction: 'KeyE',
   });
 
   await waitFor((s) => s['upgrade.menu_visible'] === true, 'upgrade menu');
@@ -387,6 +422,7 @@ try {
       audioEvents: current['audio.events'],
       audioContextState: current['audio.context_state'],
       audioFailures: current['audio.failures'],
+      runtimeWarnings: current['runtime.warnings'] ?? [],
     },
   });
   await page.screenshot({ path: path.join(artifacts, '11-save-state.png'), fullPage: true });
@@ -435,6 +471,11 @@ try {
   }
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
 
+  if (context && tracingStarted) {
+    await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') });
+    tracingStarted = false;
+  }
+
   const evidence = await writeEvidence();
   if (failures.length) throw new Error(`Phase A failures:\n- ${failures.join('\n- ')}`);
   console.log(`BYJTT-LAB-001 Babylon.js Phase A passed all ${results.length} shared steps plus animation, touch, VFX, audio and observation-isolation gates.`);
@@ -451,5 +492,7 @@ try {
     });
   }
   await browser?.close();
-  server.kill('SIGTERM');
+  await stopServer().catch((error) => {
+    serverLog += `\nshutdown-error: ${error.stack || error.message}`;
+  });
 }
