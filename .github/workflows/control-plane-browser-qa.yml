@@ -1,0 +1,45 @@
+name: Control plane browser QA
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install pinned Playwright runtime
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
+          npx playwright install --with-deps chromium
+      - name: Serve repository fixture and Studio
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/control-plane-server.log 2>&1 &
+          echo $! > /tmp/control-plane-server.pid
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4173/apps/studio/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/control-plane-server.log
+          exit 1
+      - name: Run direct browser QA
+        env:
+          CONTROL_PLANE_URL: http://127.0.0.1:4173/apps/studio/
+          BROWSER_ARTIFACTS: artifacts/control-plane-browser
+        run: node tools/test-control-plane-browser.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-plane-browser-${{ github.run_id }}
+          path: |
+            artifacts/control-plane-browser/**
+            /tmp/control-plane-server.log
+          if-no-files-found: warn
