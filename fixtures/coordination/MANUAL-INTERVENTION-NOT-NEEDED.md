@@ -1,0 +1,1 @@
+Repeated internal tool-selection mistakes should be recovered by the worker without asking the human to manage the workflow. The correct recovery is to stop mutation and perform the required integration action.
