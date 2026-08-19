@@ -17,6 +17,7 @@ async function open(viewport,overrideFixture=null){
   const consoleErrors=[];
   page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});
   page.on('pageerror',error=>consoleErrors.push(error.message));
+  await page.route('**/favicon.ico',route=>route.fulfill({status:204,body:''}));
   if(overrideFixture){
     await page.route('**/fixtures/control-plane/BYJTT-LAB-001.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(overrideFixture)}));
   }
