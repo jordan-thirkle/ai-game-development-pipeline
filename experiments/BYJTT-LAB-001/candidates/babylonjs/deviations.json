@@ -21,7 +21,12 @@
     {
       "id": "hosted-renderer-fallback",
       "status": "observed",
-      "reason": "Hosted stable Chrome exposed navigator.gpu but Babylon selected the WebGL2 fallback path during successful tracer and full Phase A execution. Real-device backend evidence remains required later."
+      "reason": "Hosted stable Chrome exposed navigator.gpu but Babylon selected the WebGL2 fallback path during successful Phase A execution. Recoverable WebGPU initialization diagnostics are recorded as warnings rather than fatal errors. Real-device backend evidence remains required later."
+    },
+    {
+      "id": "procedural-phase-a-feedback",
+      "status": "intentional-phase-a",
+      "reason": "Animation states, hit reactions, visual feedback and audio feedback are represented by deterministic procedural transforms, mesh-spark VFX and synthesized WebAudio in Phase A. Production animation clips, particles and authored audio remain Phase B asset-fidelity work."
     }
   ]
 }
