@@ -58,8 +58,45 @@ await record('blocked human gate cannot be actioned',async()=>{
 await record('no false playable build affordance',async()=>{
   const {page}=await open({width:1280,height:800});
   await page.locator('[data-view="playtest"]').click();
-  assert.match(await page.locator('#playtest-copy').textContent(),/No verified playable build/i);
   assert.equal(await page.locator('#playtest-copy a').count(),0);
+  await page.close();
+});
+
+await record('stale state stays readable but action surfaces fail closed',async()=>{
+  const stale=structuredClone(fixtureData);
+  stale.generatedAt=new Date(Date.now()-7*60*60*1000).toISOString();
+  const gate=stale.gates.find(x=>x.kind==='human');
+  gate.status='pending';
+  stale.project.latestBuildId='stale-ready';
+  stale.builds=[{id:'stale-ready',label:'Stale ready build',status:'ready',target:'web',revision:'stale-r1',launchUri:'https://example.com/play',evidenceIds:[]}];
+  const {page,consoleErrors}=await open({width:1280,height:800},stale);
+  assert.equal(await page.locator('#freshness').isVisible(),true,'stale warning is not visible');
+  assert.match(await page.locator('#freshness').textContent(),/cannot be trusted.*stale/i);
+  assert((await page.locator('#workstream-list .item').count())>0,'stale coordination state became unreadable');
+  const actions=page.locator('#gate [data-verdict]');
+  for(let i=0;i<3;i++) assert.equal(await actions.nth(i).isDisabled(),true,`stale gate button ${i} remained actionable`);
+  await page.locator('[data-view="playtest"]').click();
+  assert.equal(await page.locator('#playtest-copy a').count(),0,'stale playable build remained launchable');
+  assert.match(await page.locator('#playtest-copy').textContent(),/launch is disabled until projection refresh/i);
+  assert.deepEqual(consoleErrors,[]);
+  await page.close();
+});
+
+await record('fresh state preserves eligible gate and safe playable build',async()=>{
+  const fresh=structuredClone(fixtureData);
+  fresh.generatedAt=new Date().toISOString();
+  const gate=fresh.gates.find(x=>x.kind==='human');
+  gate.status='pending';
+  fresh.project.latestBuildId='fresh-ready';
+  fresh.builds=[{id:'fresh-ready',label:'Fresh ready build',status:'ready',target:'web',revision:'fresh-r1',launchUri:'https://example.com/play',evidenceIds:[]}];
+  const {page,consoleErrors}=await open({width:1280,height:800},fresh);
+  assert.equal(await page.locator('#freshness').isVisible(),false,'fresh warning remained visible');
+  const actions=page.locator('#gate [data-verdict]');
+  for(let i=0;i<3;i++) assert.equal(await actions.nth(i).isDisabled(),false,`fresh eligible gate button ${i} stayed disabled`);
+  await page.locator('[data-view="playtest"]').click();
+  assert.equal(await page.locator('#playtest-copy a').count(),1,'fresh safe playable build is not launchable');
+  assert.equal(await page.locator('#playtest-copy a').getAttribute('href'),'https://example.com/play');
+  assert.deepEqual(consoleErrors,[]);
   await page.close();
 });
 
@@ -79,6 +116,7 @@ await record('workstream coordination is legible',async()=>{
 
 await record('hostile fixture content is inert and unsafe launch URLs are rejected',async()=>{
   const hostile=structuredClone(fixtureData);
+  hostile.generatedAt=new Date().toISOString();
   hostile.project.name='<img id="fixture-xss" src=x onerror="window.__fixtureXss=1">';
   hostile.project.latestBuildId='hostile-build';
   hostile.builds=[{id:'hostile-build',label:'Unsafe <b>build</b>',status:'ready',target:'web',revision:'hostile-r1',launchUri:'javascript:window.__fixtureXss=2',evidenceIds:[]}];

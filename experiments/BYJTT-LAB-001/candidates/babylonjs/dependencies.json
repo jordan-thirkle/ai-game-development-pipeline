@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "candidate_id": "babylonjs",
+  "phase": "A",
+  "dependencies": [
+    {
+      "name": "@babylonjs/core",
+      "version": "9.20.0",
+      "purpose": "renderer, scene graph, cameras, meshes and Physics V2 integration",
+      "decision": "selected"
+    },
+    {
+      "name": "@babylonjs/havok",
+      "version": "1.3.14",
+      "purpose": "official Babylon Havok Web/WASM runtime for Physics V2",
+      "decision": "selected"
+    },
+    {
+      "name": "vite",
+      "version": "8.2.1",
+      "purpose": "candidate-local development and production build harness",
+      "decision": "selected"
+    },
+    {
+      "name": "playwright",
+      "version": "1.62.0",
+      "purpose": "candidate-local browser execution evidence for the shared Phase A contract",
+      "decision": "selected"
+    }
+  ],
+  "deliberate_non_additions": [
+    "React",
+    "second renderer",
+    "second physics engine",
+    "generic ECS",
+    "backend",
+    "networking",
+    "custom navigation framework"
+  ],
+  "evidence_boundary": "Versions and source decisions are provenance only until this exact candidate revision builds and executes in the browser lane."
+}
