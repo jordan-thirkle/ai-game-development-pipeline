@@ -22,15 +22,27 @@ declare global {
   }
 }
 
-const canvas = document.querySelector<HTMLCanvasElement>('#application');
-const startButton = document.querySelector<HTMLButtonElement>('#start');
-const attackButton = document.querySelector<HTMLButtonElement>('#attack');
-const statusLabel = document.querySelector<HTMLElement>('#status');
-const healthLabel = document.querySelector<HTMLElement>('#health');
-
-if (!canvas || !startButton || !attackButton || !statusLabel || !healthLabel) {
-  throw new Error('Required benchmark DOM was not found.');
+function required<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+  if (!element) throw new Error(`Required benchmark DOM missing: ${selector}`);
+  return element;
 }
+
+function frozenTuple(value: readonly number[], label: string): Vec3Tuple {
+  if (value.length !== 3 || value.some((part) => !Number.isFinite(part))) {
+    throw new Error(`${label} must be a finite 3-value tuple`);
+  }
+  return [value[0]!, value[1]!, value[2]!];
+}
+
+const canvas = required<HTMLCanvasElement>('#application');
+const startButton = required<HTMLButtonElement>('#start');
+const attackButton = required<HTMLButtonElement>('#attack');
+const statusLabel = required<HTMLElement>('#status');
+const healthLabel = required<HTMLElement>('#health');
+const playerSpawn = frozenTuple(contract.arena.player_spawn, 'player_spawn');
+const enemySpawn = frozenTuple(contract.arena.enemy_spawn, 'enemy_spawn');
+const salvageSpawn = frozenTuple(contract.arena.salvage_spawn, 'salvage_spawn');
 
 const graphicsDevice = await pc.createGraphicsDevice(canvas, {
   deviceTypes: [pc.DEVICETYPE_WEBGPU],
@@ -59,12 +71,10 @@ const state = {
   selectedUpgrades: [] as string[]
 };
 
-function makeMaterial(rgb: [number, number, number], emissive = 0): pc.StandardMaterial {
+function makeMaterial(rgb: Vec3Tuple, emissive = 0): pc.StandardMaterial {
   const material = new pc.StandardMaterial();
   material.diffuse = new pc.Color(rgb[0], rgb[1], rgb[2]);
-  if (emissive > 0) {
-    material.emissive = new pc.Color(rgb[0] * emissive, rgb[1] * emissive, rgb[2] * emissive);
-  }
+  if (emissive > 0) material.emissive = new pc.Color(rgb[0] * emissive, rgb[1] * emissive, rgb[2] * emissive);
   material.update();
   return material;
 }
@@ -78,8 +88,8 @@ function primitive(
 ): pc.Entity {
   const entity = new pc.Entity(name);
   entity.addComponent('render', { type });
-  entity.setPosition(position[0], position[1], position[2]);
-  entity.setLocalScale(scale[0], scale[1], scale[2]);
+  entity.setPosition(...position);
+  entity.setLocalScale(...scale);
   entity.render?.meshInstances.forEach((mesh) => { mesh.material = material; });
   app.root.addChild(entity);
   return entity;
@@ -97,9 +107,9 @@ primitive('Wall south', 'box', [0, 1, contract.arena.depth / 2], [contract.arena
 primitive('Wall west', 'box', [-contract.arena.width / 2, 1, 0], [0.35, 2, contract.arena.depth], wallMaterial);
 primitive('Wall east', 'box', [contract.arena.width / 2, 1, 0], [0.35, 2, contract.arena.depth], wallMaterial);
 
-const player = primitive('Player', 'capsule', [contract.arena.player_spawn[0], 1, contract.arena.player_spawn[2]], [0.8, 1.7, 0.8], playerMaterial);
-const enemy = primitive('Enemy', 'capsule', [contract.arena.enemy_spawn[0], 1, contract.arena.enemy_spawn[2]], [0.9, 1.8, 0.9], enemyMaterial);
-const salvage = primitive('Salvage', 'box', [contract.arena.salvage_spawn[0], 0.65, contract.arena.salvage_spawn[2]], [1.3, 1.3, 1.3], salvageMaterial);
+const player = primitive('Player', 'capsule', [playerSpawn[0], 1, playerSpawn[2]], [0.8, 1.7, 0.8], playerMaterial);
+const enemy = primitive('Enemy', 'capsule', [enemySpawn[0], 1, enemySpawn[2]], [0.9, 1.8, 0.9], enemyMaterial);
+const salvage = primitive('Salvage', 'box', [salvageSpawn[0], 0.65, salvageSpawn[2]], [1.3, 1.3, 1.3], salvageMaterial);
 
 const camera = new pc.Entity('Camera');
 camera.addComponent('camera', { clearColor: new pc.Color(0.035, 0.055, 0.08), farClip: 90, fov: 58 });
@@ -114,17 +124,16 @@ const fillLight = new pc.Entity('Fill light');
 fillLight.addComponent('light', { type: 'omni', color: new pc.Color(0.2, 0.45, 0.85), intensity: 2.4, range: 20 });
 fillLight.setPosition(-4, 5, 6);
 app.root.addChild(fillLight);
-
 app.scene.ambientLight = new pc.Color(0.18, 0.2, 0.24);
 
 const held = new Set<string>();
 const touchDirections = new Set<string>();
+const velocity = new pc.Vec3();
 let yaw = 0;
 let pitch = 24;
 let dragging = false;
 let lastPointerX = 0;
 let lastPointerY = 0;
-const velocity = new pc.Vec3();
 
 function setHeld(code: string, active: boolean): void {
   if (active) held.add(code);
@@ -152,7 +161,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-move]').forEach((button) => 
   button.addEventListener('pointerleave', deactivate);
 });
 
-attackButton.addEventListener('click', () => performAttack());
+attackButton.addEventListener('click', performAttack);
 canvas.addEventListener('pointerdown', (event) => {
   dragging = true;
   lastPointerX = event.clientX;
@@ -183,11 +192,7 @@ function inputAxis(): { x: number; z: number; running: boolean } {
   const right = held.has('KeyD') || held.has('ArrowRight') || touchDirections.has('right');
   const forward = held.has('KeyW') || held.has('ArrowUp') || touchDirections.has('forward');
   const back = held.has('KeyS') || held.has('ArrowDown') || touchDirections.has('back');
-  return {
-    x: Number(right) - Number(left),
-    z: Number(back) - Number(forward),
-    running: held.has('ShiftLeft') || held.has('ShiftRight')
-  };
+  return { x: Number(right) - Number(left), z: Number(back) - Number(forward), running: held.has('ShiftLeft') || held.has('ShiftRight') };
 }
 
 function distanceXZ(a: pc.Vec3, b: pc.Vec3): number {
@@ -197,15 +202,14 @@ function distanceXZ(a: pc.Vec3, b: pc.Vec3): number {
 function performAttack(): void {
   if (!state.gameplayActive || state.playerHealth <= 0) return;
   const playerPos = player.getPosition();
-  const enemyPos = enemy.getPosition();
-  const salvagePos = salvage.getPosition();
   const damageMultiplier = state.selectedUpgrades.includes(contract.upgrade.id) ? contract.upgrade.damage_multiplier : 1;
   const damage = contract.player.attack_damage * damageMultiplier;
-
-  if (state.enemyHealth > 0 && distanceXZ(playerPos, enemyPos) <= contract.player.attack_range) {
+  if (state.enemyHealth > 0 && distanceXZ(playerPos, enemy.getPosition()) <= contract.player.attack_range) {
     state.enemyHealth = Math.max(0, state.enemyHealth - damage);
     statusLabel.textContent = state.enemyHealth === 0 ? 'Enemy down' : `Enemy hit · ${Math.ceil(state.enemyHealth)} HP`;
-  } else if (!state.salvageBroken && distanceXZ(playerPos, salvagePos) <= contract.player.attack_range) {
+    return;
+  }
+  if (!state.salvageBroken && distanceXZ(playerPos, salvage.getPosition()) <= contract.player.attack_range) {
     state.salvageHealth = Math.max(0, state.salvageHealth - damage);
     if (state.salvageHealth === 0) {
       state.salvageBroken = true;
@@ -213,9 +217,9 @@ function performAttack(): void {
       salvage.enabled = false;
       statusLabel.textContent = 'Salvage broken · reward available';
     }
-  } else {
-    statusLabel.textContent = 'Attack · no target in range';
+    return;
   }
+  statusLabel.textContent = 'Attack · no target in range';
 }
 
 function updatePlayer(dt: number): void {
@@ -229,15 +233,11 @@ function updatePlayer(dt: number): void {
   const maxDelta = response * dt;
   velocity.x += pc.math.clamp(targetX - velocity.x, -maxDelta, maxDelta);
   velocity.z += pc.math.clamp(targetZ - velocity.z, -maxDelta, maxDelta);
-
   const position = player.getPosition().clone();
   position.x = pc.math.clamp(position.x + velocity.x * dt, -contract.arena.width / 2 + 0.6, contract.arena.width / 2 - 0.6);
   position.z = pc.math.clamp(position.z + velocity.z * dt, -contract.arena.depth / 2 + 0.6, contract.arena.depth / 2 - 0.6);
   player.setPosition(position);
-
-  if (Math.hypot(velocity.x, velocity.z) > 0.15) {
-    player.setEulerAngles(0, Math.atan2(velocity.x, velocity.z) * pc.math.RAD_TO_DEG, 0);
-  }
+  if (Math.hypot(velocity.x, velocity.z) > 0.15) player.setEulerAngles(0, Math.atan2(velocity.x, velocity.z) * pc.math.RAD_TO_DEG, 0);
 }
 
 function updateEnemy(dt: number): void {
@@ -247,7 +247,6 @@ function updateEnemy(dt: number): void {
   const distance = distanceXZ(playerPos, enemyPos);
   if (distance <= contract.enemy.acquire_range) state.enemyTargetState = 'acquired';
   if (distance >= contract.enemy.lose_target_range) state.enemyTargetState = 'idle';
-
   if (state.enemyTargetState === 'acquired' && distance > contract.enemy.attack_range) {
     const direction = new pc.Vec3(playerPos.x - enemyPos.x, 0, playerPos.z - enemyPos.z).normalize();
     enemy.translate(direction.x * contract.enemy.move_speed * dt, 0, direction.z * contract.enemy.move_speed * dt);
@@ -257,9 +256,8 @@ function updateEnemy(dt: number): void {
 
 function updateRewardAndUpgrade(): void {
   if (!state.rewardAvailable) return;
-  const playerPos = player.getPosition();
-  const salvagePos = new pc.Vec3(contract.arena.salvage_spawn[0], 0, contract.arena.salvage_spawn[2]);
-  if (distanceXZ(playerPos, salvagePos) <= contract.salvage.pickup_radius) {
+  const salvagePosition = new pc.Vec3(salvageSpawn[0], 0, salvageSpawn[2]);
+  if (distanceXZ(player.getPosition(), salvagePosition) <= contract.salvage.pickup_radius) {
     state.rewardAvailable = false;
     state.rewardCount = contract.salvage.reward_count;
     state.upgradeMenuVisible = true;
@@ -280,13 +278,8 @@ function updateCamera(): void {
   const playerPos = player.getPosition();
   const yawRad = yaw * pc.math.DEG_TO_RAD;
   const pitchRad = pitch * pc.math.DEG_TO_RAD;
-  const radius = 8.2;
-  const horizontal = Math.cos(pitchRad) * radius;
-  camera.setPosition(
-    playerPos.x + Math.sin(yawRad) * horizontal,
-    playerPos.y + Math.sin(pitchRad) * radius + 1.2,
-    playerPos.z + Math.cos(yawRad) * horizontal
-  );
+  const horizontal = Math.cos(pitchRad) * 8.2;
+  camera.setPosition(playerPos.x + Math.sin(yawRad) * horizontal, playerPos.y + Math.sin(pitchRad) * 8.2 + 1.2, playerPos.z + Math.cos(yawRad) * horizontal);
   camera.lookAt(playerPos.x, playerPos.y + 0.65, playerPos.z);
 }
 
@@ -295,7 +288,7 @@ function tuple(position: pc.Vec3): Vec3Tuple {
 }
 
 function snapshot(): Readonly<Observation> {
-  const observation: Observation = {
+  return Object.freeze(structuredClone({
     runtime: { ready: true, backend: graphicsDevice.deviceType, seed: 1337 },
     scene: { gameplay_active: state.gameplayActive },
     player: { position: tuple(player.getPosition()), health: state.playerHealth, alive: state.playerHealth > 0 },
@@ -304,15 +297,14 @@ function snapshot(): Readonly<Observation> {
     reward: { available: state.rewardAvailable, count: state.rewardCount },
     upgrade: { menu_visible: state.upgradeMenuVisible, selected_ids: [...state.selectedUpgrades] },
     save: { schema_version: 1 }
-  };
-  return Object.freeze(structuredClone(observation));
+  } satisfies Observation));
 }
 
 window.__BYJTT_OBSERVE__ = snapshot;
-
 app.on('update', (dt: number) => {
-  updatePlayer(Math.min(dt, 0.05));
-  updateEnemy(Math.min(dt, 0.05));
+  const safeDt = Math.min(dt, 0.05);
+  updatePlayer(safeDt);
+  updateEnemy(safeDt);
   updateRewardAndUpgrade();
   selectUpgradeIfRequested();
   updateCamera();
