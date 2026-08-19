@@ -10,7 +10,7 @@ await mkdir(artifacts, { recursive: true });
 
 const server = spawn(process.execPath, [
   path.resolve('node_modules/vite/bin/vite.js'),
-  'preview', '--host', '127.0.0.1', '--port', String(PORT), '--strictPort'
+  'preview', '--host', '127.0.0.1', '--port', String(PORT), '--strictPort',
 ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
 let serverLog = '';
@@ -18,7 +18,7 @@ server.stdout.on('data', (chunk) => { serverLog += chunk.toString(); });
 server.stderr.on('data', (chunk) => { serverLog += chunk.toString(); });
 
 async function waitForServer() {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 40; i += 1) {
     try {
       const response = await fetch(URL);
       if (response.ok) return;
@@ -35,6 +35,8 @@ const observations = [];
 const heldMovementKeys = new Set();
 let page = null;
 let browser = null;
+let context = null;
+let tracingStarted = false;
 
 function result(id, status, observation = {}, evidence = [], notes = []) {
   results.push({ id, status, observations: observation, evidence, notes });
@@ -93,7 +95,7 @@ async function releaseMovementIntent() {
 }
 
 async function attack(count = 1) {
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count; i += 1) {
     await page.keyboard.press('Space');
     await page.waitForTimeout(650);
   }
@@ -159,7 +161,7 @@ async function moveTowardEnemy(tolerance = 1.45, maxSimulationSeconds = 10) {
 }
 
 async function breakSalvageThroughGameplay(maxAttempts = 4) {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     let current = await snapshot();
     if (current['salvage.broken']) return current;
     await ensurePlayerAlive('normal respawn before salvage attempt');
@@ -196,6 +198,24 @@ async function writeEvidence(extraFailure = null) {
     renderer: finalSnapshot?.['renderer.backend'] ?? 'unknown',
     navigator_gpu: finalSnapshot?.['renderer.navigator_gpu'] ?? null,
     havok_plugin_version: finalSnapshot?.['physics.plugin_version'] ?? null,
+    performance: {
+      startup_ms: finalSnapshot?.['startup.ms'] ?? null,
+      render_frames: finalSnapshot?.['render.frames'] ?? null,
+      simulation_steps: finalSnapshot?.['simulation.steps'] ?? null,
+      dropped_simulation_seconds: finalSnapshot?.['simulation.dropped_seconds'] ?? null,
+    },
+    feedback: {
+      vfx_events: finalSnapshot?.['feedback.vfx_events'] ?? null,
+      hit_reactions: finalSnapshot?.['feedback.hit_reactions'] ?? null,
+      audio_supported: finalSnapshot?.['audio.supported'] ?? null,
+      audio_events: finalSnapshot?.['audio.events'] ?? null,
+      audio_context_state: finalSnapshot?.['audio.context_state'] ?? null,
+      audio_failures: finalSnapshot?.['audio.failures'] ?? [],
+    },
+    capture: {
+      trace: 'phase-a-trace.zip',
+      screenshots: ['01-cold-launch.png', '04-exercise-camera.png', '07-break-salvage.png', '11-save-state.png', '13-restored-state.png'],
+    },
     steps: results,
     failures,
     console_errors: consoleErrors,
@@ -205,6 +225,7 @@ async function writeEvidence(extraFailure = null) {
       'Phase A uses Babylon greybox primitives; frozen shared production assets remain Phase B.',
       'Havok Physics V2 owns the static arena environment while player/enemy locomotion uses a thin deterministic game-specific kinematic layer in the unobstructed arena.',
       'Enemy navigation uses direct steering; Recast is deferred until obstacle/pathfinding evidence requires it.',
+      'Phase A animation and feedback use deterministic procedural transforms, mesh-spark VFX and synthesized WebAudio rather than production assets.',
     ],
   };
   await writeFile(path.join(artifacts, 'playtest-result.json'), JSON.stringify(evidence, null, 2));
@@ -215,7 +236,9 @@ async function writeEvidence(extraFailure = null) {
 try {
   await waitForServer();
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
+  tracingStarted = true;
   page = await context.newPage();
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('pageerror', (error) => consoleErrors.push(error.stack || error.message));
@@ -232,13 +255,39 @@ try {
   }, ['01-cold-launch.png']);
 
   current = await snapshot();
-  result('02-enter-gameplay', current['scene.gameplay_active'] && current['player.alive'] && current['enemy.alive'] && !current['salvage.broken'] ? 'pass' : 'fail', current);
+  result('02-enter-gameplay', current['scene.gameplay_active'] && current['player.alive'] && current['enemy.alive'] && !current['salvage.broken'] && current['player.animation_state'] === 'idle' ? 'pass' : 'fail', current);
 
   const beforeMove = current['player.position'];
-  await hold('KeyW', 700);
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(300);
+  const walkSnapshot = await snapshot();
+  await page.keyboard.up('KeyW');
+  await page.keyboard.down('ShiftLeft');
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(300);
+  const runSnapshot = await snapshot();
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ShiftLeft');
   current = await snapshot();
   const moved = Math.hypot(current['player.position'].x - beforeMove.x, current['player.position'].z - beforeMove.z);
-  result('03-move-player', moved > 1.0 ? 'pass' : 'fail', { before: beforeMove, after: current['player.position'], metres: moved });
+  result('03-move-player', moved > 1.0 && walkSnapshot['player.animation_state'] === 'walk' && runSnapshot['player.animation_state'] === 'run' ? 'pass' : 'fail', {
+    before: beforeMove,
+    after: current['player.position'],
+    metres: moved,
+    idleAnimation: 'idle',
+    walkAnimation: walkSnapshot['player.animation_state'],
+    runAnimation: runSnapshot['player.animation_state'],
+  });
+
+  const touchBefore = current['player.position'];
+  const touchRight = page.locator('[data-hold="KeyD"]');
+  await touchRight.dispatchEvent('pointerdown', { pointerId: 17, pointerType: 'touch', isPrimary: true, buttons: 1 });
+  await page.waitForTimeout(320);
+  const touchDuring = await snapshot();
+  await touchRight.dispatchEvent('pointerup', { pointerId: 17, pointerType: 'touch', isPrimary: true, buttons: 0 });
+  const touchMoved = Math.hypot(touchDuring['player.position'].x - touchBefore.x, touchDuring['player.position'].z - touchBefore.z);
+  observations.push({ touchMovementMetres: touchMoved, touchAnimation: touchDuring['player.animation_state'] });
+  if (touchMoved <= 0.35) failures.push(`touch movement did not move player enough: ${touchMoved}`);
 
   await page.keyboard.press('ArrowLeft');
   await page.waitForTimeout(150);
@@ -248,7 +297,7 @@ try {
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(150);
 
-  for (let attempt = 0; attempt < 12; attempt++) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     current = await snapshot();
     if (current['enemy.target_state'] === 'acquired') break;
     await sprint('KeyW', 300);
@@ -263,14 +312,29 @@ try {
   const enemyBeforeHit = current['enemy.health'];
   await attack(1);
   current = await waitFor((s) => s['enemy.health'] < enemyBeforeHit, 'player damage to enemy', 3500);
-  result('06-exchange-damage', current['player.health'] < 100 && current['enemy.health'] < 100 && current['player.health'] >= 0 && current['enemy.health'] >= 0 ? 'pass' : 'fail', {
-    playerHealthAfterEnemy, playerHealth: current['player.health'], enemyHealth: current['enemy.health'],
+  result('06-exchange-damage', current['player.health'] < 100
+    && current['enemy.health'] < 100
+    && current['player.health'] >= 0
+    && current['enemy.health'] >= 0
+    && current['feedback.hit_reactions'] >= 2
+    && current['feedback.vfx_events'] >= 2
+    && current['audio.events'] >= 2 ? 'pass' : 'fail', {
+    playerHealthAfterEnemy,
+    playerHealth: current['player.health'],
+    enemyHealth: current['enemy.health'],
+    hitReactions: current['feedback.hit_reactions'],
+    vfxEvents: current['feedback.vfx_events'],
+    audioEvents: current['audio.events'],
   });
 
   current = await breakSalvageThroughGameplay();
   await page.screenshot({ path: path.join(artifacts, '07-break-salvage.png'), fullPage: true });
-  result('07-break-salvage', current['salvage.broken'] ? 'pass' : 'fail', {
-    salvageHealth: current['salvage.health'], rewardAvailable: current['reward.available'], rewardCount: current['reward.count'],
+  result('07-break-salvage', current['salvage.broken'] && current['feedback.vfx_events'] >= 4 && current['audio.events'] >= 4 ? 'pass' : 'fail', {
+    salvageHealth: current['salvage.health'],
+    rewardAvailable: current['reward.available'],
+    rewardCount: current['reward.count'],
+    vfxEvents: current['feedback.vfx_events'],
+    audioEvents: current['audio.events'],
   }, ['07-break-salvage.png']);
 
   current = await snapshot();
@@ -290,7 +354,7 @@ try {
     upgrades: current['upgrade.selected_ids'], effectiveDamage: current['player.effective_attack_damage'],
   });
 
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
     current = await snapshot();
     if (!current['enemy.alive']) break;
     await ensurePlayerAlive();
@@ -322,14 +386,40 @@ try {
   await page.screenshot({ path: path.join(artifacts, '13-restored-state.png'), fullPage: true });
 
   const touchButtons = await page.locator('#controls button').count();
-  const viewport = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
-  observations.push({ touchButtons, viewport });
-  if (touchButtons < 8 || viewport.width > 390) failures.push(`mobile controls/layout: buttons=${touchButtons}, scrollWidth=${viewport.width}`);
+  const viewport = await page.evaluate(() => ({
+    innerWidth,
+    innerHeight,
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+  const mutationIsolation = await page.evaluate(() => {
+    const first = window.__BYJTT_BENCHMARK__.snapshot();
+    const originalX = first['player.position'].x;
+    const originalUpgrades = first['upgrade.selected_ids'].length;
+    try {
+      first['player.position'].x = 999;
+      first['upgrade.selected_ids'].push('mutated-by-test');
+    } catch {}
+    const second = window.__BYJTT_BENCHMARK__.snapshot();
+    return second['player.position'].x === originalX && second['upgrade.selected_ids'].length === originalUpgrades;
+  });
+  observations.push({ touchButtons, viewport, mutationIsolation });
+
+  if (touchButtons < 8 || viewport.scrollWidth > 390 || viewport.innerWidth !== 390 || viewport.innerHeight !== 844) {
+    failures.push(`mobile controls/layout: buttons=${touchButtons}, viewport=${JSON.stringify(viewport)}`);
+  }
+  if (!mutationIsolation) failures.push('snapshot mutation affected later observations');
+  if (!current['audio.supported'] || current['audio.events'] < 1 || current['audio.failures'].length) {
+    failures.push(`audio feedback unavailable or failed: supported=${current['audio.supported']} events=${current['audio.events']} failures=${JSON.stringify(current['audio.failures'])}`);
+  }
+  if (current['feedback.vfx_events'] < 1 || current['feedback.hit_reactions'] < 1) {
+    failures.push(`visual feedback evidence missing: vfx=${current['feedback.vfx_events']} hitReactions=${current['feedback.hit_reactions']}`);
+  }
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
 
   const evidence = await writeEvidence();
   if (failures.length) throw new Error(`Phase A failures:\n- ${failures.join('\n- ')}`);
-  console.log(`BYJTT-LAB-001 Babylon.js Phase A passed all ${results.length} shared steps.`);
+  console.log(`BYJTT-LAB-001 Babylon.js Phase A passed all ${results.length} shared steps plus animation, touch, VFX, audio and observation-isolation gates.`);
   console.log(`Renderer evidence: ${evidence.renderer}; Havok plugin=${evidence.havok_plugin_version}; navigator.gpu=${evidence.navigator_gpu}`);
 } catch (error) {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -337,6 +427,11 @@ try {
   throw error;
 } finally {
   await releaseMovementIntent().catch(() => {});
+  if (context && tracingStarted) {
+    await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') }).catch((error) => {
+      failures.push(`trace capture failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  }
   await browser?.close();
   server.kill('SIGTERM');
 }
