@@ -19,6 +19,7 @@ let runtimeReady = false;
 let gameplayActive = false;
 let rendererBackend = 'initialising';
 let lastSaved = null;
+let lastStatsText = '';
 
 const state = {
   player: { health: 100, alive: true, position: { x: 0, y: 1, z: 10 }, hitCooldown: 0, attackCooldown: 0 },
@@ -30,9 +31,9 @@ const state = {
 };
 
 function readSave() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return null;
   try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed?.schema_version !== 1) return null;
     return parsed;
@@ -209,6 +210,8 @@ const shapeFilter = new Jolt.ShapeFilter();
 const updateSettings = new Jolt.ExtendedUpdateSettings();
 const joltVelocity = new Jolt.Vec3();
 const joltGravity = new Jolt.Vec3(0, -9.81, 0);
+const joltScratchPosition = new Jolt.RVec3();
+const joltZeroVelocity = new Jolt.Vec3();
 
 const desiredVelocity = new THREE.Vector3();
 const clock = new THREE.Clock();
@@ -228,8 +231,10 @@ function resetPlayer() {
   state.player.health = CONTRACT.player.maxHealth;
   state.player.alive = true;
   state.player.hitCooldown = 0;
-  character.SetPosition(new Jolt.RVec3(...CONTRACT.arena.playerSpawn));
-  character.SetLinearVelocity(new Jolt.Vec3(0, 0, 0));
+  joltScratchPosition.Set(...CONTRACT.arena.playerSpawn);
+  joltZeroVelocity.Set(0, 0, 0);
+  character.SetPosition(joltScratchPosition);
+  character.SetLinearVelocity(joltZeroVelocity);
   desiredVelocity.set(0, 0, 0);
 }
 
@@ -305,7 +310,12 @@ function saveProgress() {
     reward_count: state.reward.count,
     selected_upgrades: [...state.upgrade.selectedIds]
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(document));
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(document));
+  } catch {
+    bannerEl.textContent = 'Save unavailable';
+    return;
+  }
   lastSaved = document;
   bannerEl.textContent = 'Progress saved';
   setTimeout(() => { if (bannerEl.textContent === 'Progress saved') bannerEl.textContent = rendererBackend; }, 800);
@@ -379,7 +389,8 @@ function updatePlayer(dt) {
   playerMesh.position.x = THREE.MathUtils.clamp(playerMesh.position.x, -CONTRACT.arena.width / 2 + 0.5, CONTRACT.arena.width / 2 - 0.5);
   playerMesh.position.z = THREE.MathUtils.clamp(playerMesh.position.z, -CONTRACT.arena.depth / 2 + 0.5, CONTRACT.arena.depth / 2 - 0.5);
   if (Math.abs(playerMesh.position.x - pos.GetX()) > 0.001 || Math.abs(playerMesh.position.z - pos.GetZ()) > 0.001) {
-    character.SetPosition(new Jolt.RVec3(playerMesh.position.x, playerMesh.position.y, playerMesh.position.z));
+    joltScratchPosition.Set(playerMesh.position.x, playerMesh.position.y, playerMesh.position.z);
+    character.SetPosition(joltScratchPosition);
   }
   state.player.position = { x: playerMesh.position.x, y: playerMesh.position.y, z: playerMesh.position.z };
   if (desiredVelocity.lengthSq() > 0.02) playerMesh.rotation.y = Math.atan2(desiredVelocity.x, desiredVelocity.z);
@@ -437,7 +448,14 @@ function updateParticles(dt) {
 }
 
 function updateHud() {
-  statsEl.textContent = `HP ${state.player.health}/100 · Enemy ${state.enemy.health}/100 · Salvage ${state.salvage.health}/34 · Rewards ${state.reward.count}`;
+  const text = `HP ${Math.round(state.player.health)}/${CONTRACT.player.maxHealth}`
+    + ` · Enemy ${Math.round(state.enemy.health)}/${CONTRACT.enemy.maxHealth}`
+    + ` · Salvage ${Math.round(state.salvage.health)}/${CONTRACT.salvage.maxHealth}`
+    + ` · Rewards ${state.reward.count}`;
+  if (text !== lastStatsText) {
+    lastStatsText = text;
+    statsEl.textContent = text;
+  }
   bannerEl.textContent ||= rendererBackend;
 }
 
