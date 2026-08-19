@@ -223,16 +223,16 @@ async function writeEvidence(extraFailure = null) {
   return evidence;
 }
 
-await waitForServer();
-browser = await chromium.launch({ headless: true, channel: 'chrome' });
-const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-page = await context.newPage();
-page.on('console', (message) => {
-  if (message.type() === 'error') consoleErrors.push(message.text());
-});
-page.on('pageerror', (error) => consoleErrors.push(error.stack || error.message));
-
 try {
+  await waitForServer();
+  browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  page = await context.newPage();
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.stack || error.message));
+
   const coldStart = Date.now();
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.clear());
@@ -254,7 +254,8 @@ try {
   await page.keyboard.press('ArrowLeft');
   await page.waitForTimeout(150);
   current = await snapshot();
-  result('04-exercise-camera', current['player.alive'] ? 'pass' : 'fail', { playerStillControllable: current['player.alive'] }, [], ['Camera response is captured in browser screenshots; progression state remained intact.']);
+  await page.screenshot({ path: path.join(artifacts, '04-exercise-camera.png'), fullPage: true });
+  result('04-exercise-camera', current['player.alive'] ? 'pass' : 'fail', { playerStillControllable: current['player.alive'] }, ['04-exercise-camera.png'], ['Post-camera-input screenshot captured; progression state remained intact.']);
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(150);
 
