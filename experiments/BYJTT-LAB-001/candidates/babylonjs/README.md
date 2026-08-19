@@ -1,35 +1,41 @@
 # BYJTT-LAB-001 — Babylon.js Phase A candidate
 
-This lane evaluates Babylon.js as a batteries-included web game engine against the same neutral `mobile-action-slice-v1` contract used by the other candidates.
+This lane evaluates Babylon.js as a batteries-included web game engine against the neutral `mobile-action-slice-v1` contract used by the other candidates.
 
 ## Current status
 
-**Full Phase A implementation under adversarial execution. Not yet a Phase A pass until the complete 13-step browser lane succeeds.**
+**Phase A implementation and expanded browser contract proven on candidate head `29ee92108e4e3a7a2a66be31219e47cb317978e4`.**
 
-Proven bootstrap evidence:
+Run `32301836744` passed the original 13 shared gameplay steps plus the specification gates discovered during independent review: idle/walk/run states, real touch movement, hit reactions, deterministic VFX, synthesized audio feedback, interaction-driven reward pickup, immutable observation checks, mobile viewport checks, performance counters and Playwright trace capture.
 
-- Babylon `WebGPUEngine` first with Babylon WebGL fallback;
-- hosted stable Chrome selected `webgl2-fallback`;
-- official Havok Physics V2 initialized with plugin version 2;
-- modular ESM physics requires `joinedPhysicsEngineComponent` plus the V2 physics component; upstream source was used to isolate that registration requirement;
-- browser tracer passed Havok readiness, frame advancement, portrait layout, console cleanliness and read-only observation mutation isolation;
-- successful tracer readiness was ~423 ms on hosted CI;
-- tracer build was ~1,238.73 kB JS minified / ~297.49 kB gzip plus ~2,094.56 kB Havok WASM / ~668.98 kB gzip.
+Execution environment and packaging evidence:
 
-Full Phase A implementation now includes:
+- Google Chrome `151.0.7922.137`, Node `26.7.0`;
+- renderer: `webgl2-fallback`; `navigator.gpu=true`;
+- official Havok Physics V2 initialized with plugin version `2`;
+- main JavaScript: ~1,249.57 kB minified / ~301.10 kB gzip;
+- Havok WASM: ~2,094.56 kB / ~668.98 kB gzip;
+- evidence artifact: `9383303209`;
+- artifact SHA-256: `d51a6a732d256fda664facd1e6f03e43ad1cb350d56e829bc86481baafd49da1`.
 
+## Implemented Phase A systems
+
+- WebGPU-first Babylon initialization with clean WebGL2 fallback and non-fatal fallback diagnostics;
+- minimum modular Physics V2 registration (`joinedPhysicsEngineComponent` + V2 registration) with official Havok;
 - fixed-step deterministic player movement and camera controls;
-- enemy acquisition, pursuit, damage exchange, death and normal player respawn;
-- salvage destruction, reward collection and +20% damage upgrade;
+- explicit procedural idle/walk/run states;
+- real keyboard and touch movement paths;
+- enemy acquisition, pursuit, bidirectional combat, hit reactions, death and normal respawn;
+- deterministic mesh-spark visual feedback and synthesized WebAudio feedback;
+- salvage destruction, explicit Interact-driven reward pickup and +20% damage upgrade;
 - normal local save path and restored reward/upgrade state after reload;
-- mobile-shaped touch controls;
-- immutable `window.__BYJTT_BENCHMARK__.snapshot()` observations matching the neutral contract;
-- candidate-local Playwright driver executing all 13 shared steps through ordinary inputs only;
-- failure-preserving screenshots, logs and result JSON.
+- immutable `window.__BYJTT_BENCHMARK__.snapshot()` observations;
+- candidate-local Playwright driver with screenshots, trace, logs and result JSON;
+- pinned dependency/provenance and deviation records.
 
 ## Physics boundary
 
-Havok Physics V2 owns the Phase A static arena/environment proof. Player and enemy locomotion use a deliberately thin deterministic game-specific kinematic layer because the greybox arena is unobstructed. This is an explicit maintainability/integration choice, not a claim that Havok is driving character motion. A heavier Babylon character-controller solution should only be added if later collision/asset/pathfinding evidence requires it.
+Havok Physics V2 owns the Phase A static arena/environment proof. Player and enemy locomotion use a deliberately thin deterministic game-specific kinematic layer because the greybox arena is unobstructed. This is an explicit maintainability/integration choice, not a claim that Havok drives character motion. A heavier Babylon character-controller or navigation solution should only be added when later collision/asset/pathfinding evidence requires it.
 
 ## Run locally
 
@@ -39,4 +45,6 @@ npm run build
 npm run test:phase-a
 ```
 
-Phase A remains greybox evidence. Frozen shared assets, animation fidelity, final visuals and real-device performance are Phase B/device claims.
+## Evidence boundary
+
+Phase A remains greybox benchmark evidence. Frozen shared production assets, production animation fidelity, obstacle-heavy navigation, deployed-network behavior, real-device renderer selection and sustained real-device performance remain Phase B/device claims. The branch must still pass final revision-exact and current-`main` landing validation before integration.
