@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-github-config.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
     "new:record": "node tools/new-record.mjs",
