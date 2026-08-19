@@ -4,35 +4,39 @@ This lane evaluates Babylon.js as a batteries-included web game engine against t
 
 ## Current status
 
-**Tracer only. Not a Phase A pass.**
+**Full Phase A implementation under adversarial execution. Not yet a Phase A pass until the complete 13-step browser lane succeeds.**
 
-Implemented so far:
+Proven bootstrap evidence:
 
-- WebGPU-first Babylon renderer initialization with WebGL fallback;
-- official Havok Physics V2 initialization;
-- primitive arena/player/enemy/salvage scene;
-- read-only `window.__BYJTT_BENCHMARK__.snapshot()` tracer observations for renderer, Havok, startup, frames and errors;
-- candidate-local Chrome tracer verifying boot, Havok readiness, frame advancement, portrait layout, console cleanliness and observation mutation isolation;
-- pinned candidate-local package manifest, dependency decision record and explicit deviations.
+- Babylon `WebGPUEngine` first with Babylon WebGL fallback;
+- hosted stable Chrome selected `webgl2-fallback`;
+- official Havok Physics V2 initialized with plugin version 2;
+- modular ESM physics requires `joinedPhysicsEngineComponent` plus the V2 physics component; upstream source was used to isolate that registration requirement;
+- browser tracer passed Havok readiness, frame advancement, portrait layout, console cleanliness and read-only observation mutation isolation;
+- successful tracer readiness was ~423 ms on hosted CI;
+- tracer build was ~1,238.73 kB JS minified / ~297.49 kB gzip plus ~2,094.56 kB Havok WASM / ~668.98 kB gzip.
 
-Still required before Phase A can pass:
+Full Phase A implementation now includes:
 
-- full shared input/observation contract;
-- player movement and camera semantics;
-- enemy acquisition and bidirectional combat;
-- salvage break/reward pickup/upgrade flow;
-- normal save/restart restoration;
-- browser automation through ordinary inputs only for the complete 13-step contract;
-- full evidence artifacts and failure-preserving logs.
+- fixed-step deterministic player movement and camera controls;
+- enemy acquisition, pursuit, damage exchange, death and normal player respawn;
+- salvage destruction, reward collection and +20% damage upgrade;
+- normal local save path and restored reward/upgrade state after reload;
+- mobile-shaped touch controls;
+- immutable `window.__BYJTT_BENCHMARK__.snapshot()` observations matching the neutral contract;
+- candidate-local Playwright driver executing all 13 shared steps through ordinary inputs only;
+- failure-preserving screenshots, logs and result JSON.
+
+## Physics boundary
+
+Havok Physics V2 owns the Phase A static arena/environment proof. Player and enemy locomotion use a deliberately thin deterministic game-specific kinematic layer because the greybox arena is unobstructed. This is an explicit maintainability/integration choice, not a claim that Havok is driving character motion. A heavier Babylon character-controller solution should only be added if later collision/asset/pathfinding evidence requires it.
 
 ## Run locally
 
 ```sh
 npm install --ignore-scripts --no-audit --no-fund
 npm run build
-npm run dev
+npm run test:phase-a
 ```
 
-The browser tracer additionally expects Playwright to be available and can be run against a preview server with `BABYLON_URL` and `BABYLON_ARTIFACTS` environment variables.
-
-The branch deliberately does not modify shared benchmark assertions or other candidate subtrees.
+Phase A remains greybox evidence. Frozen shared assets, animation fidelity, final visuals and real-device performance are Phase B/device claims.
