@@ -10,15 +10,19 @@ const requiredFiles = [
   'docs/PUBLISHING.md',
   'docs/PIPELINE.md',
   'docs/MONETIZATION-AND-LIVEOPS.md',
+  'docs/CONTROL-PLANE.md',
   'agents/PIPELINE-GOVERNOR.md',
   'workflows/commercial-game-lifecycle.md',
   'schemas/pipeline-run.schema.json',
   'schemas/game-graduation.schema.json',
+  'schemas/control-plane-state.schema.json',
   'experiments/BYJTT-LAB-001/spec.md',
   'experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
   'experiments/BYJTT-LAB-001/shared/contract.json',
   'experiments/BYJTT-LAB-001/shared/assets.md',
   'experiments/BYJTT-LAB-001/shared/provenance.json',
+  'fixtures/control-plane/BYJTT-LAB-001.json',
+  'apps/studio/index.html',
   'registry/technologies.json'
 ];
 
@@ -34,7 +38,8 @@ for (const path of requiredFiles) {
 
 for (const schemaPath of [
   'schemas/pipeline-run.schema.json',
-  'schemas/game-graduation.schema.json'
+  'schemas/game-graduation.schema.json',
+  'schemas/control-plane-state.schema.json'
 ]) {
   try {
     const schema = JSON.parse(await readFile(schemaPath, 'utf8'));
@@ -47,6 +52,46 @@ for (const schemaPath of [
   } catch (error) {
     failures.push(`Unable to parse ${schemaPath}: ${error.message}`);
   }
+}
+
+try {
+  const state = JSON.parse(await readFile('fixtures/control-plane/BYJTT-LAB-001.json', 'utf8'));
+  const allowedStageStatuses = new Set([
+    'unknown',
+    'running',
+    'pass',
+    'warn',
+    'fail',
+    'blocked',
+    'human-required',
+    'stale'
+  ]);
+  const stageIds = new Set(state.stages?.map(stage => stage.id));
+  const evidenceIds = new Set(state.evidence?.map(evidence => evidence.id));
+
+  if (state.project?.id !== 'BYJTT-LAB-001') {
+    failures.push('Control-plane fixture must represent BYJTT-LAB-001');
+  }
+  if (!Array.isArray(state.stages) || state.stages.length === 0) {
+    failures.push('Control-plane fixture requires pipeline stages');
+  } else {
+    for (const stage of state.stages) {
+      if (!allowedStageStatuses.has(stage.status)) {
+        failures.push(`Invalid control-plane stage status for ${stage.id}: ${stage.status}`);
+      }
+      for (const dependency of stage.dependsOn ?? []) {
+        if (!stageIds.has(dependency)) failures.push(`Unknown stage dependency ${dependency} from ${stage.id}`);
+      }
+      for (const evidenceId of stage.evidenceIds ?? []) {
+        if (!evidenceIds.has(evidenceId)) failures.push(`Unknown evidence ${evidenceId} from stage ${stage.id}`);
+      }
+    }
+  }
+  for (const gate of state.gates ?? []) {
+    if (!stageIds.has(gate.stageId)) failures.push(`Unknown gate stage: ${gate.stageId}`);
+  }
+} catch (error) {
+  failures.push(`Unable to validate control-plane fixture: ${error.message}`);
 }
 
 try {
@@ -137,4 +182,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Repository structure, lifecycle contracts, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
+console.log('Repository structure, lifecycle contracts, schemas, control-plane fixture, Benchmark 001 contract/provenance, and technology registry are valid.');
