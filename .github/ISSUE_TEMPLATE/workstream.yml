@@ -1,5 +1,5 @@
 name: Agent workstream
-about: Claim a bounded ChatGPT/Codex/engine workstream before implementation
+description: Claim a bounded ChatGPT/Codex/engine workstream before implementation
 title: "Workstream: "
 body:
   - type: markdown
