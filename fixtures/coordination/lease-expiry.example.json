@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "WU-EXPIRED",
+  "projectId": "BYJTT-LAB-001",
+  "stageId": "implement",
+  "title": "Expired claim example",
+  "objective": "Demonstrate that claim age is a runtime coordination concern beyond structural schema validity.",
+  "role": "Gameplay Implementation",
+  "status": "claimed",
+  "priority": "normal",
+  "dependsOn": [],
+  "startRevision": "b204e04062f88a1a4a077774ac378f7fbbb4d1a0",
+  "resultRevision": null,
+  "claim": {"owner":"stale-worker","role":"Gameplay Implementation","claimedAt":"2026-08-18T20:00:00Z","expiresAt":"2026-08-18T21:00:00Z","leaseId":"lease-expired"},
+  "contextPointers": ["docs/MULTI-AGENT-OPERATING-MODEL.md"],
+  "acceptanceCriteria": ["Lease freshness is checked against current time by the coordination runtime"],
+  "evidenceRequirements": ["lease expiry decision evidence"],
+  "evidenceIds": [],
+  "approvalClass": "autonomous",
+  "retryPolicy": {"mode":"safe-idempotent","maxAttempts":1}
+}
