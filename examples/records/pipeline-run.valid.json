@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0.0",
+  "runId": "BYJTT-RUN-FIXTURE-001",
+  "experimentId": "BYJTT-LAB-001",
+  "gameId": null,
+  "startedAt": "2026-08-19T00:00:00Z",
+  "endedAt": "2026-08-19T00:01:00Z",
+  "scope": {
+    "taskType": "benchmark",
+    "objective": "Validate the pipeline-run contract and CI integration.",
+    "candidate": "fixture",
+    "targetPlatforms": ["ci"]
+  },
+  "inputs": {
+    "sourceCommit": "fixture",
+    "technologyVersions": {
+      "node": "26"
+    },
+    "sharedAssetSet": null,
+    "specVersion": "1.0.0"
+  },
+  "execution": {
+    "models": [],
+    "toolCalls": 0,
+    "failedToolCalls": 0,
+    "humanInterventions": 0,
+    "humanMinutes": 0,
+    "elapsedSeconds": 60,
+    "iterations": 1,
+    "bespokeLinesChanged": 0,
+    "reusedComponents": ["ajv"],
+    "estimatedReuseRatio": 1,
+    "externalServiceCostUsd": 0
+  },
+  "evidence": {
+    "executionVerified": true,
+    "artifacts": ["examples/records/pipeline-run.valid.json"],
+    "screenshots": [],
+    "videos": [],
+    "logs": [],
+    "profiles": [],
+    "deviceResults": [],
+    "automatedTestsPassed": 1,
+    "automatedTestsFailed": 0
+  },
+  "quality": {
+    "functionalScore": 100,
+    "visualScore": null,
+    "gameplayScore": null,
+    "maintainabilityScore": 100,
+    "performanceScore": null
+  },
+  "outcome": {
+    "status": "pass",
+    "summary": "Fixture validates the pipeline telemetry schema.",
+    "failures": [],
+    "nextAction": "Use the same contract for real Benchmark 001 candidate runs.",
+    "promotedComponentIds": []
+  }
+}
