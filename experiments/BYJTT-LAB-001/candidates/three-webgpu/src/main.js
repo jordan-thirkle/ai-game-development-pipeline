@@ -212,6 +212,12 @@ const joltGravity = new Jolt.Vec3(0, -9.81, 0);
 
 const desiredVelocity = new THREE.Vector3();
 const clock = new THREE.Clock();
+const FIXED_DT = 1 / 60;
+const MAX_FRAME_DELTA = 0.25;
+const MAX_SIM_STEPS_PER_FRAME = 15;
+let simulationAccumulator = 0;
+let droppedSimulationSeconds = 0;
+let simulationSteps = 0;
 let elapsed = 0;
 
 function distanceXZ(a, b) {
@@ -224,6 +230,7 @@ function resetPlayer() {
   state.player.hitCooldown = 0;
   character.SetPosition(new Jolt.RVec3(...CONTRACT.arena.playerSpawn));
   character.SetLinearVelocity(new Jolt.Vec3(0, 0, 0));
+  desiredVelocity.set(0, 0, 0);
 }
 
 function effectiveAttackDamage() {
@@ -434,12 +441,31 @@ function updateHud() {
   bannerEl.textContent ||= rendererBackend;
 }
 
+function simulate(dt) {
+  elapsed += dt;
+  simulationSteps += 1;
+  state.player.attackCooldown = Math.max(0, state.player.attackCooldown - dt);
+  state.player.hitCooldown = Math.max(0, state.player.hitCooldown - dt);
+  state.enemy.attackCooldown = Math.max(0, state.enemy.attackCooldown - dt);
+  if (attackQueued) { attack(); attackQueued = false; }
+  if (interactQueued) { interactQueued = false; collectRewardIfClose(); }
+  updatePlayer(dt);
+  updateEnemy(dt);
+  collectRewardIfClose();
+  updateParticles(dt);
+  rewardMesh.rotation.y += dt * 2.8;
+  jolt.Step(dt, 1);
+}
+
 function snapshot() {
   return {
     'runtime.ready': runtimeReady,
     'scene.gameplay_active': gameplayActive,
     'renderer.backend': rendererBackend,
     'renderer.navigator_gpu': Boolean(navigator.gpu),
+    'simulation.fixed_dt': FIXED_DT,
+    'simulation.steps': simulationSteps,
+    'simulation.dropped_seconds': droppedSimulationSeconds,
     'player.position': { ...state.player.position },
     'player.health': state.player.health,
     'player.alive': state.player.alive,
@@ -474,21 +500,25 @@ updateCamera();
 updateHud();
 
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 1 / 30);
-  elapsed += dt;
+  const rawDelta = clock.getDelta();
+  const frameDelta = Math.min(rawDelta, MAX_FRAME_DELTA);
+  if (rawDelta > frameDelta) droppedSimulationSeconds += rawDelta - frameDelta;
+
   if (!paused) {
-    state.player.attackCooldown = Math.max(0, state.player.attackCooldown - dt);
-    state.player.hitCooldown = Math.max(0, state.player.hitCooldown - dt);
-    state.enemy.attackCooldown = Math.max(0, state.enemy.attackCooldown - dt);
-    if (attackQueued) { attack(); attackQueued = false; }
-    if (interactQueued) { interactQueued = false; collectRewardIfClose(); }
-    updatePlayer(dt);
-    updateEnemy(dt);
-    collectRewardIfClose();
-    updateParticles(dt);
-    rewardMesh.rotation.y += dt * 2.8;
-    jolt.Step(dt, dt > 1 / 55 ? 2 : 1);
+    simulationAccumulator += frameDelta;
+    let stepsThisFrame = 0;
+    while (simulationAccumulator >= FIXED_DT && stepsThisFrame < MAX_SIM_STEPS_PER_FRAME) {
+      simulate(FIXED_DT);
+      simulationAccumulator -= FIXED_DT;
+      stepsThisFrame += 1;
+    }
+    if (simulationAccumulator >= FIXED_DT) {
+      const dropped = simulationAccumulator - (simulationAccumulator % FIXED_DT);
+      droppedSimulationSeconds += dropped;
+      simulationAccumulator %= FIXED_DT;
+    }
   }
+
   updateCamera();
   updateHud();
   renderer.render(scene, camera);
