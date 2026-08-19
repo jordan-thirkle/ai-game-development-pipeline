@@ -28,3 +28,5 @@ jobs:
         run: npm run validate:record -- game-graduation examples/records/game-graduation.valid.json
       - name: Exercise graduation gate
         run: npm run gate:graduation -- examples/records/game-graduation.valid.json
+      - name: Exercise coordination kernel
+        run: npm run test:coordination
