@@ -26,10 +26,13 @@ async function waitForReady(timeoutMs = 15000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const current = await snapshot();
+    if (current?.['runtime.errors']?.length) {
+      throw new Error(`runtime initialization failed: ${current['runtime.errors'].join(' | ')}`);
+    }
     if (current?.['runtime.ready'] === true) return { current, readyMs: Date.now() - started };
     await page.waitForTimeout(100);
   }
-  throw new Error(`runtime.ready timeout; final=${JSON.stringify(await snapshot())}`);
+  throw new Error(`runtime.ready timeout; final=${JSON.stringify(await snapshot())}; console=${consoleErrors.join(' | ')}`);
 }
 
 try {
@@ -93,8 +96,14 @@ try {
   console.log(`Babylon tracer passed: backend=${evidence.renderer_backend}, Havok=${evidence.havok_plugin_version}, ready=${readyMs}ms`);
 } catch (error) {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  if (!evidence.failures.includes(message)) evidence.failures.push(message);
-  evidence.execution_verified = false;
+  const finalSnapshot = await snapshot().catch(() => null);
+  evidence = {
+    ...evidence,
+    final_snapshot: finalSnapshot,
+    console_errors: consoleErrors,
+    failures: [...new Set([...(evidence.failures || []), message])],
+    execution_verified: false,
+  };
   await writeFile(path.join(artifacts, 'tracer-result.json'), JSON.stringify(evidence, null, 2));
   throw error;
 } finally {
