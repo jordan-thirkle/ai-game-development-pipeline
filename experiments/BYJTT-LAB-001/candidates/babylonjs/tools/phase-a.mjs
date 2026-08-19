@@ -47,8 +47,9 @@ async function stopServer() {
     }),
   ]);
   if (server.exitCode === null && server.signalCode === null) {
+    const killed = new Promise((resolve) => server.once('exit', resolve));
     server.kill('SIGKILL');
-    await new Promise((resolve) => server.once('exit', resolve));
+    await killed;
   }
 }
 
@@ -63,6 +64,8 @@ let context = null;
 let cdp = null;
 let tracingStarted = false;
 let feedbackBeforeRestart = null;
+let pendingError = null;
+let finalEvidence = null;
 
 function result(id, status, observation = {}, evidence = [], notes = []) {
   results.push({ id, status, observations: observation, evidence, notes });
@@ -149,9 +152,7 @@ async function driveToward(targetProvider, {
   try {
     while (Date.now() - wallStart < maxWallMs && current['elapsed_seconds'] - simulationStart < maxSimulationSeconds) {
       current = await snapshot();
-      if (!current) {
-        current = await waitFor((s) => Boolean(s), `snapshot while driving toward ${label}`, 2000);
-      }
+      if (!current) current = await waitFor((s) => Boolean(s), `snapshot while driving toward ${label}`, 2000);
       if (stopPredicate?.(current)) return current;
       if (!current['player.alive']) {
         current = await ensurePlayerAlive(`normal respawn while driving toward ${label}`);
@@ -350,30 +351,46 @@ try {
   const playerHealthAfterEnemy = current['player.health'];
   const enemyBeforeHit = current['enemy.health'];
   await attack(1);
-  current = await waitFor((s) => s['enemy.health'] < enemyBeforeHit, 'player damage to enemy', 3500);
+  current = await waitFor(
+    (s) => s['enemy.health'] < enemyBeforeHit
+      && s['feedback.hit_reactions'] >= 2
+      && s['feedback.vfx_events'] >= 2
+      && s['audio.events'] >= 2
+      && s['audio.context_state'] === 'running',
+    'player damage and running-audio feedback',
+    3500,
+  );
   result('06-exchange-damage', current['player.health'] < 100
     && current['enemy.health'] < 100
     && current['player.health'] >= 0
     && current['enemy.health'] >= 0
     && current['feedback.hit_reactions'] >= 2
     && current['feedback.vfx_events'] >= 2
-    && current['audio.events'] >= 2 ? 'pass' : 'fail', {
+    && current['audio.events'] >= 2
+    && current['audio.context_state'] === 'running' ? 'pass' : 'fail', {
     playerHealthAfterEnemy,
     playerHealth: current['player.health'],
     enemyHealth: current['enemy.health'],
     hitReactions: current['feedback.hit_reactions'],
     vfxEvents: current['feedback.vfx_events'],
     audioEvents: current['audio.events'],
+    audioContextState: current['audio.context_state'],
   });
 
   current = await breakSalvageThroughGameplay();
+  current = await waitFor(
+    (s) => s['salvage.broken'] && s['feedback.vfx_events'] >= 4 && s['audio.events'] >= 4 && s['audio.context_state'] === 'running',
+    'salvage feedback with running audio',
+    2500,
+  );
   await page.screenshot({ path: path.join(artifacts, '07-break-salvage.png'), fullPage: true });
-  result('07-break-salvage', current['salvage.broken'] && current['feedback.vfx_events'] >= 4 && current['audio.events'] >= 4 ? 'pass' : 'fail', {
+  result('07-break-salvage', current['salvage.broken'] && current['feedback.vfx_events'] >= 4 && current['audio.events'] >= 4 && current['audio.context_state'] === 'running' ? 'pass' : 'fail', {
     salvageHealth: current['salvage.health'],
     rewardAvailable: current['reward.available'],
     rewardCount: current['reward.count'],
     vfxEvents: current['feedback.vfx_events'],
     audioEvents: current['audio.events'],
+    audioContextState: current['audio.context_state'],
   }, ['07-break-salvage.png']);
 
   current = await snapshot();
@@ -463,36 +480,40 @@ try {
     failures.push(`mobile controls/layout: buttons=${touchButtons}, viewport=${JSON.stringify(viewport)}`);
   }
   if (!mutationIsolation) failures.push('snapshot mutation affected later observations');
-  if (!feedbackBeforeRestart?.['audio.supported'] || feedbackBeforeRestart['audio.events'] < 1 || feedbackBeforeRestart['audio.failures'].length) {
-    failures.push(`audio feedback unavailable or failed before restart: supported=${feedbackBeforeRestart?.['audio.supported']} events=${feedbackBeforeRestart?.['audio.events']} failures=${JSON.stringify(feedbackBeforeRestart?.['audio.failures'] ?? [])}`);
+  if (!feedbackBeforeRestart?.['audio.supported']
+    || feedbackBeforeRestart['audio.events'] < 1
+    || feedbackBeforeRestart['audio.context_state'] !== 'running'
+    || feedbackBeforeRestart['audio.failures'].length) {
+    failures.push(`audio feedback unavailable or failed before restart: supported=${feedbackBeforeRestart?.['audio.supported']} events=${feedbackBeforeRestart?.['audio.events']} state=${feedbackBeforeRestart?.['audio.context_state']} failures=${JSON.stringify(feedbackBeforeRestart?.['audio.failures'] ?? [])}`);
   }
   if ((feedbackBeforeRestart?.['feedback.vfx_events'] ?? 0) < 1 || (feedbackBeforeRestart?.['feedback.hit_reactions'] ?? 0) < 1) {
     failures.push(`visual feedback evidence missing before restart: vfx=${feedbackBeforeRestart?.['feedback.vfx_events']} hitReactions=${feedbackBeforeRestart?.['feedback.hit_reactions']}`);
   }
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
-
-  if (context && tracingStarted) {
-    await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') });
-    tracingStarted = false;
-  }
-
-  const evidence = await writeEvidence();
-  if (failures.length) throw new Error(`Phase A failures:\n- ${failures.join('\n- ')}`);
-  console.log(`BYJTT-LAB-001 Babylon.js Phase A passed all ${results.length} shared steps plus animation, touch, VFX, audio and observation-isolation gates.`);
-  console.log(`Renderer evidence: ${evidence.renderer}; Havok plugin=${evidence.havok_plugin_version}; navigator.gpu=${evidence.navigator_gpu}`);
 } catch (error) {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  await writeEvidence(message);
-  throw error;
+  pendingError = error;
 } finally {
   await releaseMovementIntent().catch(() => {});
   if (context && tracingStarted) {
-    await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') }).catch((error) => {
+    try {
+      await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') });
+      tracingStarted = false;
+    } catch (error) {
       failures.push(`trace capture failed: ${error instanceof Error ? error.message : String(error)}`);
-    });
+    }
   }
-  await browser?.close();
+  await browser?.close().catch((error) => {
+    failures.push(`browser shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
+  });
   await stopServer().catch((error) => {
+    failures.push(`server shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
     serverLog += `\nshutdown-error: ${error.stack || error.message}`;
   });
+  const pendingMessage = pendingError instanceof Error ? `${pendingError.name}: ${pendingError.message}` : pendingError ? String(pendingError) : null;
+  finalEvidence = await writeEvidence(pendingMessage);
 }
+
+if (pendingError) throw pendingError;
+if (failures.length) throw new Error(`Phase A failures:\n- ${failures.join('\n- ')}`);
+console.log(`BYJTT-LAB-001 Babylon.js Phase A passed all ${results.length} shared steps plus animation, touch, VFX, running-audio and observation-isolation gates.`);
+console.log(`Renderer evidence: ${finalEvidence.renderer}; Havok plugin=${finalEvidence.havok_plugin_version}; navigator.gpu=${finalEvidence.navigator_gpu}`);
