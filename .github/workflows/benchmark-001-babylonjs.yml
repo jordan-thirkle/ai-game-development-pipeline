@@ -28,14 +28,14 @@ jobs:
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
           } | tee artifacts/phase-a/environment.txt
         env:
-          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_HEAD_SHA: eee2c22c54e40a0c16f6c5e686f758ebc5d36a1c
       - name: Install pinned candidate dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Build Babylon candidate
         run: npm run build
       - name: Run shared Phase A playtest in Chrome
         env:
-          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_HEAD_SHA: eee2c22c54e40a0c16f6c5e686f758ebc5d36a1c
         run: npm run test:phase-a
       - name: Upload Phase A execution evidence
         if: always()
