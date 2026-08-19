@@ -1,0 +1,8 @@
+{
+  "gateId": "gate-human-playtest",
+  "approvalClass": "human-taste",
+  "eligibleAfter": ["qa.passed"],
+  "decisions": ["approved", "needs-work", "rejected"],
+  "mustRecord": ["actor", "repositoryRevision", "evidenceIds", "decision", "recordedAt"],
+  "note": "Human taste is an authority boundary; the system should prepare the evidence and playable build, not impersonate the verdict."
+}
