@@ -185,6 +185,9 @@ try {
   await page.waitForTimeout(150);
   current = await snapshot();
   result('04-exercise-camera', current['player.alive'] ? 'pass' : 'fail', { playerStillControllable: current['player.alive'] }, [], ['Camera response is captured in browser screenshots; progression state remained intact.']);
+  // Return through the normal camera input so later navigation does not assume the camera test permanently changed the movement frame.
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(150);
 
   for (let attempt = 0; attempt < 12; attempt++) {
     current = await snapshot();
