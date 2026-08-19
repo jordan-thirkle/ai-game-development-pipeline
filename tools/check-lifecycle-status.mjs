@@ -13,6 +13,9 @@ const stageOrder = [
   'retirement'
 ];
 
+const activeLaunchStages = new Set(['soft-launch', 'public-release', 'operate-iterate', 'liveops']);
+const publicOperationStages = new Set(['public-release', 'operate-iterate', 'liveops']);
+
 function isHealthy(state) {
   return state?.status === 'healthy' && Boolean(state?.evidence);
 }
@@ -43,8 +46,7 @@ export function evaluateLifecycleStatus(record, targetStage = record.lifecycleSt
     blockers.push(`Unresolved ${risk.severity} risk: ${risk.risk}`);
   }
 
-  const requiresSoftLaunch = targetIndex >= stageOrder.indexOf('soft-launch') && targetStage !== 'retirement';
-  if (requiresSoftLaunch) {
+  if (activeLaunchStages.has(targetStage)) {
     if (!isHealthy(record.health?.telemetry)) blockers.push('Telemetry is not healthy with evidence.');
     if (!isHealthy(record.health?.crashReporting)) blockers.push('Crash reporting is not healthy with evidence.');
     if (!isHealthy(record.health?.releasePipeline)) blockers.push('Release pipeline is not healthy with evidence.');
@@ -54,8 +56,7 @@ export function evaluateLifecycleStatus(record, targetStage = record.lifecycleSt
     if ((record.evidence?.releaseEvidence ?? []).length === 0) blockers.push('No release evidence is recorded.');
   }
 
-  const requiresPublicRelease = targetIndex >= stageOrder.indexOf('public-release') && targetStage !== 'retirement';
-  if (requiresPublicRelease) {
+  if (publicOperationStages.has(targetStage)) {
     if (!isHealthy(record.health?.support)) blockers.push('Support health is not healthy with evidence.');
     if (!(record.releases ?? []).some((release) => release.status === 'live')) blockers.push('No live release exists.');
     if ((record.evidence?.publicationSafe ?? []).length === 0) blockers.push('No publication-safe evidence is recorded.');
@@ -67,8 +68,9 @@ export function evaluateLifecycleStatus(record, targetStage = record.lifecycleSt
     }
   }
 
-  const requiresOperationsReview = ['operate-iterate', 'liveops', 'maintenance'].includes(targetStage);
-  if (requiresOperationsReview && !record.nextReview?.date) blockers.push('Next lifecycle review date is missing.');
+  if (['operate-iterate', 'liveops', 'maintenance'].includes(targetStage) && !record.nextReview?.date) {
+    blockers.push('Next lifecycle review date is missing.');
+  }
 
   if (targetStage === 'maintenance') {
     if (!record.maintenance?.lastDependencyReview) blockers.push('Dependency review date is missing.');
