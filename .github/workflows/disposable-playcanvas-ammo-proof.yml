@@ -16,7 +16,7 @@ jobs:
       - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
-          ref: 7660715e9a93b12fc17d44303b4ea2776cd50289
+          ref: 36e6f4368e66ecb8e5c3295bebda84baca371f9f
 
       - name: Setup Node 26
         uses: actions/setup-node@v4
@@ -54,7 +54,7 @@ jobs:
       - name: Browser physics proof
         working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
         env:
-          CANDIDATE_SHA: 7660715e9a93b12fc17d44303b4ea2776cd50289
+          CANDIDATE_SHA: 36e6f4368e66ecb8e5c3295bebda84baca371f9f
         run: npm run test:browser | tee browser-proof.log
 
       - name: Stop preview
