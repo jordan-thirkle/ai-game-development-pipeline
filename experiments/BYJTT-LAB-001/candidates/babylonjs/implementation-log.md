@@ -40,7 +40,7 @@ The first stricter probe failed for two harness reasons rather than gameplay fai
 
 ## CodeRabbit review remediation
 
-CodeRabbit then identified five verified issues, all addressed before landing:
+CodeRabbit identified five verified issues, all addressed before landing:
 
 1. Playwright was missing from `dependencies.json` provenance despite being pinned in `package.json`.
 2. A recoverable WebGPU initialization failure was being stored in the fatal `runtime.errors` channel even when WebGL2 fallback succeeded. The candidate now records this in `runtime.warnings` and preserves warnings as evidence.
@@ -48,7 +48,10 @@ CodeRabbit then identified five verified issues, all addressed before landing:
 4. The preview child process lacked spawn-error handling and confirmed shutdown. The harness now records spawn failures and waits for termination with a bounded SIGKILL fallback.
 5. `ensurePlayerAlive()` indexed a potentially null snapshot. Snapshot handling is now null-safe and reacquires valid state through the normal wait path.
 
-The harness was additionally tightened so trace capture completes before a successful run can be declared.
+Two later evidence-integrity findings were also addressed before final landing:
+
+6. Audio feedback previously incremented its evidence counter even if `AudioContext.resume()` rejected or remained suspended. `playTone()` now awaits resume, records resume/state failures, and increments the event counter only when the context is actually `running`. The Phase A gate explicitly requires running-audio evidence.
+7. Trace capture originally occurred after a successful verdict could already be serialized. Cleanup was restructured so trace completion/failure, browser shutdown and preview-server shutdown are incorporated before evidence serialization and before the final verdict. A missing trace can no longer coexist with `execution_verified: true`.
 
 ## Reviewed execution proof
 
@@ -70,4 +73,4 @@ Renderer evidence was `webgl2-fallback`, Havok plugin version `2`, and `navigato
 
 ## Remaining landing gate
 
-Evidence-document updates after the reviewed run advance the branch revision without changing gameplay behavior. Before integration, execute the final exact candidate revision and then execute the same candidate as a GitHub merge ref against the current `main`. Merge only after those runs are green and the latest CodeRabbit review threads are reconciled.
+The final audio/cleanup review fixes and this log update advance the branch revision beyond the last reviewed execution. Before integration, execute the exact final candidate revision and then execute that same candidate as a GitHub merge ref against current `main`. Merge only after both are green and the latest CodeRabbit review reports no unresolved actionable findings.
