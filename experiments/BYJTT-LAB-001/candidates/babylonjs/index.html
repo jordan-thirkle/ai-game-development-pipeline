@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#111111" />
+    <link rel="icon" href="data:," />
+    <title>BYJTT-LAB-001 — Babylon.js Phase A</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body, #app, canvas { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+      body { background: #111; color: white; font-family: system-ui, sans-serif; }
+      canvas { display: block; touch-action: none; }
+      #status { position: fixed; top: 10px; left: 10px; z-index: 2; padding: 8px 10px; border-radius: 8px; background: rgb(0 0 0 / .62); font-size: 12px; line-height: 1.4; }
+    </style>
+  </head>
+  <body>
+    <div id="app"><canvas id="renderCanvas" aria-label="Babylon.js benchmark arena"></canvas></div>
+    <div id="status" aria-live="polite">Initializing Babylon.js…</div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
