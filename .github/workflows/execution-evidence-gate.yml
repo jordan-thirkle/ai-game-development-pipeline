@@ -1,0 +1,24 @@
+name: Require execution evidence
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  execution-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Unit-test gate semantics
+        run: node tools/test-execution-evidence.mjs
+      - name: Check execution evidence for sensitive changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/check-execution-evidence.mjs
