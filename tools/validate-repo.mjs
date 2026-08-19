@@ -29,8 +29,8 @@ const requiredPaths = [
   'experiments/BYJTT-LAB-001/shared/assets/provenance.json',
   'experiments/BYJTT-LAB-001/records/pipeline-run.example.json',
   'experiments/BYJTT-LAB-001/records/game-graduation.example.json',
-  'tools/check-game-graduation.mjs',
-  'tools/record-pipeline-run.mjs',
+  'tools/check-graduation-gate.mjs',
+  'tools/validate-record.mjs',
   'apps/studio/index.html',
   'CLAUDE.md',
   '.github/copilot-instructions.md'
