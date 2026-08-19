@@ -89,6 +89,26 @@ async function moveToward(targetX, targetZ, tolerance = 1.35, maxSteps = 30) {
   throw new Error(`Could not reach target (${targetX}, ${targetZ}) with normal movement; final=${JSON.stringify(await snapshot())}`);
 }
 
+async function moveTowardEnemy(tolerance = 1.45, maxSteps = 30) {
+  for (let step = 0; step < maxSteps; step++) {
+    let current = await snapshot();
+    if (!current['enemy.alive']) return current;
+    if (!current['player.alive']) current = await waitFor((s) => s['player.alive'] === true, 'normal player respawn', 3500);
+
+    const p = current['player.position'];
+    const e = current['enemy.position'];
+    const dx = e.x - p.x;
+    const dz = e.z - p.z;
+    if (Math.hypot(dx, dz) <= tolerance) return current;
+
+    const axisX = Math.abs(dx) >= 0.25 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
+    const axisZ = Math.abs(dz) >= 0.25 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
+    if (axisX) await sprint(axisX, Math.min(240, Math.max(80, Math.abs(dx) / 5.5 * 1000)));
+    if (axisZ) await sprint(axisZ, Math.min(240, Math.max(80, Math.abs(dz) / 5.5 * 1000)));
+  }
+  throw new Error(`Could not reach moving enemy with normal movement; final=${JSON.stringify(await snapshot())}`);
+}
+
 async function writeEvidence(extraFailure = null) {
   const finalSnapshot = await snapshot().catch(() => null);
   if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
@@ -159,7 +179,7 @@ try {
   const acquireDistance = Math.hypot(current['enemy.position'].x - current['player.position'].x, current['enemy.position'].z - current['player.position'].z);
   result('05-acquire-enemy', current['enemy.target_state'] === 'acquired' ? 'pass' : 'fail', { acquireDistance, enemy: current['enemy.position'], player: current['player.position'] });
 
-  await moveToward(current['enemy.position'].x, current['enemy.position'].z, 1.35, 24);
+  await moveTowardEnemy(1.35, 24);
   current = await waitFor((s) => s['player.health'] < 100, 'enemy damage', 3500);
   const playerHealthAfterEnemy = current['player.health'];
   const enemyBeforeHit = current['enemy.health'];
@@ -173,7 +193,6 @@ try {
   result('07-break-salvage', current['salvage.broken'] ? 'pass' : 'fail', { salvageHealth: current['salvage.health'], rewardAvailable: current['reward.available'], rewardCount: current['reward.count'] }, ['07-break-salvage.png'], current['reward.count'] === 1 ? ['Reward auto-collected through normal proximity before step 7 capture completed.'] : []);
   await page.screenshot({ path: path.join(artifacts, '07-break-salvage.png'), fullPage: true });
 
-  // Equivalent real gameplay may cross the pickup radius while breaking salvage. Treat observed state as authoritative.
   current = await snapshot();
   if (current['reward.count'] !== 1) {
     if (!current['reward.available']) throw new Error(`Reward neither collected nor available after salvage; state=${JSON.stringify(current)}`);
@@ -187,13 +206,15 @@ try {
   current = await waitFor((s) => s['upgrade.selected_ids'].includes('damage-up-1'), 'upgrade selection');
   result('09-select-upgrade', Math.abs(current['player.effective_attack_damage'] - 40.8) < 0.001 ? 'pass' : 'fail', { upgrades: current['upgrade.selected_ids'], effectiveDamage: current['player.effective_attack_damage'] });
 
-  for (let attempt = 0; attempt < 5 && (await snapshot())['enemy.alive']; attempt++) {
+  for (let attempt = 0; attempt < 6; attempt++) {
     current = await snapshot();
-    await moveToward(current['enemy.position'].x, current['enemy.position'].z, 1.55, 10);
+    if (!current['enemy.alive']) break;
+    if (!current['player.alive']) await waitFor((s) => s['player.alive'] === true, 'normal player respawn', 3500);
+    await moveTowardEnemy(1.5, 24);
     await attack(1);
   }
   current = await snapshot();
-  result('10-resolve-enemy', current['enemy.alive'] === false ? 'pass' : 'fail', { enemyAlive: current['enemy.alive'], enemyHealth: current['enemy.health'] });
+  result('10-resolve-enemy', current['enemy.alive'] === false ? 'pass' : 'fail', { enemyAlive: current['enemy.alive'], enemyHealth: current['enemy.health'], playerHealth: current['player.health'], playerAlive: current['player.alive'] });
 
   await page.locator('#save').click();
   current = await waitFor((s) => s['save.schema_version'] === 1, 'normal save path');
