@@ -1,10 +1,10 @@
 name: Verify coordination invariants
 on:
   pull_request:
-    paths: ['schemas/work-unit.schema.json','schemas/pipeline-event.schema.json','fixtures/coordination/**','tools/test-coordination-kernel.mjs','.github/workflows/coordination-invariants.yml']
+    paths: ['package.json','schemas/work-unit.schema.json','schemas/pipeline-event.schema.json','fixtures/coordination/**','tools/test-coordination-kernel.mjs','.github/workflows/coordination-invariants.yml']
   push:
     branches: [main]
-    paths: ['schemas/work-unit.schema.json','schemas/pipeline-event.schema.json','fixtures/coordination/**','tools/test-coordination-kernel.mjs','.github/workflows/coordination-invariants.yml']
+    paths: ['package.json','schemas/work-unit.schema.json','schemas/pipeline-event.schema.json','fixtures/coordination/**','tools/test-coordination-kernel.mjs','.github/workflows/coordination-invariants.yml']
 permissions:
   contents: read
 jobs:
@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '26'
