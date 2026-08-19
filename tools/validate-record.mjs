@@ -5,13 +5,14 @@ import addFormats from 'ajv-formats';
 
 const schemaAliases = {
   'pipeline-run': 'schemas/pipeline-run.schema.json',
-  'game-graduation': 'schemas/game-graduation.schema.json'
+  'game-graduation': 'schemas/game-graduation.schema.json',
+  'game-status': 'schemas/game-status.schema.json'
 };
 
 const [schemaName, recordPath] = process.argv.slice(2);
 
 if (!schemaName || !recordPath || !schemaAliases[schemaName]) {
-  console.error('Usage: npm run validate:record -- <pipeline-run|game-graduation> <record.json>');
+  console.error('Usage: npm run validate:record -- <pipeline-run|game-graduation|game-status> <record.json>');
   process.exit(2);
 }
 
