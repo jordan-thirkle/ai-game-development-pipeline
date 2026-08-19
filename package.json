@@ -10,6 +10,7 @@
   "scripts": {
     "validate": "node tools/validate-repo.mjs",
     "validate:record": "node tools/validate-record.mjs",
+    "new:record": "node tools/new-record.mjs",
     "gate:graduation": "node tools/check-graduation-gate.mjs"
   },
   "dependencies": {
