@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "ev-conflict-1",
+  "type": "coordination.conflict",
+  "occurredAt": "2026-08-19T00:30:00Z",
+  "projectId": "AI-GAME-PIPELINE",
+  "workUnitId": null,
+  "stageId": null,
+  "actor": {"kind":"system","id":"github-optimistic-concurrency","role":null},
+  "repositoryRevision": "b204e04062f88a1a4a077774ac378f7fbbb4d1a0",
+  "evidenceIds": [],
+  "correlationId": "corr-control-plane-validator-collision",
+  "causationId": null,
+  "idempotencyKey": "conflict-validator-stale-write-20260819",
+  "payload": {
+    "kind": "stale-write",
+    "path": "tools/validate-repo.mjs",
+    "resolution": "stop-refresh-reconcile-do-not-force"
+  }
+}
