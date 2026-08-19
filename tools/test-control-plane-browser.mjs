@@ -17,7 +17,8 @@ async function open(viewport){
   page.on('pageerror',error=>consoleErrors.push(error.message));
   const response=await page.goto(baseURL,{waitUntil:'networkidle'});
   assert(response?.ok(),`HTTP ${response?.status()}`);
-  await page.waitForSelector('#name:not(:has-text("Loading"))');
+  await page.waitForSelector('#name');
+  await page.waitForFunction(()=>document.querySelector('#name')?.textContent!=='Loading…');
   return {page,consoleErrors};
 }
 
@@ -59,8 +60,15 @@ await record('no false playable build affordance',async()=>{
 await record('workstream coordination is legible',async()=>{
   const {page}=await open({width:1280,height:800});
   await page.locator('[data-view="workstreams"]').click();
-  const text=await page.locator('#workstream-list').textContent();
-  for(const expected of ['feat/control-plane-v2','ChatGPT + GitHub + CI','next:']) assert(text.includes(expected),`missing ${expected}`);
+  const cards=page.locator('#workstream-list .item');
+  assert((await cards.count())>0,'no projected workstreams rendered');
+  const fixture=await page.evaluate(async()=>fetch('../../fixtures/control-plane/BYJTT-LAB-001.json',{cache:'no-store'}).then(r=>r.json()));
+  const expected=fixture.workstreams[0];
+  const text=await cards.first().textContent();
+  assert(text.includes(expected.branch),`missing current branch ${expected.branch}`);
+  assert(text.includes(expected.environment),`missing current environment ${expected.environment}`);
+  assert(text.includes('next:'),'missing next-safe-action label');
+  assert(text.includes(expected.nextSafeAction),`missing current next safe action`);
   await page.close();
 });
 
