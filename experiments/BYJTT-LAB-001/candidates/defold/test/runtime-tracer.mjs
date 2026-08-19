@@ -29,6 +29,9 @@ async function findIndex(dir) {
 const index = await findIndex(bundleRoot);
 if (!index) throw new Error(`No index.html found under ${bundleRoot}`);
 const webRoot = path.dirname(index);
+// Chrome requests /favicon.ico independently of gameplay. Supply a local empty
+// file so an incidental HTTP 404 cannot pollute the runtime error channel.
+await writeFile(path.join(webRoot, 'favicon.ico'), '');
 
 const server = spawn('python3', ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], {
   cwd: webRoot,
@@ -55,6 +58,7 @@ async function waitForServer() {
 
 let browser;
 const consoleLines = [];
+const consoleErrors = [];
 const pageErrors = [];
 
 async function snapshot(page) {
@@ -77,7 +81,11 @@ try {
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
-  page.on('console', (message) => consoleLines.push(`[${message.type()}] ${message.text()}`));
+  page.on('console', (message) => {
+    const line = `[${message.type()}] ${message.text()}`;
+    consoleLines.push(line);
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
   page.on('pageerror', (error) => pageErrors.push(error.stack || error.message));
 
   const coldStarted = Date.now();
@@ -116,6 +124,9 @@ try {
 
   await page.screenshot({ path: path.join(artifacts, 'runtime-after-normal-input.png'), fullPage: true });
 
+  if (pageErrors.length) throw new Error(`Browser page errors: ${pageErrors.join(' | ')}`);
+  if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(' | ')}`);
+
   const result = {
     contract_version: 1,
     scenario_id: 'mobile-action-slice-v1',
@@ -139,6 +150,7 @@ try {
     },
     observation_mutation_isolation: observationIsolation,
     page_errors: pageErrors,
+    console_errors: consoleErrors,
     console_lines: consoleLines,
     deviations: [
       'Bounded tracer only: shared steps 04-13 are not claimed.',
@@ -147,7 +159,6 @@ try {
     ]
   };
 
-  if (pageErrors.length) throw new Error(`Browser page errors: ${pageErrors.join(' | ')}`);
   await writeFile(path.join(artifacts, 'runtime-result.json'), JSON.stringify(result, null, 2));
   await writeFile(path.join(artifacts, 'browser-console.log'), consoleLines.join('\n'));
   await writeFile(path.join(artifacts, 'server.log'), serverLog);
@@ -161,6 +172,7 @@ try {
     execution_verified: false,
     error: error.stack || error.message,
     page_errors: pageErrors,
+    console_errors: consoleErrors,
     console_lines: consoleLines
   };
   await writeFile(path.join(artifacts, 'runtime-result.json'), JSON.stringify(failure, null, 2));
