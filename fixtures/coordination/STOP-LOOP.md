@@ -1,0 +1,1 @@
+A worker repeatedly selected the wrong write action while intending to move to PR creation. Treat repeated tool-selection failure as a workflow/tooling signal: stop writes, re-orient, and continue only with the next required action.
