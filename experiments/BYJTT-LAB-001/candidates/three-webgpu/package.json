@@ -1,0 +1,23 @@
+{
+  "name": "byjtt-lab-001-three-webgpu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:phase-a": "node test/phase-a.mjs"
+  },
+  "dependencies": {
+    "jolt-physics": "1.1.0",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "vite": "8.2.1"
+  }
+}
