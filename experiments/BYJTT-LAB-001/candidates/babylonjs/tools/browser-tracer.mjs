@@ -16,6 +16,7 @@ let evidence = {
   execution_verified: false,
   failures: [],
   console_errors: consoleErrors,
+  runtime_warnings: [],
 };
 
 async function snapshot() {
@@ -88,6 +89,7 @@ try {
     mutation_isolation: mutationIsolation,
     layout,
     failures,
+    runtime_warnings: current['runtime.warnings'] ?? [],
     final_snapshot: afterFrames,
   };
   await writeFile(path.join(artifacts, 'tracer-result.json'), JSON.stringify(evidence, null, 2));
@@ -101,6 +103,7 @@ try {
     ...evidence,
     final_snapshot: finalSnapshot,
     console_errors: consoleErrors,
+    runtime_warnings: finalSnapshot?.['runtime.warnings'] ?? evidence.runtime_warnings,
     failures: [...new Set([...(evidence.failures || []), message])],
     execution_verified: false,
   };
