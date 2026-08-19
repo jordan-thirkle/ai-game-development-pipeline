@@ -8,7 +8,7 @@ const fixturePath='fixtures/control-plane/BYJTT-LAB-001.json';
 const fixtureData=JSON.parse(await readFile(fixturePath,'utf8'));
 await mkdir(artifacts,{recursive:true});
 
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,channel:'chrome'});
 const failures=[];
 const record=(name,fn)=>fn().then(()=>console.log(`PASS ${name}`)).catch(error=>{failures.push(`${name}: ${error.message}`);console.error(`FAIL ${name}: ${error.message}`)});
 
