@@ -72,11 +72,17 @@ await record('workstream coordination is legible',async()=>{
   await page.close();
 });
 
-await record('mobile layout stays usable',async()=>{
+await record('mobile layout and navigation stay usable',async()=>{
   const {page}=await open({width:390,height:844});
-  assert.equal(await page.locator('.sidebar').isVisible(),false,'desktop sidebar visible on mobile');
+  const nav=page.locator('.nav');
+  assert.equal(await nav.isVisible(),true,'mobile navigation is not visible');
+  assert.equal(await page.locator('[data-view="workstreams"]').isVisible(),true,'Workstreams is unreachable on mobile');
+  await page.locator('[data-view="workstreams"]').click();
+  await page.locator('#workstreams').waitFor({state:'visible'});
+  assert((await page.locator('#workstream-list .item').count())>0,'mobile Workstreams view did not render');
+  await page.locator('[data-view="overview"]').click();
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
-  assert(bodyWidth<=390,`horizontal overflow ${bodyWidth}px`);
+  assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
   await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   await page.close();
 });
