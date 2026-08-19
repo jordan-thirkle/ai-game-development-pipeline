@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version-file: '.node-version'
+          node-version: '26'
       - name: Adversarial ownership projection tests
         run: node --test tools/test-control-plane-ownership.mjs
       - name: Check live GitHub ownership projection
