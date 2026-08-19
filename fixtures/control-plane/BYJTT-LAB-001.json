@@ -1,141 +1,26 @@
 {
   "schemaVersion": "0.1.0",
-  "generatedAt": "2026-08-19T00:55:00+01:00",
-  "project": {
-    "id": "BYJTT-LAB-001",
-    "name": "Mobile 3D Action Slice",
-    "kind": "benchmark",
-    "lifecycleStage": "prototype",
-    "summary": "Compare serious runtimes against one shared playable mobile-3D action contract.",
-    "repository": "jordan-thirkle/ai-game-development-pipeline",
-    "latestBuildId": null
-  },
+  "generatedAt": "2026-08-19T01:20:00+01:00",
+  "project": {"id":"BYJTT-LAB-001","name":"Mobile 3D Action Slice","kind":"benchmark","lifecycleStage":"prototype","summary":"Compare serious runtimes against one shared playable mobile-3D action contract.","repository":"jordan-thirkle/ai-game-development-pipeline","latestBuildId":null},
   "stages": [
-    {
-      "id": "research",
-      "label": "Research & solved-system scan",
-      "status": "pass",
-      "dependsOn": [],
-      "evidenceIds": ["ev-preflight"],
-      "nextAction": null
-    },
-    {
-      "id": "baseline",
-      "label": "Shared gameplay & asset baseline",
-      "status": "pass",
-      "dependsOn": ["research"],
-      "evidenceIds": ["ev-baseline", "ev-provenance"],
-      "nextAction": null
-    },
-    {
-      "id": "implement",
-      "label": "Competing implementations",
-      "status": "running",
-      "dependsOn": ["baseline"],
-      "evidenceIds": [],
-      "nextAction": "Implement the shared slice without weakening the acceptance contract."
-    },
-    {
-      "id": "automated-qa",
-      "label": "Automated QA",
-      "status": "blocked",
-      "dependsOn": ["implement"],
-      "evidenceIds": [],
-      "nextAction": "Wait for a runnable candidate build."
-    },
-    {
-      "id": "human-playtest",
-      "label": "Human playtest",
-      "status": "blocked",
-      "dependsOn": ["automated-qa"],
-      "evidenceIds": [],
-      "nextAction": "Launch the leading candidate and record a gameplay verdict."
-    },
-    {
-      "id": "compare",
-      "label": "Compare & promote",
-      "status": "blocked",
-      "dependsOn": ["human-playtest"],
-      "evidenceIds": [],
-      "nextAction": "Compare evidence across candidates and scope the conclusion."
-    }
+    {"id":"research","label":"Research & solved-system scan","status":"pass","dependsOn":[],"evidenceIds":["ev-preflight"],"nextAction":null},
+    {"id":"baseline","label":"Shared gameplay & asset baseline","status":"pass","dependsOn":["research"],"evidenceIds":["ev-baseline","ev-provenance"],"nextAction":null},
+    {"id":"implement","label":"Competing implementations","status":"running","dependsOn":["baseline"],"evidenceIds":[],"nextAction":"Implement the shared slice without weakening the acceptance contract."},
+    {"id":"automated-qa","label":"Automated QA","status":"blocked","dependsOn":["implement"],"evidenceIds":[],"nextAction":"Wait for a runnable candidate build."},
+    {"id":"human-playtest","label":"Human playtest","status":"blocked","dependsOn":["automated-qa"],"evidenceIds":[],"nextAction":"Launch the leading candidate and record a gameplay verdict."},
+    {"id":"compare","label":"Compare & promote","status":"blocked","dependsOn":["human-playtest"],"evidenceIds":[],"nextAction":"Compare evidence across candidates and scope the conclusion."}
   ],
-  "gates": [
-    {
-      "id": "gate-human-playtest",
-      "label": "Human gameplay acceptance",
-      "kind": "human",
-      "status": "blocked",
-      "stageId": "human-playtest",
-      "evidenceIds": [],
-      "verdict": null
-    }
-  ],
+  "gates": [{"id":"gate-human-playtest","label":"Human gameplay acceptance","kind":"human","status":"blocked","stageId":"human-playtest","evidenceIds":[],"verdict":null}],
   "agents": [
-    {
-      "id": "pipeline-governor",
-      "role": "Pipeline Governor",
-      "status": "queued",
-      "objective": "Challenge missing capabilities and benchmark bias at the next major gate.",
-      "stageId": "compare",
-      "evidenceIds": []
-    },
-    {
-      "id": "implementation-team",
-      "role": "Runtime implementation agents",
-      "status": "running",
-      "objective": "Produce comparable implementations of the shared action slice.",
-      "stageId": "implement",
-      "evidenceIds": []
-    },
-    {
-      "id": "qa-critic",
-      "role": "QA Critic",
-      "status": "queued",
-      "objective": "Verify boot, controls, playability, visual state and performance with fresh evidence.",
-      "stageId": "automated-qa",
-      "evidenceIds": []
-    }
+    {"id":"pipeline-governor","role":"Pipeline Governor","status":"queued","objective":"Challenge missing capabilities and benchmark bias at the next major gate.","stageId":"compare","evidenceIds":[]},
+    {"id":"implementation-team","role":"Runtime implementation agents","status":"running","objective":"Produce comparable implementations of the shared action slice.","stageId":"implement","evidenceIds":[]},
+    {"id":"qa-critic","role":"QA Critic","status":"queued","objective":"Verify boot, controls, playability, visual state and performance with fresh evidence.","stageId":"automated-qa","evidenceIds":[]}
   ],
-  "decisions": [
-    {
-      "id": "decision-benchmark-shape",
-      "title": "Use a shared playable contract across multiple serious runtimes",
-      "selected": "Comparative benchmark",
-      "alternatives": ["Pick one engine by reputation", "Build a bespoke engine", "Compare synthetic microbenchmarks only"],
-      "rationale": "A shared playable slice produces evidence about AI production efficiency, player-facing quality, performance, deployment reliability, economics and maintainability rather than rewarding remembered preferences.",
-      "evidenceIds": ["ev-preflight", "ev-baseline"],
-      "reviewAfter": null
-    }
-  ],
+  "decisions": [{"id":"decision-benchmark-shape","title":"Use a shared playable contract across multiple serious runtimes","selected":"Comparative benchmark","alternatives":["Pick one engine by reputation","Build a bespoke engine","Compare synthetic microbenchmarks only"],"rationale":"A shared playable slice produces evidence about AI production efficiency, player-facing quality, performance, deployment reliability, economics and maintainability rather than rewarding remembered preferences.","evidenceIds":["ev-preflight","ev-baseline"],"reviewAfter":null}],
   "evidence": [
-    {
-      "id": "ev-preflight",
-      "type": "document",
-      "label": "Benchmark 001 candidate preflight",
-      "status": "current",
-      "uri": "experiments/BYJTT-LAB-001/spec.md",
-      "revision": "e1a2eaf047b415da7cdbfba68086fbae1c3afb7b",
-      "capturedAt": "2026-08-19T00:41:04+01:00"
-    },
-    {
-      "id": "ev-baseline",
-      "type": "document",
-      "label": "Shared gameplay baseline contract",
-      "status": "current",
-      "uri": "experiments/BYJTT-LAB-001/shared/README.md",
-      "revision": "e1a2eaf047b415da7cdbfba68086fbae1c3afb7b",
-      "capturedAt": "2026-08-19T00:41:04+01:00"
-    },
-    {
-      "id": "ev-provenance",
-      "type": "provenance",
-      "label": "Shared asset provenance ledger",
-      "status": "current",
-      "uri": "experiments/BYJTT-LAB-001/shared/assets/provenance.json",
-      "revision": "e1a2eaf047b415da7cdbfba68086fbae1c3afb7b",
-      "capturedAt": "2026-08-19T00:41:04+01:00"
-    }
+    {"id":"ev-preflight","type":"document","label":"Benchmark 001 candidate preflight","status":"current","uri":"experiments/BYJTT-LAB-001/preflight-2026-08-19.md","revision":"8c261b45deb34d331db58c52b4a7071653e4a2f7","capturedAt":"2026-08-19T00:41:04+01:00"},
+    {"id":"ev-baseline","type":"document","label":"Shared gameplay baseline contract","status":"current","uri":"experiments/BYJTT-LAB-001/shared/contract.json","revision":"1f5dfcedac236524e00082ff00118c782264104b","capturedAt":"2026-08-19T00:41:04+01:00"},
+    {"id":"ev-provenance","type":"provenance","label":"Shared asset provenance ledger","status":"current","uri":"experiments/BYJTT-LAB-001/shared/provenance.json","revision":"1c47fc5c9ea6941dcee9b4146b4fb0f093306084","capturedAt":"2026-08-19T00:41:04+01:00"}
   ],
   "builds": []
 }
