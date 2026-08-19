@@ -4,16 +4,7 @@
   "title": "By JTT AI Game Pipeline Run",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "runId",
-    "startedAt",
-    "scope",
-    "inputs",
-    "execution",
-    "evidence",
-    "outcome"
-  ],
+  "required": ["schemaVersion", "runId", "startedAt", "scope", "inputs", "execution", "evidence", "outcome"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
     "runId": { "type": "string", "minLength": 1 },
@@ -28,19 +19,7 @@
       "properties": {
         "taskType": {
           "type": "string",
-          "enum": [
-            "research",
-            "prototype",
-            "implementation",
-            "asset-production",
-            "debugging",
-            "playtest",
-            "benchmark",
-            "release",
-            "maintenance",
-            "publication",
-            "other"
-          ]
+          "enum": ["research", "prototype", "implementation", "asset-production", "debugging", "playtest", "benchmark", "release", "maintenance", "publication", "other"]
         },
         "objective": { "type": "string", "minLength": 1 },
         "candidate": { "type": ["string", "null"] },
@@ -53,26 +32,39 @@
       "required": ["sourceCommit", "technologyVersions"],
       "properties": {
         "sourceCommit": { "type": "string", "minLength": 1 },
-        "technologyVersions": {
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        },
+        "technologyVersions": { "type": "object", "additionalProperties": { "type": "string" } },
         "sharedAssetSet": { "type": ["string", "null"] },
         "specVersion": { "type": ["string", "null"] }
+      }
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workstreamId": { "type": ["string", "null"] },
+        "authoritativeIssue": { "type": ["string", "null"] },
+        "branch": { "type": ["string", "null"] },
+        "baseCommit": { "type": ["string", "null"] },
+        "environment": { "type": ["string", "null"] },
+        "ownedPaths": { "type": "array", "items": { "type": "string" } },
+        "avoidedPaths": { "type": "array", "items": { "type": "string" } },
+        "concurrentPrsInspected": { "type": "integer", "minimum": 0 },
+        "overlapDetections": { "type": "integer", "minimum": 0 },
+        "staleBaseDetections": { "type": "integer", "minimum": 0 },
+        "mergeConflicts": { "type": "integer", "minimum": 0 },
+        "rebasesForCoordination": { "type": "integer", "minimum": 0 },
+        "duplicateWorkIncidents": { "type": "integer", "minimum": 0 },
+        "handoffs": { "type": "integer", "minimum": 0 },
+        "wrongEnvironmentReroutes": { "type": "integer", "minimum": 0 },
+        "coordinationHumanInterventions": { "type": "integer", "minimum": 0 },
+        "rediscoveryMinutes": { "type": ["number", "null"], "minimum": 0 },
+        "notes": { "type": "array", "items": { "type": "string" } }
       }
     },
     "execution": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "models",
-        "toolCalls",
-        "failedToolCalls",
-        "humanInterventions",
-        "iterations",
-        "bespokeLinesChanged",
-        "reusedComponents"
-      ],
+      "required": ["models", "toolCalls", "failedToolCalls", "humanInterventions", "iterations", "bespokeLinesChanged", "reusedComponents"],
       "properties": {
         "models": {
           "type": "array",
@@ -133,10 +125,7 @@
       "additionalProperties": false,
       "required": ["status", "summary", "failures", "nextAction"],
       "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["pass", "partial", "fail", "blocked", "rejected", "promoted"]
-        },
+        "status": { "type": "string", "enum": ["pass", "partial", "fail", "blocked", "rejected", "promoted"] },
         "summary": { "type": "string", "minLength": 1 },
         "failures": { "type": "array", "items": { "type": "string" } },
         "nextAction": { "type": "string", "minLength": 1 },

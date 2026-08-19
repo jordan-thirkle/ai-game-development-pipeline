@@ -20,6 +20,20 @@ Record why the selected option wins when the decision materially affects the exp
 
 For fast-moving engines, SDKs, libraries, stores, deployment systems, AI tooling, model APIs, monetisation platforms, and platform requirements, verify current official documentation before relying on remembered APIs or constraints.
 
+## Multi-agent/session operating model
+
+Follow [`docs/MULTI-AGENT-OPERATING-MODEL.md`](docs/MULTI-AGENT-OPERATING-MODEL.md).
+
+GitHub issues/PRs/commits are canonical project state; chat history is not. Before substantial work, reload live `main`, the authoritative issue, and open PR changed paths; then claim a bounded workstream with objective, branch/base, owned/avoided paths, dependencies, execution environment, and evidence plan.
+
+Do not run unstacked concurrent work that meaningfully owns the same paths or outcome. Avoid, stack, sequence, or explicitly coordinate shared ownership first.
+
+Once objective, ownership, dependencies, environment, and evidence are known, transition to execution. Do not keep expanding planning unless execution exposes a new blocker.
+
+Route runtime-dependent work to an environment capable of executing and observing it. Text/code inspection alone cannot prove gameplay, rendering, engine, browser, device, performance, or release behaviour.
+
+Every session must leave GitHub-visible handoff state sufficient for a fresh agent to resume without reading old chats.
+
 ## Evidence loop
 
 The default development loop is:
@@ -44,7 +58,7 @@ The Governor is expected to challenge prior decisions and identify missing capab
 
 ## Pipeline telemetry
 
-AI speed claims must be measured rather than asserted. Significant pipeline runs should use the versioned telemetry contract in [`schemas/pipeline-run.schema.json`](schemas/pipeline-run.schema.json) so experiments can compare agent/tool cost, interventions, reuse, failures, iteration count, execution evidence, quality, and outcomes over time.
+AI speed claims must be measured rather than asserted. Significant pipeline runs should use the versioned telemetry contract in [`schemas/pipeline-run.schema.json`](schemas/pipeline-run.schema.json) so experiments can compare agent/tool cost, interventions, reuse, failures, iteration count, execution evidence, quality, outcomes, and where useful coordination overhead over time.
 
 ## Experiment integrity
 

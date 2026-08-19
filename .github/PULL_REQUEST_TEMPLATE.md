@@ -2,10 +2,25 @@
 
 <!-- What does this change improve: experiment reproducibility, pipeline capability, reusable production infrastructure, documentation, or a candidate implementation? -->
 
+## Workstream coordination
+
+- Authoritative issue/workstream: <!-- #issue -->
+- Session/workstream ID: <!-- unique identifier -->
+- Base/dependency: <!-- main SHA or dependency PR -->
+- Owned paths: <!-- files/subtrees this PR intentionally owns -->
+- Avoided/concurrent paths: <!-- known paths owned by parallel work -->
+- Concurrent PRs inspected: <!-- list or none -->
+- Relationship: <!-- independent | stacked on PR # | sequenced after PR # -->
+- Execution environment: <!-- ChatGPT/GitHub | Codex/local | browser | engine/editor | device | CI | combination -->
+
+- [ ] Live repository/PR state was inspected before implementation.
+- [ ] No unplanned unstacked overlap with another active workstream remains.
+
 ## Scope
 
 - [ ] Change is intentionally scoped.
 - [ ] No unrelated refactor or technology migration is bundled in.
+- [ ] Planning transitioned to execution once objective/ownership/dependencies/evidence were known.
 
 ## Solved-system gate
 
@@ -14,8 +29,9 @@
 ## Evidence
 
 - [ ] Fresh validation or execution evidence is included where behaviour changed.
+- [ ] The chosen environment could actually observe the behaviour being claimed.
 - [ ] Comparative experiment constraints remain fair where applicable.
-- [ ] Failures/limitations are documented rather than hidden.
+- [ ] Failures/limitations/unknowns are documented rather than hidden.
 
 ## Provenance and licensing
 
@@ -28,4 +44,12 @@
 
 ## Verification
 
-<!-- Commands, playtest IDs, screenshots, profiler evidence, device checks, or other reproducible proof. -->
+<!-- Commands, playtest IDs, screenshots, profiler evidence, device checks, CI runs, or other reproducible proof. -->
+
+## Handoff / next safe action
+
+- Status: <!-- completed | partial | blocked | handed-off -->
+- Head SHA: <!-- final verified head -->
+- Remaining blockers/unknowns: <!-- explicit list or none -->
+- Released owned paths: <!-- yes/no/list -->
+- Next safe action: <!-- executable continuation for a fresh session -->
