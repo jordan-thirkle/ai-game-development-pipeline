@@ -1,0 +1,1 @@
+Intentional adversarial test: this PR changes a gated path while its own config removes the gate. Trusted-base enforcement must still reject it.
