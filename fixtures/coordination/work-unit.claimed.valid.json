@@ -1,6 +1,0 @@
-{
-  "schemaVersion":"0.1.0","id":"WU-001","projectId":"BYJTT-LAB-001","stageId":"implement","title":"Implement candidate slice","objective":"Implement one benchmark candidate without weakening the shared contract.","role":"Gameplay Implementation","status":"claimed","priority":"high","dependsOn":[],"startRevision":"b204e04062f88a1a4a077774ac378f7fbbb4d1a0","resultRevision":null,
-  "claim":{"owner":"worker-a","role":"Gameplay Implementation","claimedAt":"2026-08-19T00:20:00Z","expiresAt":"2026-08-19T01:20:00Z","leaseId":"lease-wu-001-a"},
-  "contextPointers":["AGENTS.md","docs/MULTI-AGENT-OPERATING-MODEL.md","experiments/BYJTT-LAB-001/spec.md"],
-  "acceptanceCriteria":["Candidate implements the shared playable contract","Fresh execution evidence is recorded","Human gameplay verdict is recorded after current QA passes"],"evidenceRequirements":["build or runtime evidence","verification result","human playtest evidence"],"evidenceIds":[],"approvalClass":"human-taste","retryPolicy":{"mode":"bounded-recovery","maxAttempts":2}
-}
