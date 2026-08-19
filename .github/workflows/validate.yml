@@ -26,5 +26,7 @@ jobs:
         run: npm run validate:record -- pipeline-run examples/records/pipeline-run.valid.json
       - name: Validate graduation record fixture
         run: npm run validate:record -- game-graduation examples/records/game-graduation.valid.json
+      - name: Validate production game status fixture
+        run: npm run validate:record -- game-status examples/records/game-status.valid.json
       - name: Exercise graduation gate
         run: npm run gate:graduation -- examples/records/game-graduation.valid.json

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://games.byjtt.com/schemas/game-status.schema.json",
+  "title": "By JTT Production Game Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "gameId",
+    "lifecycleStage",
+    "runtime",
+    "releases",
+    "health",
+    "monetisation",
+    "maintenance",
+    "evidence",
+    "nextReview"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "gameId": { "type": "string", "minLength": 1 },
+    "repository": { "type": ["string", "null"] },
+    "lifecycleStage": {
+      "type": "string",
+      "enum": [
+        "production",
+        "soft-launch",
+        "public-release",
+        "operate-iterate",
+        "liveops",
+        "maintenance",
+        "retirement"
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "decisionEvidence": { "type": ["string", "null"] }
+      }
+    },
+    "releases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "channel", "status"],
+        "properties": {
+          "platform": { "type": "string", "minLength": 1 },
+          "channel": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["planned", "testing", "live", "paused", "retired"] },
+          "version": { "type": ["string", "null"] },
+          "buildId": { "type": ["string", "null"] },
+          "releasedAt": { "type": ["string", "null"], "format": "date-time" }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["telemetry", "crashReporting", "releasePipeline", "commerce", "support"],
+      "properties": {
+        "telemetry": { "$ref": "#/$defs/healthState" },
+        "crashReporting": { "$ref": "#/$defs/healthState" },
+        "releasePipeline": { "$ref": "#/$defs/healthState" },
+        "commerce": { "$ref": "#/$defs/healthState" },
+        "support": { "$ref": "#/$defs/healthState" }
+      }
+    },
+    "monetisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "state"],
+      "properties": {
+        "model": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "state": { "type": "string", "enum": ["none", "hypothesis", "testing", "live", "paused", "retired"] },
+        "activeExperiment": { "type": ["string", "null"] },
+        "economicsEvidence": { "type": ["string", "null"] }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "risks"],
+      "properties": {
+        "policy": { "type": "string", "minLength": 1 },
+        "lastDependencyReview": { "type": ["string", "null"], "format": "date" },
+        "lastPlatformReview": { "type": ["string", "null"], "format": "date" },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["severity", "risk", "status"],
+            "properties": {
+              "severity": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+              "risk": { "type": "string", "minLength": 1 },
+              "status": { "type": "string", "enum": ["open", "mitigating", "resolved", "accepted"] },
+              "evidence": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pipelineRuns", "releaseEvidence", "publicationSafe"],
+      "properties": {
+        "pipelineRuns": { "type": "array", "items": { "type": "string" } },
+        "releaseEvidence": { "type": "array", "items": { "type": "string" } },
+        "publicationSafe": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "nextReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "date": { "type": ["string", "null"], "format": "date" },
+        "action": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "healthState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "blocked", "unknown", "not-applicable"]
+        },
+        "evidence": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
