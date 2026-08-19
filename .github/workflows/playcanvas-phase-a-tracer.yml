@@ -48,3 +48,4 @@ jobs:
             experiments/BYJTT-LAB-001/candidates/playcanvas/artifacts/browser-tracer/**
             /tmp/playcanvas-preview.log
           if-no-files-found: warn
+# synchronize probe after candidate strict-type fixes
