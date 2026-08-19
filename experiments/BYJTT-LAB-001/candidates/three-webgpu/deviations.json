@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_id": "three-webgpu",
+  "phase": "A",
+  "deviations": [
+    {
+      "id": "phase-a-greybox",
+      "status": "approved-by-benchmark-phase",
+      "description": "Uses primitive greybox character/enemy/salvage visuals. Frozen shared production assets are intentionally deferred to Phase B.",
+      "effect_on_claims": "No final asset-import, animation-fidelity, production-visual or production-content mobile-performance claims are permitted."
+    },
+    {
+      "id": "direct-enemy-steering",
+      "status": "approved-phase-a-simplification",
+      "description": "Enemy moves directly toward the player in the unobstructed arena instead of using a navmesh package.",
+      "effect_on_claims": "Measures navigation/steering and engine plumbing only; does not establish obstacle/pathfinding capability."
+    }
+  ]
+}

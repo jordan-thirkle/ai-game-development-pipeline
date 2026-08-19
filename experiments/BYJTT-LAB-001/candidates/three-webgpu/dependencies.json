@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_id": "three-webgpu",
+  "phase": "A",
+  "runtime": [
+    { "name": "three", "version": "0.185.1", "role": "rendering-scene-camera-input-visuals", "license": "MIT" },
+    { "name": "jolt-physics", "version": "1.1.0", "role": "physics-character-controller", "license": "MIT" }
+  ],
+  "tooling": [
+    { "name": "vite", "version": "8.2.1", "role": "build-preview" },
+    { "name": "playwright", "version": "1.62.1", "role": "browser-driver-evidence" }
+  ],
+  "deliberately_not_added": [
+    { "name": "recast-navigation", "reason": "Unobstructed Phase A arena does not require navmesh pathfinding; direct steering satisfies the current navigation/steering behavior with less unused infrastructure." },
+    { "name": "@dimforge/rapier3d", "reason": "Retained as a fallback/comparison after the standalone rapier.js repository was archived; Jolt is the first executed incumbent." },
+    { "name": "frontend-framework", "reason": "DOM HUD/touch controls are small enough that React/Vue/etc. would add lifecycle surface without reducing work for this slice." }
+  ]
+}
