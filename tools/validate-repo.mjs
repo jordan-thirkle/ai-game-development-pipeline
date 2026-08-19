@@ -11,13 +11,13 @@ const requiredPaths = [
   'workflows/cross-session-work.md', 'schemas/control-plane-state.schema.json',
   'schemas/game-graduation.schema.json', 'schemas/pipeline-event.schema.json',
   'schemas/pipeline-run.schema.json', 'schemas/work-unit.schema.json',
-  'fixtures/control-plane/BYJTT-LAB-001.json', 'examples/records/pipeline-run.valid.json',
+  'fixtures/control-plane/BYJTT-LAB-001.json', 'fixtures/coordination/work-unit.example.json',
+  'fixtures/coordination/pipeline-event.example.json', 'examples/records/pipeline-run.valid.json',
   'examples/records/game-graduation.valid.json', 'experiments/BYJTT-LAB-001/spec.md',
   'experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
-  'experiments/BYJTT-LAB-001/shared/contract.json',
-  'experiments/BYJTT-LAB-001/shared/provenance.json',
-  'tools/check-graduation-gate.mjs', 'tools/validate-record.mjs',
-  'apps/studio/index.html', 'CLAUDE.md', '.github/copilot-instructions.md'
+  'experiments/BYJTT-LAB-001/shared/contract.json', 'experiments/BYJTT-LAB-001/shared/provenance.json',
+  'tools/check-graduation-gate.mjs', 'tools/validate-record.mjs', 'apps/studio/index.html',
+  'CLAUDE.md', '.github/copilot-instructions.md'
 ];
 for (const path of requiredPaths) {
   try { await access(path); } catch { console.error(`Missing required path: ${path}`); process.exitCode = 1; }
@@ -41,7 +41,9 @@ addFormats(ajv);
 const recordChecks = [
   ['schemas/pipeline-run.schema.json', 'examples/records/pipeline-run.valid.json'],
   ['schemas/game-graduation.schema.json', 'examples/records/game-graduation.valid.json'],
-  ['schemas/control-plane-state.schema.json', 'fixtures/control-plane/BYJTT-LAB-001.json']
+  ['schemas/control-plane-state.schema.json', 'fixtures/control-plane/BYJTT-LAB-001.json'],
+  ['schemas/work-unit.schema.json', 'fixtures/coordination/work-unit.example.json'],
+  ['schemas/pipeline-event.schema.json', 'fixtures/coordination/pipeline-event.example.json']
 ];
 for (const [schemaPath, recordPath] of recordChecks) {
   const schema = await readJson(schemaPath); const record = await readJson(recordPath);
