@@ -65,6 +65,7 @@ const runtime = {
   startupMs: null,
   renderFrames: 0,
   errors: [],
+  warnings: [],
   audioSupported: Boolean(window.AudioContext || window.webkitAudioContext),
   audioEvents: 0,
   audioFailures: [],
@@ -154,6 +155,7 @@ function snapshot() {
     'startup.ms': runtime.startupMs,
     'render.frames': runtime.renderFrames,
     'runtime.errors': [...runtime.errors],
+    'runtime.warnings': [...runtime.warnings],
   });
 }
 
@@ -238,7 +240,7 @@ async function createEngine() {
       runtime.backend = 'webgpu';
       return webgpu;
     } catch (error) {
-      runtime.errors.push(`webgpu-init: ${error instanceof Error ? error.message : String(error)}`);
+      runtime.warnings.push(`webgpu-init: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   runtime.backend = 'webgl2-fallback';
@@ -547,7 +549,6 @@ function simulate(dt) {
   updatePlayer(dt);
   updateEnemy(dt);
   updateAnimationVisuals(dt);
-  collectRewardIfClose();
   updateVfx(dt);
   if (rewardMesh?.isEnabled()) rewardMesh.rotation.y += dt * 2.8;
 }
