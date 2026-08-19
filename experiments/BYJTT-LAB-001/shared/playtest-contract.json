@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-001",
+  "scenario_id": "mobile-action-slice-v1",
+  "determinism": {
+    "seed": 1337,
+    "fixed_seed_required": true,
+    "fixed_timestep_required": false,
+    "record_actual_timestep": true,
+    "clean_persistence_before_first_run": true,
+    "same_seed_after_restart": true
+  },
+  "driver_contract": {
+    "principle": "automation drives only player-visible inputs; instrumentation may observe but must not mutate gameplay state",
+    "required_inputs": [
+      "move_x",
+      "move_y",
+      "camera_delta_x",
+      "camera_delta_y",
+      "attack",
+      "interact",
+      "pause"
+    ],
+    "required_observations": [
+      "runtime.ready",
+      "scene.gameplay_active",
+      "player.position",
+      "player.health",
+      "player.alive",
+      "enemy.position",
+      "enemy.health",
+      "enemy.alive",
+      "enemy.target_state",
+      "salvage.health",
+      "salvage.broken",
+      "reward.available",
+      "reward.count",
+      "upgrade.menu_visible",
+      "upgrade.selected_ids",
+      "save.schema_version"
+    ],
+    "forbidden_test_shortcuts": [
+      "teleport-player",
+      "set-health",
+      "set-enemy-health",
+      "set-salvage-health",
+      "grant-reward",
+      "grant-upgrade",
+      "write-save-directly"
+    ]
+  },
+  "tolerances": {
+    "input_duration_seconds": 0.1,
+    "position_metres": 0.35,
+    "event_settle_seconds": 2.0,
+    "cold_launch_ready_seconds_max": 15.0,
+    "restart_ready_seconds_max": 15.0
+  },
+  "steps": [
+    {
+      "id": "01-cold-launch",
+      "action": "launch-runtime-with-clean-persistence",
+      "assert": [
+        "runtime.ready == true within cold_launch_ready_seconds_max",
+        "reward.count == 0",
+        "upgrade.selected_ids is empty"
+      ],
+      "capture": ["startup-duration", "console-or-engine-log", "screenshot"]
+    },
+    {
+      "id": "02-enter-gameplay",
+      "action": "activate-gameplay-through-normal-ui-or-start-action",
+      "assert": [
+        "scene.gameplay_active == true",
+        "player.alive == true",
+        "enemy.alive == true",
+        "salvage.broken == false"
+      ],
+      "capture": ["screenshot"]
+    },
+    {
+      "id": "03-move-player",
+      "action": "apply-forward-movement-for-1.0-seconds",
+      "assert": [
+        "player.position changes by more than 1.0 metres",
+        "player remains inside arena bounds"
+      ],
+      "capture": ["before-after-position"]
+    },
+    {
+      "id": "04-exercise-camera",
+      "action": "apply-horizontal-camera-input-then-release",
+      "assert": [
+        "camera responds without changing persisted gameplay progression",
+        "player remains controllable after camera input"
+      ],
+      "capture": ["screenshot-or-short-video"]
+    },
+    {
+      "id": "05-acquire-enemy",
+      "action": "move-player-into-enemy-acquire-range-using-normal-movement",
+      "assert": [
+        "enemy.target_state becomes acquired or equivalent",
+        "enemy closes distance toward player"
+      ],
+      "capture": ["enemy-state", "positions"]
+    },
+    {
+      "id": "06-exchange-damage",
+      "action": "use-normal-attack-input-and-remain-in-range-long-enough-for-enemy-response",
+      "assert": [
+        "enemy.health decreases from max_health",
+        "player.health decreases from max_health",
+        "neither health value becomes negative"
+      ],
+      "capture": ["health-before-after", "short-video"]
+    },
+    {
+      "id": "07-break-salvage",
+      "action": "navigate-to-salvage-and-use-normal-attack-or-interact-input-until-broken",
+      "assert": [
+        "salvage.broken == true",
+        "reward.available == true"
+      ],
+      "capture": ["salvage-state", "screenshot"]
+    },
+    {
+      "id": "08-collect-reward",
+      "action": "move-player-through-reward-pickup-radius",
+      "assert": [
+        "reward.available == false",
+        "reward.count == 1"
+      ],
+      "capture": ["reward-count"]
+    },
+    {
+      "id": "09-select-upgrade",
+      "action": "select-damage-up-1-through-normal-ui-input",
+      "assert": [
+        "upgrade.selected_ids contains damage-up-1",
+        "effective player attack damage reflects contract multiplier"
+      ],
+      "capture": ["upgrade-state", "screenshot"]
+    },
+    {
+      "id": "10-resolve-enemy",
+      "action": "continue-normal-combat-until-enemy-is-dead-or-record-a-documented-evade-path-if-candidate-design-requires-it",
+      "assert": [
+        "enemy.alive == false OR documented benchmark deviation exists"
+      ],
+      "capture": ["enemy-final-state", "deviation-if-any"]
+    },
+    {
+      "id": "11-save-state",
+      "action": "trigger-the-candidate-normal-save-path",
+      "assert": [
+        "saved document contains schema_version",
+        "saved reward_count == 1",
+        "saved selected_upgrades contains damage-up-1"
+      ],
+      "capture": ["save-shape-without-secrets"]
+    },
+    {
+      "id": "12-restart-runtime",
+      "action": "fully-stop-and-relaunch-runtime-with-persistence-preserved",
+      "assert": [
+        "runtime.ready == true within restart_ready_seconds_max"
+      ],
+      "capture": ["restart-duration", "console-or-engine-log"]
+    },
+    {
+      "id": "13-verify-restored-state",
+      "action": "enter-gameplay-and-observe-restored-progression-without-test-state-mutation",
+      "assert": [
+        "reward.count == 1",
+        "upgrade.selected_ids contains damage-up-1"
+      ],
+      "capture": ["restored-state", "screenshot"]
+    }
+  ],
+  "result_policy": {
+    "pass_requires_all_non_deviation_assertions": true,
+    "deviations_must_be_explicit": true,
+    "missing_observation_is_unknown_not_pass": true,
+    "source_inspection_is_not_runtime_evidence": true,
+    "candidate_may_not_modify_shared_assertions_unilaterally": true
+  }
+}
