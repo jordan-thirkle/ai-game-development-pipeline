@@ -2,6 +2,15 @@
 
 This repository is an evidence-driven AI game-development laboratory and production system. Agents must optimise for the best end-to-end production outcome, not loyalty to a previously selected engine, framework, model, vendor, implementation, or workflow.
 
+## Agent skills
+
+Repository coordination conventions are durable state:
+
+- [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) — work ownership, wayfinding, concurrency and evidence rules.
+- [`docs/agents/domain.md`](docs/agents/domain.md) — canonical domain-context locations and minimal-context loading rule.
+
+Chats and agent sessions are disposable workers, not sources of truth. Before substantial work, refresh the relevant repository revision and work unit, avoid duplicating an active claim, and write decisions/evidence back to durable state.
+
 ## Mandatory solved-system gate
 
 Before substantial custom implementation, evaluate in order:
