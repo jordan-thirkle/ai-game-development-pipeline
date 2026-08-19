@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 12
     env:
       CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -36,6 +37,7 @@ jobs:
             echo "chrome=$(google-chrome --version || true)"
             echo "os=$(uname -a)"
             echo "github_sha=$GITHUB_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
           } | tee "$CANDIDATE/artifacts/phase-a/environment.txt"
       - name: Install pinned candidate dependencies
         run: npm --prefix "$CANDIDATE" install --ignore-scripts --no-audit --no-fund
