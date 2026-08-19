@@ -21,7 +21,7 @@ async function open(viewport,overrideFixture=null){
   if(overrideFixture){
     await page.route('**/fixtures/control-plane/BYJTT-LAB-001.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(overrideFixture)}));
   }
-  const response=await page.goto(baseURL,{waitUntil:'networkidle'});
+  const response=await page.goto(baseURL,{waitUntil:'domcontentloaded'});
   assert(response?.ok(),`HTTP ${response?.status()}`);
   await page.waitForSelector('#name');
   await page.waitForFunction(()=>document.querySelector('#name')?.textContent!=='Loading…');
