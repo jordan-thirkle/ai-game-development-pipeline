@@ -1,6 +1,6 @@
 # Domain Context Contract
 
-The root `CONTEXT.md` is the canonical low-resolution description of the pipeline domain once introduced. Architectural decisions belong under `docs/adr/`. Detailed operational contracts remain in their focused docs and schemas.
+The root [`CONTEXT.md`](../../CONTEXT.md) is the canonical low-resolution description of the pipeline domain. Architectural decisions belong under `docs/adr/` as they are introduced. Detailed operational contracts remain in their focused docs and schemas.
 
 Do not use chat history as canonical domain documentation.
 
