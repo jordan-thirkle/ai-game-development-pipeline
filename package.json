@@ -14,6 +14,8 @@
     "new:record": "node tools/new-record.mjs",
     "gate:graduation": "node tools/check-graduation-gate.mjs",
     "gate:lifecycle": "node tools/check-lifecycle-status.mjs",
+    "gate:control-plane-freshness": "node tools/check-control-plane-freshness.mjs",
+    "test:control-plane-freshness": "node tools/test-control-plane-freshness.mjs",
     "test:governor": "node --test tools/test-lifecycle-status.mjs"
   },
   "dependencies": {
