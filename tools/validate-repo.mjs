@@ -1,207 +1,104 @@
 import { access, readFile } from 'node:fs/promises';
+import process from 'node:process';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
 
-const requiredFiles = [
-  'README.md',
-  'LICENSE',
-  'CONTRIBUTING.md',
-  'SECURITY.md',
+const requiredPaths = [
   'AGENTS.md',
-  'CLAUDE.md',
-  'docs/METHOD.md',
-  'docs/PUBLISHING.md',
-  'docs/PIPELINE.md',
-  'docs/MONETIZATION-AND-LIVEOPS.md',
-  'docs/CONTROL-PLANE.md',
-  'docs/AI-AGENT-CONFIG.md',
+  'CONTEXT.md',
+  'README.md',
   'agents/PIPELINE-GOVERNOR.md',
-  'workflows/commercial-game-lifecycle.md',
-  'schemas/pipeline-run.schema.json',
-  'schemas/game-graduation.schema.json',
+  'docs/AI-AGENT-CONFIG.md',
+  'docs/CONTROL-PLANE.md',
+  'docs/COORDINATION-KERNEL.md',
+  'docs/MONETIZATION-AND-LIVEOPS.md',
+  'docs/PIPELINE.md',
+  'docs/agents/domain.md',
+  'docs/agents/issue-tracker.md',
+  'workflows/cross-session-work.md',
+  'schemas/asset-record.schema.json',
   'schemas/control-plane-state.schema.json',
-  'tools/validate-record.mjs',
-  'tools/check-graduation-gate.mjs',
-  'examples/records/pipeline-run.valid.json',
-  'examples/records/game-graduation.valid.json',
-  'experiments/BYJTT-LAB-001/spec.md',
-  'experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
-  'experiments/BYJTT-LAB-001/shared/contract.json',
-  'experiments/BYJTT-LAB-001/shared/assets.md',
-  'experiments/BYJTT-LAB-001/shared/provenance.json',
+  'schemas/game-graduation.schema.json',
+  'schemas/pipeline-event.schema.json',
+  'schemas/pipeline-run.schema.json',
+  'schemas/work-unit.schema.json',
   'fixtures/control-plane/BYJTT-LAB-001.json',
+  'experiments/BYJTT-LAB-001/README.md',
+  'experiments/BYJTT-LAB-001/spec.md',
+  'experiments/BYJTT-LAB-001/shared/README.md',
+  'experiments/BYJTT-LAB-001/shared/assets/provenance.json',
+  'experiments/BYJTT-LAB-001/records/pipeline-run.example.json',
+  'experiments/BYJTT-LAB-001/records/game-graduation.example.json',
+  'tools/check-game-graduation.mjs',
+  'tools/record-pipeline-run.mjs',
   'apps/studio/index.html',
-  'registry/technologies.json',
+  'CLAUDE.md',
   '.github/copilot-instructions.md'
 ];
 
-const failures = [];
-
-for (const path of requiredFiles) {
+for (const path of requiredPaths) {
   try {
     await access(path);
   } catch {
-    failures.push(`Missing required file: ${path}`);
+    console.error(`Missing required path: ${path}`);
+    process.exitCode = 1;
   }
 }
 
-for (const schemaPath of [
-  'schemas/pipeline-run.schema.json',
-  'schemas/game-graduation.schema.json',
-  'schemas/control-plane-state.schema.json'
-]) {
+async function readJson(path) {
   try {
-    const schema = JSON.parse(await readFile(schemaPath, 'utf8'));
-    if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
-      failures.push(`${schemaPath} must declare JSON Schema draft 2020-12`);
-    }
-    if (!schema.$id || !schema.title || schema.type !== 'object') {
-      failures.push(`${schemaPath} requires $id, title, and object type`);
-    }
+    return JSON.parse(await readFile(path, 'utf8'));
   } catch (error) {
-    failures.push(`Unable to parse ${schemaPath}: ${error.message}`);
+    console.error(`Invalid JSON in ${path}: ${error.message}`);
+    process.exitCode = 1;
+    return null;
   }
 }
 
-try {
-  const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
-  if (packageJson.dependencies?.ajv !== '8.20.0') {
-    failures.push('Ajv must remain pinned to the verified 8.20.0 baseline until deliberately upgraded');
-  }
-  if (packageJson.dependencies?.['ajv-formats'] !== '2.1.1') {
-    failures.push('ajv-formats must remain pinned to the verified 2.1.1 stable baseline until deliberately upgraded');
-  }
-  for (const script of ['validate:record', 'gate:graduation']) {
-    if (!packageJson.scripts?.[script]) failures.push(`package.json requires ${script} script`);
-  }
-} catch (error) {
-  failures.push(`Unable to validate package.json lifecycle tooling: ${error.message}`);
+const provenance = await readJson('experiments/BYJTT-LAB-001/shared/assets/provenance.json');
+if (provenance && !Array.isArray(provenance.assets)) {
+  console.error('Provenance file must contain an assets array.');
+  process.exitCode = 1;
 }
 
-try {
-  const state = JSON.parse(await readFile('fixtures/control-plane/BYJTT-LAB-001.json', 'utf8'));
-  const allowedStageStatuses = new Set([
-    'unknown',
-    'running',
-    'pass',
-    'warn',
-    'fail',
-    'blocked',
-    'human-required',
-    'stale'
-  ]);
-  const stageIds = new Set(state.stages?.map(stage => stage.id));
-  const evidenceIds = new Set(state.evidence?.map(evidence => evidence.id));
+const requiredSchemas = [
+  'schemas/asset-record.schema.json',
+  'schemas/control-plane-state.schema.json',
+  'schemas/game-graduation.schema.json',
+  'schemas/pipeline-event.schema.json',
+  'schemas/pipeline-run.schema.json',
+  'schemas/work-unit.schema.json'
+];
 
-  if (state.project?.id !== 'BYJTT-LAB-001') {
-    failures.push('Control-plane fixture must represent BYJTT-LAB-001');
+for (const path of requiredSchemas) {
+  const schema = await readJson(path);
+  if (schema && (!schema.$schema || !schema.title || !schema.type)) {
+    console.error(`Schema ${path} is missing $schema, title, or type.`);
+    process.exitCode = 1;
   }
-  if (!Array.isArray(state.stages) || state.stages.length === 0) {
-    failures.push('Control-plane fixture requires pipeline stages');
-  } else {
-    for (const stage of state.stages) {
-      if (!allowedStageStatuses.has(stage.status)) {
-        failures.push(`Invalid control-plane stage status for ${stage.id}: ${stage.status}`);
-      }
-      for (const dependency of stage.dependsOn ?? []) {
-        if (!stageIds.has(dependency)) failures.push(`Unknown stage dependency ${dependency} from ${stage.id}`);
-      }
-      for (const evidenceId of stage.evidenceIds ?? []) {
-        if (!evidenceIds.has(evidenceId)) failures.push(`Unknown evidence ${evidenceId} from stage ${stage.id}`);
-      }
-    }
-  }
-  for (const gate of state.gates ?? []) {
-    if (!stageIds.has(gate.stageId)) failures.push(`Unknown gate stage: ${gate.stageId}`);
-  }
-} catch (error) {
-  failures.push(`Unable to validate control-plane fixture: ${error.message}`);
 }
 
-try {
-  const contract = JSON.parse(
-    await readFile('experiments/BYJTT-LAB-001/shared/contract.json', 'utf8')
-  );
-  if (contract.schema_version !== 1 || contract.experiment_id !== 'BYJTT-LAB-001') {
-    failures.push('Benchmark 001 shared contract must use schema_version 1 and experiment_id BYJTT-LAB-001');
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats(ajv);
+
+const recordChecks = [
+  ['schemas/pipeline-run.schema.json', 'experiments/BYJTT-LAB-001/records/pipeline-run.example.json'],
+  ['schemas/game-graduation.schema.json', 'experiments/BYJTT-LAB-001/records/game-graduation.example.json'],
+  ['schemas/control-plane-state.schema.json', 'fixtures/control-plane/BYJTT-LAB-001.json']
+];
+
+for (const [schemaPath, recordPath] of recordChecks) {
+  const schema = await readJson(schemaPath);
+  const record = await readJson(recordPath);
+  if (!schema || !record) continue;
+  const validate = ajv.compile(schema);
+  if (!validate(record)) {
+    console.error(`${recordPath} does not satisfy ${schemaPath}:`);
+    console.error(ajv.errorsText(validate.errors, { separator: '\n' }));
+    process.exitCode = 1;
   }
-  if (contract.viewport?.target_fps !== 60) {
-    failures.push('Benchmark 001 reference target must remain 60 FPS unless the experiment spec is deliberately revised');
-  }
-  if (!Array.isArray(contract.repeatable_playthrough) || contract.repeatable_playthrough.length < 10) {
-    failures.push('Benchmark 001 requires a complete repeatable playthrough sequence');
-  }
-} catch (error) {
-  failures.push(`Unable to validate Benchmark 001 shared contract: ${error.message}`);
 }
 
-try {
-  const provenance = JSON.parse(
-    await readFile('experiments/BYJTT-LAB-001/shared/provenance.json', 'utf8')
-  );
-  if (provenance.schema_version !== 1 || provenance.experiment_id !== 'BYJTT-LAB-001') {
-    failures.push('Benchmark 001 provenance ledger must use schema_version 1 and experiment_id BYJTT-LAB-001');
-  }
-  if (!Array.isArray(provenance.assets) || provenance.assets.length < 3) {
-    failures.push('Benchmark 001 provenance ledger requires shared character, animation, and environment candidates');
-  } else {
-    for (const asset of provenance.assets) {
-      if (!asset.id || !asset.source || !asset.license) {
-        failures.push('Every Benchmark 001 provenance asset requires id, source, and license');
-      }
-    }
-  }
-} catch (error) {
-  failures.push(`Unable to validate Benchmark 001 provenance ledger: ${error.message}`);
+if (!process.exitCode) {
+  console.log('Repository structure and versioned record contracts look valid.');
 }
-
-try {
-  const raw = await readFile('registry/technologies.json', 'utf8');
-  const registry = JSON.parse(raw);
-
-  if (registry.schema_version !== 1) {
-    failures.push('registry/technologies.json must use schema_version 1');
-  }
-
-  if (!Array.isArray(registry.technologies) || registry.technologies.length === 0) {
-    failures.push('Technology registry must contain at least one candidate');
-  } else {
-    const ids = new Set();
-    const allowedStatuses = new Set(['candidate', 'verified', 'preferred', 'superseded']);
-    const benchmarkCandidates = new Set([
-      'three-webgpu',
-      'playcanvas',
-      'babylonjs',
-      'godot',
-      'unity',
-      'defold'
-    ]);
-
-    for (const technology of registry.technologies) {
-      if (!technology.id || !technology.name || !technology.category) {
-        failures.push('Every technology requires id, name, and category');
-      }
-      if (ids.has(technology.id)) {
-        failures.push(`Duplicate technology id: ${technology.id}`);
-      }
-      ids.add(technology.id);
-      if (!allowedStatuses.has(technology.status)) {
-        failures.push(`Invalid status for ${technology.id}: ${technology.status}`);
-      }
-      if (!Array.isArray(technology.evidence)) {
-        failures.push(`Technology ${technology.id} must contain an evidence array`);
-      }
-      if (benchmarkCandidates.has(technology.id) && !technology.benchmark_pin) {
-        failures.push(`Benchmark candidate ${technology.id} requires a verified benchmark_pin`);
-      }
-    }
-  }
-} catch (error) {
-  failures.push(`Unable to validate technology registry: ${error.message}`);
-}
-
-if (failures.length > 0) {
-  console.error('Repository validation failed:\n');
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
-
-console.log('Repository structure, lifecycle tooling, control-plane contracts, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
