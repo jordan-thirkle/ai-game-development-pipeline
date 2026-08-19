@@ -1,0 +1,40 @@
+name: Godot Phase A tracer
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tracer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download pinned Godot 4.7.1
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/godot.zip \
+            https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee /tmp/godot-version.txt
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Run native headless tracer
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        run: |
+          set -o pipefail
+          "$GODOT_BIN" --headless --path . --script tests/headless_tracer.gd 2>&1 | tee /tmp/godot-tracer.log
+          grep '^BYJTT_RESULT=' /tmp/godot-tracer.log
+          grep '"result":"pass"' /tmp/godot-tracer.log
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-phase-a-tracer-${{ github.run_id }}
+          path: |
+            /tmp/godot-version.txt
+            /tmp/godot-tracer.log
+          if-no-files-found: warn
