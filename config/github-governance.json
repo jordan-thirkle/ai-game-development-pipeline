@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0.0",
+  "defaultBranch": "main",
+  "protectionIntent": {
+    "requirePullRequest": true,
+    "requireUpToDate": true,
+    "blockForcePushes": true,
+    "blockDeletions": true,
+    "restrictBypasses": true
+  },
+  "requiredChecks": [
+    {
+      "workflow": "Validate lab structure",
+      "job": "validate",
+      "context": "Validate lab structure / validate"
+    },
+    {
+      "workflow": "Control plane browser QA",
+      "job": "browser-qa",
+      "context": "Control plane browser QA / browser-qa"
+    }
+  ]
+}
