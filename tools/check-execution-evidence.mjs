@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import process from 'node:process';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
@@ -40,4 +41,4 @@ async function main(){
   if(failures.length){console.error('Execution evidence gate failed:');for(const f of failures)console.error(`- ${f}`);process.exit(1)}
   console.log('Execution evidence gates satisfied for all runtime-sensitive changes.');
 }
-if(import.meta.url===`file://${process.argv[1]}`) main().catch(e=>{console.error(e);process.exit(1)});
+if(import.meta.url===pathToFileURL(process.argv[1]).href) main().catch(e=>{console.error(e);process.exit(1)});
