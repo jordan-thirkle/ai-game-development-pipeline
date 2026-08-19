@@ -2,7 +2,9 @@
 
 ## Status
 
-`planned`
+`active-phase-a`
+
+Phase A (greybox / engine plumbing) is active across candidate lanes. Phase B (frozen shared-content comparison) begins only after the shared asset baseline has execution-backed binary/hash/import evidence.
 
 ## Hypothesis
 
@@ -45,14 +47,30 @@ The implementation must support this complete path:
 - deterministic or repeatable automated playthrough;
 - mobile-shaped viewport and performance capture.
 
+## Execution phases
+
+### Phase A — greybox / engine plumbing
+
+Candidate lanes may use engine-native primitives so they can execute in parallel before the final shared art baseline is frozen. Phase A measures implementation/agent velocity, engine-native leverage, bespoke/reused code burden, build/startup/tooling cost, deterministic QA capability, gameplay-system maintainability, and workflow coordination cost.
+
+Phase A does not support final claims about shared-asset import quality, animation fidelity, production visual quality, or production-content mobile performance.
+
+### Phase B — frozen shared content
+
+After the shared asset baseline records exact selected source binaries, hashes, licence evidence, skeleton/clip inspection and cross-runtime import viability, every retained candidate swaps to the same approved character/animation/environment sources and reruns the common evidence contract.
+
+Phase B adds comparable asset transformation/import effort, animation/material quality, production-content performance, mobile packaging/device evidence, and human gameplay/presentation evaluation.
+
 ## Fairness constraints
 
-- use the same approved source asset set where engine compatibility permits;
+- use the same approved source asset set where engine compatibility permits in Phase B;
 - use equivalent gameplay numbers and encounter layout;
 - do not intentionally use a weaker implementation pattern for a candidate;
 - use mature engine-native or proven open-source systems before bespoke replacements;
 - record any candidate-specific advantage that cannot be normalised;
-- acceptance criteria may not be weakened silently.
+- acceptance criteria may not be weakened silently;
+- test instrumentation may observe gameplay state but may not mutate it to manufacture a pass;
+- missing evidence remains `unknown`, not `pass`.
 
 ## Evidence required
 
@@ -62,15 +80,16 @@ Each implementation must produce:
 - build instructions;
 - dependency/provenance record;
 - implementation log;
-- automated test/playthrough result;
+- automated test/playthrough result keyed to the shared playtest contract;
 - screenshot set;
 - gameplay capture;
 - console/editor error record;
-- performance measurements;
+- performance measurements appropriate to the current phase;
 - AI-efficiency measurements where observable;
 - custom/reused-code estimate;
+- pipeline/workflow coordination measurements where observable;
 - known limitations;
-- final scorecard.
+- final scorecard only when evidence is comparable for the claimed context.
 
 ## Quality gate
 
@@ -82,7 +101,8 @@ A candidate cannot be ranked as a production winner unless:
 4. touch input is usable at the target viewport;
 5. visual/animation defects are explicitly scored rather than ignored;
 6. performance evidence exists on at least one representative environment;
-7. build/reproduction instructions are verified.
+7. build/reproduction instructions are verified;
+8. the claim is limited to the phase and evidence actually completed.
 
 ## Outcome
 
