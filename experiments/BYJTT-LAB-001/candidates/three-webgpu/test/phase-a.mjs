@@ -73,9 +73,19 @@ async function attack(count = 1) {
   }
 }
 
-async function moveToward(targetX, targetZ, tolerance = 1.35, maxSteps = 30) {
+async function ensurePlayerAlive(label = 'normal player respawn') {
+  let current = await snapshot();
+  if (!current['player.alive']) {
+    current = await waitFor((s) => s['player.alive'] === true, label, 4000);
+  }
+  return current;
+}
+
+async function moveToward(targetX, targetZ, tolerance = 1.35, maxSteps = 30, stopPredicate = null) {
   for (let step = 0; step < maxSteps; step++) {
-    const current = await snapshot();
+    let current = await ensurePlayerAlive();
+    if (stopPredicate?.(current)) return current;
+
     const p = current['player.position'];
     const dx = targetX - p.x;
     const dz = targetZ - p.z;
@@ -84,6 +94,9 @@ async function moveToward(targetX, targetZ, tolerance = 1.35, maxSteps = 30) {
     const axisX = Math.abs(dx) >= 0.25 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
     const axisZ = Math.abs(dz) >= 0.25 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
     if (axisX) await sprint(axisX, Math.min(280, Math.max(90, Math.abs(dx) / 5.5 * 1000)));
+    current = await snapshot();
+    if (stopPredicate?.(current)) return current;
+    if (!current['player.alive']) continue;
     if (axisZ) await sprint(axisZ, Math.min(280, Math.max(90, Math.abs(dz) / 5.5 * 1000)));
   }
   throw new Error(`Could not reach target (${targetX}, ${targetZ}) with normal movement; final=${JSON.stringify(await snapshot())}`);
@@ -93,7 +106,7 @@ async function moveTowardEnemy(tolerance = 1.45, maxSteps = 30) {
   for (let step = 0; step < maxSteps; step++) {
     let current = await snapshot();
     if (!current['enemy.alive']) return current;
-    if (!current['player.alive']) current = await waitFor((s) => s['player.alive'] === true, 'normal player respawn', 3500);
+    current = await ensurePlayerAlive();
 
     const p = current['player.position'];
     const e = current['enemy.position'];
@@ -104,6 +117,9 @@ async function moveTowardEnemy(tolerance = 1.45, maxSteps = 30) {
     const axisX = Math.abs(dx) >= 0.25 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
     const axisZ = Math.abs(dz) >= 0.25 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
     if (axisX) await sprint(axisX, Math.min(240, Math.max(80, Math.abs(dx) / 5.5 * 1000)));
+    current = await snapshot();
+    if (!current['enemy.alive']) return current;
+    if (!current['player.alive']) continue;
     if (axisZ) await sprint(axisZ, Math.min(240, Math.max(80, Math.abs(dz) / 5.5 * 1000)));
   }
   throw new Error(`Could not reach moving enemy with normal movement; final=${JSON.stringify(await snapshot())}`);
@@ -196,7 +212,7 @@ try {
   current = await snapshot();
   if (current['reward.count'] !== 1) {
     if (!current['reward.available']) throw new Error(`Reward neither collected nor available after salvage; state=${JSON.stringify(current)}`);
-    await moveToward(5, -1.7, 0.9);
+    await moveToward(5, -1.7, 0.9, 40, (s) => s['reward.count'] === 1);
     current = await waitFor((s) => s['reward.count'] === 1, 'reward collection');
   }
   result('08-collect-reward', current['reward.count'] === 1 && current['reward.available'] === false ? 'pass' : 'fail', { rewardCount: current['reward.count'], rewardAvailable: current['reward.available'] });
@@ -209,7 +225,7 @@ try {
   for (let attempt = 0; attempt < 6; attempt++) {
     current = await snapshot();
     if (!current['enemy.alive']) break;
-    if (!current['player.alive']) await waitFor((s) => s['player.alive'] === true, 'normal player respawn', 3500);
+    await ensurePlayerAlive();
     await moveTowardEnemy(1.5, 24);
     await attack(1);
   }
