@@ -42,6 +42,8 @@ let playerMesh;
 let enemyMesh;
 let salvageMesh;
 let rewardMesh;
+let impactMaterial;
+let audioContext = null;
 let lastSaved = null;
 let lastStatsText = '';
 let cameraYaw = 0;
@@ -51,6 +53,7 @@ let simulationAccumulator = 0;
 let simulationSteps = 0;
 let droppedSimulationSeconds = 0;
 let elapsed = 0;
+const activeVfx = [];
 
 const runtime = {
   ready: false,
@@ -62,11 +65,33 @@ const runtime = {
   startupMs: null,
   renderFrames: 0,
   errors: [],
+  audioSupported: Boolean(window.AudioContext || window.webkitAudioContext),
+  audioEvents: 0,
+  audioFailures: [],
+  vfxEvents: 0,
+  hitReactions: 0,
 };
 
 const state = {
-  player: { health: 100, alive: true, position: { x: 0, y: 1, z: 10 }, velocity: { x: 0, z: 0 }, hitCooldown: 0, attackCooldown: 0, respawnTimer: 0 },
-  enemy: { health: 100, alive: true, position: { x: 0, y: 1, z: -6 }, targetState: 'idle', attackCooldown: 0 },
+  player: {
+    health: 100,
+    alive: true,
+    position: { x: 0, y: 1, z: 10 },
+    velocity: { x: 0, z: 0 },
+    hitCooldown: 0,
+    attackCooldown: 0,
+    respawnTimer: 0,
+    animationState: 'idle',
+    hitReaction: 0,
+  },
+  enemy: {
+    health: 100,
+    alive: true,
+    position: { x: 0, y: 1, z: -6 },
+    targetState: 'idle',
+    attackCooldown: 0,
+    hitReaction: 0,
+  },
   salvage: { health: 34, broken: false },
   reward: { available: false, count: 0 },
   upgrade: { menuVisible: false, selectedIds: [] },
@@ -105,6 +130,7 @@ function snapshot() {
     'player.position': { ...state.player.position },
     'player.health': state.player.health,
     'player.alive': state.player.alive,
+    'player.animation_state': state.player.animationState,
     'player.effective_attack_damage': effectiveAttackDamage(),
     'enemy.position': { ...state.enemy.position },
     'enemy.health': state.enemy.health,
@@ -117,6 +143,12 @@ function snapshot() {
     'upgrade.menu_visible': state.upgrade.menuVisible,
     'upgrade.selected_ids': [...state.upgrade.selectedIds],
     'save.schema_version': lastSaved?.schema_version ?? null,
+    'feedback.vfx_events': runtime.vfxEvents,
+    'feedback.hit_reactions': runtime.hitReactions,
+    'audio.supported': runtime.audioSupported,
+    'audio.events': runtime.audioEvents,
+    'audio.context_state': audioContext?.state ?? 'not-created',
+    'audio.failures': [...runtime.audioFailures],
     'paused': state.paused,
     'elapsed_seconds': elapsed,
     'startup.ms': runtime.startupMs,
@@ -140,6 +172,61 @@ function effectiveAttackDamage() {
 
 function distanceXZ(a, b) {
   return Math.hypot(a.x - b.x, a.z - b.z);
+}
+
+function playTone(frequency, duration = 0.065) {
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor) return;
+  try {
+    if (!audioContext) audioContext = new AudioCtor();
+    if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(frequency, now);
+    gain.gain.setValueAtTime(0.025, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+    runtime.audioEvents += 1;
+  } catch (error) {
+    runtime.audioFailures.push(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function spawnImpact(position, color = new Color3(1, 0.65, 0.2)) {
+  if (!scene) return;
+  runtime.vfxEvents += 1;
+  impactMaterial.diffuseColor = color;
+  const directions = [
+    [1, 1.2, 0], [-1, 1.0, 0], [0, 1.35, 1], [0, 0.9, -1], [0.7, 1.1, 0.7], [-0.7, 1.15, -0.7],
+  ];
+  for (let i = 0; i < directions.length; i += 1) {
+    const mesh = MeshBuilder.CreateSphere(`impact-${runtime.vfxEvents}-${i}`, { diameter: 0.12, segments: 6 }, scene);
+    mesh.position.set(position.x, position.y + 0.45, position.z);
+    mesh.material = impactMaterial;
+    activeVfx.push({ mesh, velocity: { x: directions[i][0] * 2.2, y: directions[i][1] * 2.0, z: directions[i][2] * 2.2 }, life: 0.32 });
+  }
+}
+
+function updateVfx(dt) {
+  for (let i = activeVfx.length - 1; i >= 0; i -= 1) {
+    const effect = activeVfx[i];
+    effect.life -= dt;
+    effect.velocity.y -= 4.5 * dt;
+    effect.mesh.position.x += effect.velocity.x * dt;
+    effect.mesh.position.y += effect.velocity.y * dt;
+    effect.mesh.position.z += effect.velocity.z * dt;
+    const scale = Math.max(0.15, effect.life / 0.32);
+    effect.mesh.scaling.setAll(scale);
+    if (effect.life <= 0) {
+      effect.mesh.dispose();
+      activeVfx.splice(i, 1);
+    }
+  }
 }
 
 async function createEngine() {
@@ -193,6 +280,7 @@ async function createScene() {
   rewardMesh.position.set(CONTRACT.arena.salvageSpawn[0], 0.45, CONTRACT.arena.salvageSpawn[2] - 1.7);
   rewardMesh.material = material('reward-material', new Color3(0.35, 0.9, 0.28));
   rewardMesh.setEnabled(false);
+  impactMaterial = material('impact-material', new Color3(1, 0.65, 0.2));
 
   const havok = await HavokPhysics();
   const physics = new HavokPlugin(true, havok);
@@ -212,8 +300,11 @@ function resetPlayer() {
   state.player.alive = true;
   state.player.respawnTimer = 0;
   state.player.hitCooldown = 0;
+  state.player.hitReaction = 0;
   state.player.velocity.x = 0;
   state.player.velocity.z = 0;
+  state.player.animationState = 'idle';
+  playerMesh.scaling.setAll(1);
   playerMesh.position.set(...CONTRACT.arena.playerSpawn);
   state.player.position = { x: playerMesh.position.x, y: playerMesh.position.y, z: playerMesh.position.z };
   playerMesh.setEnabled(true);
@@ -228,21 +319,30 @@ function attack() {
 
   if (salvageDistance <= CONTRACT.player.attackRange && salvageDistance <= enemyDistance) {
     state.salvage.health = Math.max(0, state.salvage.health - effectiveAttackDamage());
+    spawnImpact(salvageMesh.position, new Color3(1, 0.72, 0.22));
+    playTone(230);
     if (state.salvage.health <= 0) {
       state.salvage.broken = true;
       salvageMesh.setEnabled(false);
       state.reward.available = true;
       rewardMesh.setEnabled(true);
+      spawnImpact(salvageMesh.position, new Color3(1, 0.9, 0.28));
+      playTone(360, 0.1);
     }
     return;
   }
 
   if (enemyDistance <= CONTRACT.player.attackRange && state.enemy.alive) {
     state.enemy.health = Math.max(0, state.enemy.health - effectiveAttackDamage());
+    state.enemy.hitReaction = 0.16;
+    runtime.hitReactions += 1;
+    spawnImpact(state.enemy.position, new Color3(1, 0.3, 0.18));
+    playTone(190);
     if (state.enemy.health <= 0) {
       state.enemy.alive = false;
       state.enemy.targetState = 'dead';
       enemyMesh.setEnabled(false);
+      playTone(120, 0.12);
     }
   }
 }
@@ -255,6 +355,8 @@ function collectRewardIfClose() {
     rewardMesh.setEnabled(false);
     state.upgrade.menuVisible = true;
     upgradeEl.hidden = false;
+    spawnImpact(rewardMesh.position, new Color3(0.35, 1, 0.4));
+    playTone(520, 0.1);
   }
 }
 
@@ -263,6 +365,8 @@ function chooseDamageUpgrade() {
   if (!state.upgrade.selectedIds.includes(CONTRACT.upgrade.id)) state.upgrade.selectedIds.push(CONTRACT.upgrade.id);
   state.upgrade.menuVisible = false;
   upgradeEl.hidden = true;
+  spawnImpact(state.player.position, new Color3(0.3, 0.7, 1));
+  playTone(660, 0.12);
 }
 
 function saveProgress() {
@@ -298,14 +402,19 @@ window.addEventListener('keydown', (event) => {
   else handleTap(event.code);
 });
 window.addEventListener('keyup', (event) => setKey(event.code, false));
+window.addEventListener('blur', () => input.clear());
 
 for (const button of document.querySelectorAll('[data-hold]')) {
   const code = button.dataset.hold;
-  button.addEventListener('pointerdown', (event) => { event.preventDefault(); setKey(code, true); button.setPointerCapture?.(event.pointerId); });
+  button.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    setKey(code, true);
+    button.setPointerCapture?.(event.pointerId);
+  });
   const release = () => setKey(code, false);
   button.addEventListener('pointerup', release);
   button.addEventListener('pointercancel', release);
-  button.addEventListener('pointerleave', release);
+  button.addEventListener('lostpointercapture', release);
 }
 for (const button of document.querySelectorAll('[data-tap]')) button.addEventListener('click', () => handleTap(button.dataset.tap));
 upgradeButton.addEventListener('click', chooseDamageUpgrade);
@@ -313,6 +422,7 @@ saveButton.addEventListener('click', saveProgress);
 
 function updatePlayer(dt) {
   if (!state.player.alive) {
+    state.player.animationState = 'dead';
     state.player.respawnTimer -= dt;
     if (state.player.respawnTimer <= 0) resetPlayer();
     return;
@@ -320,8 +430,9 @@ function updatePlayer(dt) {
 
   const x = (input.has('KeyD') ? 1 : 0) - (input.has('KeyA') ? 1 : 0);
   const z = (input.has('KeyS') ? 1 : 0) - (input.has('KeyW') ? 1 : 0);
-  let length = Math.hypot(x, z);
-  const speed = input.has('ShiftLeft') || input.has('ShiftRight') ? CONTRACT.player.runSpeed : CONTRACT.player.walkSpeed;
+  const length = Math.hypot(x, z);
+  const running = input.has('ShiftLeft') || input.has('ShiftRight');
+  const speed = running ? CONTRACT.player.runSpeed : CONTRACT.player.walkSpeed;
   const targetX = length > 0 ? (x / length) * speed : 0;
   const targetZ = length > 0 ? (z / length) * speed : 0;
   const rate = length > 0 ? CONTRACT.player.acceleration : CONTRACT.player.deceleration;
@@ -338,6 +449,31 @@ function updatePlayer(dt) {
   playerMesh.position.z = Math.max(-CONTRACT.arena.depth / 2 + 0.5, Math.min(CONTRACT.arena.depth / 2 - 0.5, playerMesh.position.z));
   if (Math.hypot(state.player.velocity.x, state.player.velocity.z) > 0.05) playerMesh.rotation.y = Math.atan2(state.player.velocity.x, state.player.velocity.z);
   state.player.position = { x: playerMesh.position.x, y: playerMesh.position.y, z: playerMesh.position.z };
+
+  if (length > 0) state.player.animationState = running ? 'run' : 'walk';
+  else state.player.animationState = Math.hypot(state.player.velocity.x, state.player.velocity.z) > 0.12 ? 'walk' : 'idle';
+}
+
+function updateAnimationVisuals(dt) {
+  if (state.player.hitReaction > 0) state.player.hitReaction = Math.max(0, state.player.hitReaction - dt);
+  if (state.enemy.hitReaction > 0) state.enemy.hitReaction = Math.max(0, state.enemy.hitReaction - dt);
+
+  if (playerMesh?.isEnabled()) {
+    const mode = state.player.animationState;
+    const frequency = mode === 'run' ? 12 : mode === 'walk' ? 8 : 2.4;
+    const amplitude = mode === 'run' ? 0.065 : mode === 'walk' ? 0.038 : 0.012;
+    const pulse = Math.sin(elapsed * frequency) * amplitude;
+    const reaction = state.player.hitReaction > 0 ? 0.12 : 0;
+    playerMesh.scaling.x = 1 - pulse * 0.35 + reaction;
+    playerMesh.scaling.y = 1 + pulse - reaction * 0.5;
+    playerMesh.scaling.z = 1 - pulse * 0.35 + reaction;
+  }
+  if (enemyMesh?.isEnabled()) {
+    const reaction = state.enemy.hitReaction > 0 ? 0.14 : 0;
+    enemyMesh.scaling.x = 1 + reaction;
+    enemyMesh.scaling.y = 1 - reaction * 0.5;
+    enemyMesh.scaling.z = 1 + reaction;
+  }
 }
 
 function updateEnemy(dt) {
@@ -359,9 +495,14 @@ function updateEnemy(dt) {
     } else if (state.enemy.attackCooldown <= 0 && state.player.hitCooldown <= 0) {
       state.enemy.attackCooldown = CONTRACT.enemy.attackCooldown;
       state.player.hitCooldown = CONTRACT.player.hitInvulnerability;
+      state.player.hitReaction = 0.18;
+      runtime.hitReactions += 1;
       state.player.health = Math.max(0, state.player.health - CONTRACT.enemy.attackDamage);
+      spawnImpact(state.player.position, new Color3(0.35, 0.65, 1));
+      playTone(145);
       if (state.player.health <= 0) {
         state.player.alive = false;
+        state.player.animationState = 'dead';
         state.player.respawnTimer = 1.2;
         state.player.velocity.x = 0;
         state.player.velocity.z = 0;
@@ -384,7 +525,8 @@ function updateHud() {
   const text = `HP ${Math.round(state.player.health)}/${CONTRACT.player.maxHealth}`
     + ` · Enemy ${Math.round(state.enemy.health)}/${CONTRACT.enemy.maxHealth}`
     + ` · Salvage ${Math.round(state.salvage.health)}/${CONTRACT.salvage.maxHealth}`
-    + ` · Rewards ${state.reward.count}`;
+    + ` · Rewards ${state.reward.count}`
+    + ` · ${state.player.animationState}`;
   if (text !== lastStatsText) {
     lastStatsText = text;
     statsEl.textContent = text;
@@ -404,7 +546,9 @@ function simulate(dt) {
   if (interactQueued) { collectRewardIfClose(); interactQueued = false; }
   updatePlayer(dt);
   updateEnemy(dt);
+  updateAnimationVisuals(dt);
   collectRewardIfClose();
+  updateVfx(dt);
   if (rewardMesh?.isEnabled()) rewardMesh.rotation.y += dt * 2.8;
 }
 
