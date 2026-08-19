@@ -1,0 +1,21 @@
+{
+  "schemaVersion":"0.1.0",
+  "id":"WU-BYJTT-LAB-001-ORCHESTRATION-BENCHMARK",
+  "projectId":"BYJTT-LAB-001",
+  "stageId":"implement",
+  "title":"Benchmark durable orchestration substrate",
+  "objective":"Compare Trigger.dev and Inngest against the first real cross-session pipeline workflow without weakening repository-owned domain contracts.",
+  "role":"Technical Architect",
+  "status":"queued",
+  "priority":"high",
+  "dependsOn":[],
+  "startRevision":null,
+  "resultRevision":null,
+  "claim":null,
+  "contextPointers":["AGENTS.md","CONTEXT.md","docs/COORDINATION-KERNEL.md","docs/ORCHESTRATION-SOLVED-SYSTEM-SCAN.md"],
+  "acceptanceCriteria":["Both candidates are exercised against the same workflow contract","Durability, human wait, recovery, observability, cost and portability evidence are recorded","A scoped adopt/hold/reject decision is recorded"],
+  "evidenceRequirements":["Fresh execution logs or traces","Measured orchestration behavior","Decision rationale linked to evidence"],
+  "evidenceIds":[],
+  "approvalClass":"autonomous",
+  "retryPolicy":{"mode":"bounded-recovery","maxAttempts":2}
+}
