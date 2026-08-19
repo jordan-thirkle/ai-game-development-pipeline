@@ -1,0 +1,11 @@
+{
+  "status": "partial",
+  "workstream": "coordination-adversarial-invariants",
+  "branch": "test/coordination-adversarial-invariants",
+  "base": "main@b204e04062f88a1a4a077774ac378f7fbbb4d1a0",
+  "ownedPaths": ["schemas/work-unit.schema.json", "schemas/pipeline-event.schema.json", "fixtures/coordination/**", "tools/test-coordination-kernel.mjs", ".github/workflows/coordination-invariants.yml", "docs/COORDINATION-ADVERSARIAL-TEST.md", "docs/WORKFLOW-SCORECARD.md", "docs/adr/0001-coordination-validation-composability.md"],
+  "avoidedPaths": ["AGENTS.md", "README.md", "package.json", "tools/validate-repo.mjs", ".github/workflows/validate.yml", "apps/studio/**"],
+  "evidence": ["tools/test-coordination-kernel.mjs", ".github/workflows/coordination-invariants.yml"],
+  "knownFailures": ["A prior stale write against tools/validate-repo.mjs was rejected with HTTP 409 on the older control-plane branch."],
+  "nextSafeAction": "Open a focused PR from this branch, inspect CI/review evidence, fix only findings within the owned paths, then merge independently before reconciling the control-plane PR."
+}
