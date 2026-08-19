@@ -23,12 +23,12 @@ const requiredPaths = [
   'schemas/pipeline-run.schema.json',
   'schemas/work-unit.schema.json',
   'fixtures/control-plane/BYJTT-LAB-001.json',
+  'examples/records/pipeline-run.valid.json',
+  'examples/records/game-graduation.valid.json',
   'experiments/BYJTT-LAB-001/README.md',
   'experiments/BYJTT-LAB-001/spec.md',
   'experiments/BYJTT-LAB-001/shared/README.md',
   'experiments/BYJTT-LAB-001/shared/assets/provenance.json',
-  'experiments/BYJTT-LAB-001/records/pipeline-run.example.json',
-  'experiments/BYJTT-LAB-001/records/game-graduation.example.json',
   'tools/check-graduation-gate.mjs',
   'tools/validate-record.mjs',
   'apps/studio/index.html',
@@ -82,8 +82,8 @@ const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 
 const recordChecks = [
-  ['schemas/pipeline-run.schema.json', 'experiments/BYJTT-LAB-001/records/pipeline-run.example.json'],
-  ['schemas/game-graduation.schema.json', 'experiments/BYJTT-LAB-001/records/game-graduation.example.json'],
+  ['schemas/pipeline-run.schema.json', 'examples/records/pipeline-run.valid.json'],
+  ['schemas/game-graduation.schema.json', 'examples/records/game-graduation.valid.json'],
   ['schemas/control-plane-state.schema.json', 'fixtures/control-plane/BYJTT-LAB-001.json']
 ];
 
