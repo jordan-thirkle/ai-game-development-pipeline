@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0.0",
+  "gameId": "fixture-game",
+  "repository": "jordan-thirkle/fixture-game",
+  "lifecycleStage": "production",
+  "runtime": {
+    "name": "fixture-runtime",
+    "version": "1.0.0",
+    "decisionEvidence": "examples/records/game-graduation.valid.json"
+  },
+  "releases": [
+    {
+      "platform": "ci",
+      "channel": "internal",
+      "status": "testing",
+      "version": "0.0.1",
+      "buildId": "fixture-build",
+      "releasedAt": null
+    }
+  ],
+  "health": {
+    "telemetry": { "status": "unknown", "evidence": null },
+    "crashReporting": { "status": "unknown", "evidence": null },
+    "releasePipeline": { "status": "healthy", "evidence": ".github/workflows/validate.yml" },
+    "commerce": { "status": "not-applicable", "evidence": null },
+    "support": { "status": "not-applicable", "evidence": null }
+  },
+  "monetisation": {
+    "model": [],
+    "state": "none",
+    "activeExperiment": null,
+    "economicsEvidence": null
+  },
+  "maintenance": {
+    "policy": "Fixture only; review dependencies and platform requirements before release.",
+    "lastDependencyReview": "2026-08-19",
+    "lastPlatformReview": "2026-08-19",
+    "risks": []
+  },
+  "evidence": {
+    "pipelineRuns": ["examples/records/pipeline-run.valid.json"],
+    "releaseEvidence": [".github/workflows/validate.yml"],
+    "publicationSafe": []
+  },
+  "nextReview": {
+    "date": null,
+    "action": "Replace fixture values when a real game graduates."
+  }
+}
