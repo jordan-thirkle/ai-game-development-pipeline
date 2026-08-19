@@ -1,0 +1,24 @@
+name: Test execution evidence gate
+on:
+  pull_request:
+    paths:
+      - 'config/execution-gates.json'
+      - 'schemas/execution-evidence.schema.json'
+      - 'tools/check-execution-evidence.mjs'
+      - 'tools/test-execution-evidence.mjs'
+      - '.github/workflows/execution-evidence-gate.yml'
+      - '.github/workflows/execution-evidence-gate-selftest.yml'
+permissions:
+  contents: read
+jobs:
+  gate-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node tools/test-execution-evidence.mjs
