@@ -37,6 +37,15 @@ async function parseYaml(path) {
   return document.toJS({ maxAliasCount: 0 });
 }
 
+async function parseJson(path) {
+  try {
+    return JSON.parse(await readFile(path, 'utf8'));
+  } catch (error) {
+    failures.push(`${path}: invalid JSON: ${error.message}`);
+    return null;
+  }
+}
+
 function requireString(value, path, field) {
   if (typeof value !== 'string' || !value.trim()) failures.push(`${path}: ${field} must be a non-empty string`);
 }
@@ -120,6 +129,79 @@ function validateWorkflow(workflow, path) {
   if (!workflow.jobs || typeof workflow.jobs !== 'object' || Array.isArray(workflow.jobs) || Object.keys(workflow.jobs).length === 0) failures.push(`${path}: workflow jobs must be a non-empty mapping`);
 }
 
+function pullRequestTrigger(workflow) {
+  const triggers = workflow.on ?? workflow.true;
+  if (typeof triggers === 'string') return triggers === 'pull_request' ? null : undefined;
+  if (Array.isArray(triggers)) return triggers.includes('pull_request') ? null : undefined;
+  if (!triggers || typeof triggers !== 'object') return undefined;
+  return Object.prototype.hasOwnProperty.call(triggers, 'pull_request') ? triggers.pull_request : undefined;
+}
+
+function validateGovernance(governance, path, workflowsByName) {
+  if (!governance || typeof governance !== 'object' || Array.isArray(governance)) {
+    failures.push(`${path}: governance contract must be an object`);
+    return;
+  }
+
+  requireString(governance.schemaVersion, path, 'schemaVersion');
+  requireString(governance.defaultBranch, path, 'defaultBranch');
+  if (governance.defaultBranch !== 'main') failures.push(`${path}: defaultBranch must be main`);
+
+  const intent = governance.protectionIntent;
+  const intentFields = ['requirePullRequest', 'requireUpToDate', 'blockForcePushes', 'blockDeletions', 'restrictBypasses'];
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) failures.push(`${path}: protectionIntent must be an object`);
+  else {
+    for (const field of intentFields) {
+      if (intent[field] !== true) failures.push(`${path}: protectionIntent.${field} must be true`);
+    }
+  }
+
+  if (!Array.isArray(governance.requiredChecks) || governance.requiredChecks.length === 0) {
+    failures.push(`${path}: requiredChecks must be a non-empty array`);
+    return;
+  }
+
+  const contexts = new Set();
+  for (const [index, check] of governance.requiredChecks.entries()) {
+    const prefix = `${path}: requiredChecks[${index}]`;
+    if (!check || typeof check !== 'object' || Array.isArray(check)) {
+      failures.push(`${prefix} must be an object`);
+      continue;
+    }
+    requireString(check.workflow, prefix, 'workflow');
+    requireString(check.job, prefix, 'job');
+    requireString(check.context, prefix, 'context');
+    if (typeof check.context === 'string') {
+      if (contexts.has(check.context)) failures.push(`${prefix}: duplicate context ${check.context}`);
+      contexts.add(check.context);
+    }
+
+    const matches = workflowsByName.get(check.workflow) || [];
+    if (matches.length !== 1) {
+      failures.push(`${prefix}: workflow ${check.workflow} must resolve to exactly one workflow file (found ${matches.length})`);
+      continue;
+    }
+
+    const { workflow, path: workflowPath } = matches[0];
+    const job = workflow.jobs?.[check.job];
+    if (!job || typeof job !== 'object' || Array.isArray(job)) {
+      failures.push(`${prefix}: job ${check.job} not found in ${workflowPath}`);
+      continue;
+    }
+
+    const derivedContext = `${workflow.name} / ${job.name || check.job}`;
+    if (check.context !== derivedContext) failures.push(`${prefix}: context must be ${derivedContext}`);
+
+    const prTrigger = pullRequestTrigger(workflow);
+    if (prTrigger === undefined) failures.push(`${prefix}: ${workflowPath} must run on pull_request`);
+    else if (prTrigger && typeof prTrigger === 'object' && !Array.isArray(prTrigger)) {
+      if (prTrigger.paths !== undefined || prTrigger['paths-ignore'] !== undefined) failures.push(`${prefix}: ${workflowPath} cannot path-filter pull_request when used as a globally required check`);
+    }
+
+    if (job.if !== undefined) failures.push(`${prefix}: ${workflowPath} job ${check.job} cannot have a job-level if when used as a globally required check`);
+  }
+}
+
 const issueFiles = await listYamlFiles('.github/ISSUE_TEMPLATE');
 for (const path of issueFiles) {
   const parsed = await parseYaml(path);
@@ -129,10 +211,21 @@ for (const path of issueFiles) {
 }
 
 const workflowFiles = await listYamlFiles('.github/workflows');
+const workflowsByName = new Map();
 for (const path of workflowFiles) {
   const parsed = await parseYaml(path);
-  if (parsed) validateWorkflow(parsed, path);
+  if (!parsed) continue;
+  validateWorkflow(parsed, path);
+  if (typeof parsed.name === 'string' && parsed.name.trim()) {
+    const matches = workflowsByName.get(parsed.name) || [];
+    matches.push({ workflow: parsed, path });
+    workflowsByName.set(parsed.name, matches);
+  }
 }
+
+const governancePath = 'config/github-governance.json';
+const governance = await parseJson(governancePath);
+if (governance) validateGovernance(governance, governancePath, workflowsByName);
 
 if (issueFiles.length === 0) failures.push('No GitHub issue-form YAML files found');
 if (workflowFiles.length === 0) failures.push('No GitHub workflow YAML files found');
@@ -143,4 +236,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`GitHub configuration validation passed (${issueFiles.length} issue-template files, ${workflowFiles.length} workflows).`);
+console.log(`GitHub configuration validation passed (${issueFiles.length} issue-template files, ${workflowFiles.length} workflows, ${governance.requiredChecks.length} required-check contracts).`);
