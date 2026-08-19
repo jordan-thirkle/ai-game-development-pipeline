@@ -41,9 +41,6 @@ jobs:
       - name: Install pinned Playwright package
         if: steps.changes.outputs.run == 'true'
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
-      - name: Verify preinstalled Chrome
-        if: steps.changes.outputs.run == 'true'
-        run: google-chrome --version
       - name: Serve repository fixture and Studio
         if: steps.changes.outputs.run == 'true'
         run: |
