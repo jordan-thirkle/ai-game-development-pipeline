@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:phase-a": "node tools/phase-a.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "9.20.0",
     "@babylonjs/havok": "1.3.14"
   },
   "devDependencies": {
+    "playwright": "1.62.0",
     "vite": "8.2.1"
   }
 }
