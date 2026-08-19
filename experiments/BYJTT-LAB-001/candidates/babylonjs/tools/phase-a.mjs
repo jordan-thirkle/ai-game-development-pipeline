@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const PORT = 4176;
@@ -66,6 +66,7 @@ let tracingStarted = false;
 let feedbackBeforeRestart = null;
 let pendingError = null;
 let finalEvidence = null;
+let finalSnapshotForEvidence = null;
 
 function result(id, status, observation = {}, evidence = [], notes = []) {
   results.push({ id, status, observations: observation, evidence, notes });
@@ -214,9 +215,21 @@ async function breakSalvageThroughGameplay(maxAttempts = 4) {
   throw new Error(`Could not break salvage through bounded normal gameplay; final=${JSON.stringify(await snapshot())}`);
 }
 
-async function writeEvidence(extraFailure = null) {
-  const finalSnapshot = await snapshot().catch(() => null);
+async function writeEvidence(extraFailure = null, finalSnapshot = null) {
   if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
+  const screenshotCandidates = ['01-cold-launch.png', '04-exercise-camera.png', '07-break-salvage.png', '11-save-state.png', '13-restored-state.png'];
+  const capturedScreenshots = [];
+  for (const filename of screenshotCandidates) {
+    try {
+      await access(path.join(artifacts, filename));
+      capturedScreenshots.push(filename);
+    } catch {}
+  }
+  let capturedTrace = null;
+  try {
+    await access(path.join(artifacts, 'phase-a-trace.zip'));
+    capturedTrace = 'phase-a-trace.zip';
+  } catch {}
   const feedbackSource = feedbackBeforeRestart || finalSnapshot;
   const evidence = {
     contract_version: 1,
@@ -245,8 +258,8 @@ async function writeEvidence(extraFailure = null) {
       audio_failures: feedbackSource?.['audio.failures'] ?? [],
     },
     capture: {
-      trace: 'phase-a-trace.zip',
-      screenshots: ['01-cold-launch.png', '04-exercise-camera.png', '07-break-salvage.png', '11-save-state.png', '13-restored-state.png'],
+      trace: capturedTrace,
+      screenshots: capturedScreenshots,
     },
     steps: results,
     failures,
@@ -494,6 +507,7 @@ try {
   pendingError = error;
 } finally {
   await releaseMovementIntent().catch(() => {});
+  finalSnapshotForEvidence = await snapshot().catch(() => null);
   if (context && tracingStarted) {
     try {
       await context.tracing.stop({ path: path.join(artifacts, 'phase-a-trace.zip') });
@@ -510,7 +524,7 @@ try {
     serverLog += `\nshutdown-error: ${error.stack || error.message}`;
   });
   const pendingMessage = pendingError instanceof Error ? `${pendingError.name}: ${pendingError.message}` : pendingError ? String(pendingError) : null;
-  finalEvidence = await writeEvidence(pendingMessage);
+  finalEvidence = await writeEvidence(pendingMessage, finalSnapshotForEvidence);
 }
 
 if (pendingError) throw pendingError;

@@ -74,3 +74,8 @@ Renderer evidence was `webgl2-fallback`, Havok plugin version `2`, and `navigato
 ## Remaining landing gate
 
 The final audio/cleanup review fixes and this log update advance the branch revision beyond the last reviewed execution. Before integration, execute the exact final candidate revision and then execute that same candidate as a GitHub merge ref against current `main`. Merge only after both are green and the latest CodeRabbit review reports no unresolved actionable findings.
+
+
+## Final evidence-snapshot integrity remediation
+
+A later CodeRabbit review found that the harness serialized final evidence after browser shutdown, which could reduce `final_snapshot`, renderer, Havok and performance fields to unknown despite a successful gameplay run. The harness now captures the final benchmark snapshot while the browser is still open, passes that immutable observation into evidence writing after cleanup, and derives trace/screenshot capture paths from files that actually exist rather than from a fixed claimed list. This changed evidence integrity only; gameplay behavior was not altered. The candidate must be rerun revision-exact after this change before landing.
