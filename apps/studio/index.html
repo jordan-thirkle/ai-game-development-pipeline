@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>By JTT Game Development OS</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c0d0f;
+      --panel: #14161a;
+      --panel-2: #1b1e23;
+      --border: #2c3138;
+      --text: #f3f5f7;
+      --muted: #9da5af;
+      --accent: #d7ff64;
+      --good: #79d99b;
+      --warn: #ffc76b;
+      --bad: #ff7a7a;
+      --info: #86b7ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+    .sidebar { border-right: 1px solid var(--border); padding: 20px 14px; background: #101216; }
+    .brand { display: flex; gap: 10px; align-items: center; margin-bottom: 24px; }
+    .mark { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--accent); font-weight: 800; }
+    .brand strong { display: block; font-size: 14px; }
+    .brand small { color: var(--muted); }
+    .nav { display: grid; gap: 5px; }
+    .nav button { width: 100%; text-align: left; border: 0; background: transparent; color: var(--muted); padding: 10px 12px; border-radius: 8px; }
+    .nav button.active, .nav button:hover { background: var(--panel-2); color: var(--text); }
+    .main { min-width: 0; }
+    .topbar { min-height: 64px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; gap: 16px; }
+    .project-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .project-title h1 { font-size: 18px; margin: 0; }
+    .project-title span { color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; gap: 8px; }
+    .button { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 11px; }
+    .button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+    .content { padding: 24px; display: grid; gap: 20px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .metric { border: 1px solid var(--border); background: var(--panel); border-radius: 12px; padding: 14px; }
+    .metric label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .metric strong { font-size: 20px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr); gap: 16px; align-items: start; }
+    .panel { border: 1px solid var(--border); background: var(--panel); border-radius: 12px; overflow: hidden; }
+    .panel header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); }
+    .panel header h2 { font-size: 14px; margin: 0; }
+    .panel-body { padding: 16px; }
+    .pipeline { display: grid; gap: 8px; }
+    .stage { border: 1px solid var(--border); background: var(--panel-2); border-radius: 10px; padding: 12px; display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+    .stage strong { font-size: 13px; }
+    .stage p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .status { justify-self: start; font-size: 11px; padding: 4px 7px; border-radius: 999px; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: .04em; }
+    .status.pass { color: var(--good); }
+    .status.running { color: var(--info); }
+    .status.blocked, .status.unknown { color: var(--muted); }
+    .status.human-required, .status.warn { color: var(--warn); }
+    .status.fail { color: var(--bad); }
+    .agent, .decision, .evidence { padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .agent:last-child, .decision:last-child, .evidence:last-child { border-bottom: 0; }
+    .row { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .row strong { font-size: 13px; }
+    .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .gate { display: grid; gap: 12px; }
+    .gate-card { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+    textarea { width: 100%; min-height: 80px; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+    .gate-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .gate-actions button[data-decision="approved"] { border-color: #386449; }
+    .gate-actions button[data-decision="needs-work"] { border-color: #735b32; }
+    .gate-actions button[data-decision="rejected"] { border-color: #743d3d; }
+    .notice { color: var(--muted); font-size: 12px; margin: 0; }
+    .placeholder { border: 1px dashed var(--border); border-radius: 10px; min-height: 170px; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 24px; background: #0f1114; }
+    .hidden { display: none !important; }
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .content, .topbar { padding-left: 14px; padding-right: 14px; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .stage { grid-template-columns: 92px minmax(0, 1fr); }
+      .stage .button { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">JTT</div>
+        <div><strong>Game Development OS</strong><small>Pipeline control plane</small></div>
+      </div>
+      <nav class="nav" aria-label="Studio sections">
+        <button class="active" data-view="overview">Overview</button>
+        <button data-view="playtest">Playtest Lab</button>
+        <button data-view="agents">Agent Room</button>
+        <button data-view="decisions">Decision Ledger</button>
+        <button data-view="evidence">Evidence</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="project-title">
+          <h1 id="project-name">Loading project…</h1>
+          <span id="project-id"></span>
+        </div>
+        <div class="top-actions">
+          <button class="button" id="refresh">Reload state</button>
+          <button class="button primary" id="launch-build">Launch latest build</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <section id="overview-view" class="view">
+          <div class="metrics">
+            <div class="metric"><label>Lifecycle</label><strong id="metric-lifecycle">—</strong></div>
+            <div class="metric"><label>Pipeline</label><strong id="metric-progress">—</strong></div>
+            <div class="metric"><label>Active agents</label><strong id="metric-agents">—</strong></div>
+            <div class="metric"><label>Human gates</label><strong id="metric-gates">—</strong></div>
+          </div>
+
+          <div class="grid">
+            <section class="panel">
+              <header><h2>Pipeline graph</h2><span class="sub" id="pipeline-summary"></span></header>
+              <div class="panel-body"><div class="pipeline" id="pipeline"></div></div>
+            </section>
+            <div style="display:grid;gap:16px">
+              <section class="panel">
+                <header><h2>Human checkpoint</h2></header>
+                <div class="panel-body gate" id="gate-panel"></div>
+              </section>
+              <section class="panel">
+                <header><h2>Agent room</h2></header>
+                <div class="panel-body" id="agent-summary"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section id="playtest-view" class="view hidden">
+          <section class="panel">
+            <header><h2>Playable Build Lab</h2><span class="sub">Human-first verification surface</span></header>
+            <div class="panel-body">
+              <div class="placeholder" id="playtest-placeholder">No ready playable build is attached to this fixture yet. When a candidate becomes runnable, this surface should embed or launch it and record the resulting verdict/evidence.</div>
+            </div>
+          </section>
+        </section>
+
+        <section id="agents-view" class="view hidden">
+          <section class="panel"><header><h2>Agent Room</h2></header><div class="panel-body" id="agents-full"></div></section>
+        </section>
+
+        <section id="decisions-view" class="view hidden">
+          <section class="panel"><header><h2>Decision Ledger</h2></header><div class="panel-body" id="decisions-full"></div></section>
+        </section>
+
+        <section id="evidence-view" class="view hidden">
+          <section class="panel"><header><h2>Evidence</h2></header><div class="panel-body" id="evidence-full"></div></section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    const fixtureUrl = '../../fixtures/control-plane/BYJTT-LAB-001.json';
+    let state = null;
+
+    function escapeHtml(value = '') {
+      return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    async function loadState() {
+      const response = await fetch(fixtureUrl, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Unable to load control-plane fixture (${response.status})`);
+      state = await response.json();
+      render();
+    }
+
+    function render() {
+      document.querySelector('#project-name').textContent = state.project.name;
+      document.querySelector('#project-id').textContent = `${state.project.id} · ${state.project.kind}`;
+      document.querySelector('#metric-lifecycle').textContent = state.project.lifecycleStage;
+      const passCount = state.stages.filter(s => s.status === 'pass').length;
+      document.querySelector('#metric-progress').textContent = `${passCount}/${state.stages.length}`;
+      document.querySelector('#metric-agents').textContent = state.agents.filter(a => a.status === 'running').length;
+      document.querySelector('#metric-gates').textContent = state.gates.filter(g => g.kind === 'human' && g.status !== 'approved').length;
+      document.querySelector('#pipeline-summary').textContent = `${state.stages.length} stages · evidence driven`;
+
+      document.querySelector('#pipeline').innerHTML = state.stages.map(stage => `
+        <article class="stage">
+          <span class="status ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</span>
+          <div><strong>${escapeHtml(stage.label)}</strong><p>${escapeHtml(stage.nextAction || 'Gate satisfied.')}</p></div>
+          <button class="button" data-stage="${escapeHtml(stage.id)}">Inspect</button>
+        </article>`).join('');
+
+      const gate = state.gates[0];
+      document.querySelector('#gate-panel').innerHTML = `
+        <div class="gate-card">
+          <div class="row"><strong>${escapeHtml(gate.label)}</strong><span class="status ${gate.status === 'blocked' ? 'blocked' : 'human-required'}">${escapeHtml(gate.status)}</span></div>
+          <p class="sub">Gate type: ${escapeHtml(gate.kind)} · stage: ${escapeHtml(gate.stageId)}</p>
+        </div>
+        <label class="sub" for="gate-notes">Human notes</label>
+        <textarea id="gate-notes" placeholder="What did you observe when you actually played it?"></textarea>
+        <div class="gate-actions">
+          <button class="button" data-decision="approved">Approve</button>
+          <button class="button" data-decision="needs-work">Needs work</button>
+          <button class="button" data-decision="rejected">Reject</button>
+        </div>
+        <p class="notice" id="gate-notice">Prototype mode: verdicts update the in-memory view only. Persistence is the next implementation slice.</p>`;
+
+      renderAgents();
+      renderDecisions();
+      renderEvidence();
+      bindDynamicEvents();
+    }
+
+    function renderAgents() {
+      const html = state.agents.map(agent => `
+        <article class="agent"><div class="row"><strong>${escapeHtml(agent.role)}</strong><span class="status ${escapeHtml(agent.status === 'running' ? 'running' : 'blocked')}">${escapeHtml(agent.status)}</span></div><div class="sub">${escapeHtml(agent.objective)}</div></article>`).join('');
+      document.querySelector('#agent-summary').innerHTML = html;
+      document.querySelector('#agents-full').innerHTML = html;
+    }
+
+    function renderDecisions() {
+      document.querySelector('#decisions-full').innerHTML = state.decisions.map(decision => `
+        <article class="decision"><strong>${escapeHtml(decision.title)}</strong><div class="sub">Selected: ${escapeHtml(decision.selected)}</div><p class="sub">${escapeHtml(decision.rationale)}</p><div class="sub">Alternatives: ${escapeHtml(decision.alternatives.join(' · '))}</div></article>`).join('');
+    }
+
+    function renderEvidence() {
+      document.querySelector('#evidence-full').innerHTML = state.evidence.map(evidence => `
+        <article class="evidence"><div class="row"><strong>${escapeHtml(evidence.label)}</strong><span class="status ${evidence.status === 'current' ? 'pass' : 'blocked'}">${escapeHtml(evidence.status)}</span></div><div class="sub">${escapeHtml(evidence.type)} · ${escapeHtml(evidence.uri || 'no URI')}</div></article>`).join('');
+    }
+
+    function bindDynamicEvents() {
+      document.querySelectorAll('[data-stage]').forEach(button => button.addEventListener('click', () => {
+        const stage = state.stages.find(item => item.id === button.dataset.stage);
+        window.alert(`${stage.label}\n\nStatus: ${stage.status}\nNext: ${stage.nextAction || 'No action required'}\nEvidence: ${(stage.evidenceIds || []).join(', ') || 'none'}`);
+      }));
+      document.querySelectorAll('[data-decision]').forEach(button => button.addEventListener('click', () => {
+        const notes = document.querySelector('#gate-notes').value.trim();
+        const decision = button.dataset.decision;
+        state.gates[0].status = decision;
+        state.gates[0].verdict = { actor: 'human', decision, notes, recordedAt: new Date().toISOString() };
+        if (decision === 'approved') {
+          const stage = state.stages.find(item => item.id === state.gates[0].stageId);
+          if (stage) stage.status = 'pass';
+        }
+        document.querySelector('#gate-notice').textContent = `Recorded ${decision}${notes ? ` — ${notes}` : ''}. This prototype intentionally does not persist yet.`;
+      }));
+    }
+
+    document.querySelectorAll('.nav button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.nav button').forEach(item => item.classList.toggle('active', item === button));
+      document.querySelectorAll('.view').forEach(view => view.classList.add('hidden'));
+      document.querySelector(`#${button.dataset.view}-view`).classList.remove('hidden');
+    }));
+
+    document.querySelector('#refresh').addEventListener('click', () => loadState().catch(showError));
+    document.querySelector('#launch-build').addEventListener('click', () => {
+      const build = (state?.builds || []).find(item => item.id === state.project.latestBuildId && item.status === 'ready');
+      if (!build?.launchUri) {
+        document.querySelector('[data-view="playtest"]').click();
+        return;
+      }
+      window.open(build.launchUri, '_blank', 'noopener,noreferrer');
+    });
+
+    function showError(error) {
+      document.querySelector('#project-name').textContent = 'Control-plane state unavailable';
+      document.querySelector('#project-id').textContent = error.message;
+      console.error(error);
+    }
+
+    loadState().catch(showError);
+  </script>
+</body>
+</html>
