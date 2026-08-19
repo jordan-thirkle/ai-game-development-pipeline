@@ -4,6 +4,14 @@ Runtime-sensitive changes must be proven in an environment capable of observing 
 
 `config/execution-gates.json` maps sensitive paths to an execution environment and required checks. A matching evidence record lives under `evidence/execution/` and follows `schemas/execution-evidence.schema.json`.
 
+## Trust model
+
+The production gate uses `pull_request_target` deliberately. GitHub runs the workflow from the target/base branch; it checks out the base revision and executes only trusted base code, dependencies and gate configuration. The PR head is fetched as data so the checker can inspect changed paths and parse the proposed evidence JSON without executing PR-controlled code.
+
+Do **not** change this workflow to execute scripts, package manifests, actions or arbitrary commands from the PR head. A PR must not be able to teach its own merge gate to approve itself.
+
+A separate `execution-evidence-gate-selftest.yml` workflow uses ordinary `pull_request` only to test changes to the gate implementation. That self-test is development evidence; the `pull_request_target` check is the production enforcement path once the gate is on `main`.
+
 ## Revision freshness
 
 Evidence records the revision that was actually tested. The tested revision must be an ancestor of the PR head, and no gated path may change after that tested revision. This permits an evidence-only commit after testing without creating an impossible self-referential head SHA.
