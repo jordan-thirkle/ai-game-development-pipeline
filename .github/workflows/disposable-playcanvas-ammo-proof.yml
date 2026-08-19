@@ -1,0 +1,85 @@
+name: Disposable PlayCanvas Ammo proof
+
+on:
+  pull_request:
+    branches:
+      - benchmark/001-playcanvas-ammo-gate
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: 7660715e9a93b12fc17d44303b4ea2776cd50289
+
+      - name: Setup Node 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: Install candidate dependencies
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Strict TypeScript
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: npm run typecheck
+
+      - name: Production build and pinned Ammo acquisition
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: npm run build | tee build.log
+
+      - name: Install Chromium
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: npx playwright install --with-deps chromium
+
+      - name: Start preview
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: |
+          npm run preview > preview.log 2>&1 &
+          echo $! > preview.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4174/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat preview.log
+          exit 1
+
+      - name: Browser physics proof
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        env:
+          CANDIDATE_SHA: 7660715e9a93b12fc17d44303b4ea2776cd50289
+        run: npm run test:browser | tee browser-proof.log
+
+      - name: Stop preview
+        if: always()
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: |
+          if [ -f preview.pid ]; then kill "$(cat preview.pid)" 2>/dev/null || true; fi
+
+      - name: Package evidence
+        if: always()
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate
+        run: |
+          mkdir -p evidence/logs
+          cp build.log evidence/logs/build.log 2>/dev/null || true
+          cp browser-proof.log evidence/logs/browser-proof.log 2>/dev/null || true
+          cp preview.log evidence/logs/preview.log 2>/dev/null || true
+          cp public/ammo/provenance.json evidence/ammo-provenance.json 2>/dev/null || true
+          sha256sum public/ammo/ammo.js public/ammo/ammo.wasm.js public/ammo/ammo.wasm.wasm > evidence/ammo-sha256.txt 2>/dev/null || true
+          node --version > evidence/node-version.txt
+          npx playwright --version > evidence/playwright-version.txt
+
+      - name: Upload proof artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playcanvas-ammo-gate-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/playcanvas/physics-gate/evidence
+          if-no-files-found: error
