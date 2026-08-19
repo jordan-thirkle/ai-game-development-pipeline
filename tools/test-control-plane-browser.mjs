@@ -8,7 +8,7 @@ const fixturePath='fixtures/control-plane/BYJTT-LAB-001.json';
 const fixtureData=JSON.parse(await readFile(fixturePath,'utf8'));
 await mkdir(artifacts,{recursive:true});
 
-const browser=await chromium.launch({headless:true});
+const browser=await chromium.launch({headless:true,channel:'chrome'});
 const failures=[];
 const record=(name,fn)=>fn().then(()=>console.log(`PASS ${name}`)).catch(error=>{failures.push(`${name}: ${error.message}`);console.error(`FAIL ${name}: ${error.message}`)});
 
@@ -17,10 +17,11 @@ async function open(viewport,overrideFixture=null){
   const consoleErrors=[];
   page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});
   page.on('pageerror',error=>consoleErrors.push(error.message));
+  await page.route('**/favicon.ico',route=>route.fulfill({status:204,body:''}));
   if(overrideFixture){
     await page.route('**/fixtures/control-plane/BYJTT-LAB-001.json',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(overrideFixture)}));
   }
-  const response=await page.goto(baseURL,{waitUntil:'networkidle'});
+  const response=await page.goto(baseURL,{waitUntil:'domcontentloaded'});
   assert(response?.ok(),`HTTP ${response?.status()}`);
   await page.waitForSelector('#name');
   await page.waitForFunction(()=>document.querySelector('#name')?.textContent!=='Loading…');

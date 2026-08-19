@@ -3,23 +3,58 @@ on:
   pull_request:
   push:
     branches: [main]
+concurrency:
+  group: control-plane-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   browser-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+      - name: Detect browser-sensitive changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_HEAD_SHA: ${{ github.event.after }}
+        run: |
+          zero='0000000000000000000000000000000000000000'
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            range="$PR_BASE_SHA...$PR_HEAD_SHA"
+          elif [ "$PUSH_HEAD_SHA" = "$zero" ]; then
+            echo 'Deleted ref has no resulting revision to browser-test.'
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "$PUSH_BEFORE_SHA" = "$zero" ]; then
+            empty_tree="$(git hash-object -t tree /dev/null)"
+            range="$empty_tree..$PUSH_HEAD_SHA"
+          else
+            range="$PUSH_BEFORE_SHA..$PUSH_HEAD_SHA"
+          fi
+          changed="$(git diff --name-only "$range")"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/test-control-plane-browser\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v7.0.0
+        if: steps.changes.outputs.run == 'true'
         with:
           node-version: '26'
-      - name: Install pinned Playwright runtime
-        run: |
-          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
-          npx playwright install --with-deps chromium
+      - name: Install pinned Playwright package
+        if: steps.changes.outputs.run == 'true'
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
       - name: Serve repository fixture and Studio
+        if: steps.changes.outputs.run == 'true'
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/control-plane-server.log 2>&1 &
           echo $! > /tmp/control-plane-server.pid
@@ -30,12 +65,13 @@ jobs:
           cat /tmp/control-plane-server.log
           exit 1
       - name: Run direct browser QA
+        if: steps.changes.outputs.run == 'true'
         env:
           CONTROL_PLANE_URL: http://127.0.0.1:4173/apps/studio/
           BROWSER_ARTIFACTS: artifacts/control-plane-browser
         run: node tools/test-control-plane-browser.mjs
       - name: Upload browser evidence
-        if: always()
+        if: steps.changes.outputs.run == 'true' && always()
         uses: actions/upload-artifact@v4
         with:
           name: control-plane-browser-${{ github.run_id }}
@@ -43,3 +79,6 @@ jobs:
             artifacts/control-plane-browser/**
             /tmp/control-plane-server.log
           if-no-files-found: warn
+      - name: Report path-aware skip
+        if: steps.changes.outputs.run != 'true'
+        run: echo 'No browser-sensitive files changed; direct browser execution not required for this revision.'
