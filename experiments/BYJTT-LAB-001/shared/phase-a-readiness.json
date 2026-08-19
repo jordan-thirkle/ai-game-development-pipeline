@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-001",
+  "phase": "A",
+  "status": "active",
+  "candidate_ids": [
+    "three-webgpu",
+    "playcanvas",
+    "babylonjs",
+    "godot",
+    "unity",
+    "defold"
+  ],
+  "frozen_inputs": [
+    "shared/contract.json",
+    "shared/playtest-contract.json",
+    "shared/evidence-layout.md",
+    "candidate-version-pins",
+    "candidate-path-ownership"
+  ],
+  "phase_b_blockers": [
+    "selected-source-binary-hashes",
+    "exact-animation-clip-mapping",
+    "cross-runtime-skeleton-import-evidence",
+    "production-content-performance-baseline"
+  ],
+  "phase_a_claims_allowed": [
+    "iteration-velocity",
+    "agent-editability",
+    "native-system-leverage",
+    "custom-versus-reused-code-burden",
+    "build-and-startup-cost",
+    "deterministic-qa-capability",
+    "gameplay-system-maintainability",
+    "coordination-overhead"
+  ],
+  "phase_a_claims_forbidden": [
+    "final-shared-asset-import-quality",
+    "final-animation-fidelity",
+    "final-production-visual-quality",
+    "final-production-content-mobile-performance"
+  ],
+  "completion_requires": [
+    "executed-shared-playable-path",
+    "pipeline-run-record",
+    "playtest-result-for-all-shared-step-ids",
+    "build-and-environment-identity",
+    "runtime-or-editor-or-browser-logs",
+    "player-facing-visual-evidence",
+    "solved-system-decisions-and-deviations",
+    "failure-and-recovery-history"
+  ],
+  "source_inspection_counts_as_runtime_evidence": false,
+  "candidate_may_modify_shared_contract_unilaterally": false
+}
