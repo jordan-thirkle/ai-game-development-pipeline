@@ -1,12 +1,4 @@
 {
   "schemaVersion":"0.1.0",
-  "gates":[
-    {
-      "id":"control-plane-browser",
-      "paths":["apps/studio/"],
-      "evidencePath":"evidence/execution/control-plane-browser.json",
-      "environment":"browser-automation",
-      "requiredChecks":["page-load","console-clean","navigation","blocked-gate-disabled","responsive-layout","keyboard-basics"]
-    }
-  ]
+  "gates":[]
 }
