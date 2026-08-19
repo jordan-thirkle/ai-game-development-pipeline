@@ -1,0 +1,1 @@
+During this dogfood run the worker continued adding meta-artifacts after the executable branch was already sufficient. This is itself evidence of planning/coordination runaway. The correct recovery is to stop generating artifacts and move immediately to integration evidence.
