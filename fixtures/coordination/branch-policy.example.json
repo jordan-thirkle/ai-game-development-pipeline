@@ -1,0 +1,1 @@
+{"default":"short-lived-independent-slice","stackWhen":"causal dependency exists","sequenceWhen":"shared hotspot ownership or unstable foundation","avoid":"long-lived cross-cutting branch across active workstreams","integrationUnit":"main"}
