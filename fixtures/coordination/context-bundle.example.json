@@ -1,0 +1,15 @@
+{
+  "workUnitId": "WU-001",
+  "repositoryRevision": "b204e04062f88a1a4a077774ac378f7fbbb4d1a0",
+  "required": [
+    "AGENTS.md",
+    "docs/MULTI-AGENT-OPERATING-MODEL.md",
+    "experiments/BYJTT-LAB-001/spec.md",
+    "fixtures/coordination/work-unit.claimed.valid.json"
+  ],
+  "onDemand": [
+    "experiments/BYJTT-LAB-001/preflight-2026-08-19.md",
+    "registry/technologies.json"
+  ],
+  "excludedByDefault": ["prior chat transcripts", "unrelated project history", "all repository files"]
+}
