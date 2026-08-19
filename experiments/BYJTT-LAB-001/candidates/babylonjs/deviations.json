@@ -1,22 +1,27 @@
 {
   "schema_version": 1,
   "candidate_id": "babylonjs",
-  "phase": "A-tracer",
+  "phase": "A",
   "deviations": [
     {
       "id": "greybox-primitives",
-      "status": "temporary",
-      "reason": "Shared production assets remain a Phase B dependency; the tracer uses engine-native primitives only."
+      "status": "temporary-phase-a",
+      "reason": "Shared production assets remain a Phase B dependency; Phase A uses engine-native primitives only."
     },
     {
-      "id": "no-gameplay-contract-yet",
-      "status": "blocking-phase-a-pass",
-      "reason": "The current tracer validates renderer/Havok/browser boot only and does not yet implement the shared 13-step gameplay contract."
+      "id": "kinematic-character-layer",
+      "status": "intentional-phase-a",
+      "reason": "Havok Physics V2 owns the static arena/environment proof while player and enemy locomotion use a thin deterministic game-specific kinematic layer in the unobstructed arena. This avoids adding a heavier controller abstraction without collision evidence requiring one."
     },
     {
       "id": "no-navmesh-yet",
-      "status": "intentional",
-      "reason": "The Phase A arena is unobstructed; Recast will be added only if later pathfinding evidence requires it."
+      "status": "intentional-phase-a",
+      "reason": "Enemy navigation uses direct steering in the unobstructed arena; Recast is deferred until obstacle/pathfinding evidence requires it."
+    },
+    {
+      "id": "hosted-renderer-fallback",
+      "status": "observed",
+      "reason": "Hosted stable Chrome exposed navigator.gpu but Babylon selected the WebGL2 fallback path during successful tracer and full Phase A execution. Real-device backend evidence remains required later."
     }
   ]
 }
