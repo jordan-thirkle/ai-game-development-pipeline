@@ -1,0 +1,20 @@
+name: Verify control-plane contract
+on:
+  pull_request:
+    paths: ['docs/CONTROL-PLANE.md','schemas/control-plane-state.schema.json','fixtures/control-plane/**','apps/studio/**','tools/test-control-plane-contract.mjs','.github/workflows/control-plane-contract.yml']
+  push:
+    branches: [main]
+    paths: ['schemas/control-plane-state.schema.json','fixtures/control-plane/**','apps/studio/**','tools/test-control-plane-contract.mjs','.github/workflows/control-plane-contract.yml']
+permissions:
+  contents: read
+jobs:
+  control-plane-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate control-plane fixture and semantics
+        run: node tools/test-control-plane-contract.mjs
