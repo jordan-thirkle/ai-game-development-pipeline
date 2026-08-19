@@ -8,11 +8,13 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-github-config.mjs",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-github-config.mjs && npm run test:governor",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
     "new:record": "node tools/new-record.mjs",
-    "gate:graduation": "node tools/check-graduation-gate.mjs"
+    "gate:graduation": "node tools/check-graduation-gate.mjs",
+    "gate:lifecycle": "node tools/check-lifecycle-status.mjs",
+    "test:governor": "node --test tools/test-lifecycle-status.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",
