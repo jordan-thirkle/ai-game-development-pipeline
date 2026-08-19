@@ -125,6 +125,32 @@ async function moveTowardEnemy(tolerance = 1.45, maxSteps = 30) {
   throw new Error(`Could not reach moving enemy with normal movement; final=${JSON.stringify(await snapshot())}`);
 }
 
+async function breakSalvageThroughGameplay(maxAttempts = 4) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let current = await snapshot();
+    if (current['salvage.broken']) return current;
+
+    await ensurePlayerAlive('normal respawn before salvage attempt');
+    await moveToward(5, 0, 1.2, 40, (s) => s['salvage.broken']);
+    current = await ensurePlayerAlive('normal respawn at salvage');
+    if (current['salvage.broken']) return current;
+
+    const healthBefore = current['salvage.health'];
+    await attack(1);
+    try {
+      current = await waitFor(
+        (s) => s['salvage.broken'] || s['salvage.health'] < healthBefore || !s['player.alive'],
+        `salvage attack outcome ${attempt + 1}`,
+        1800
+      );
+    } catch {
+      current = await snapshot();
+    }
+    if (current['salvage.broken']) return current;
+  }
+  throw new Error(`Could not break salvage through bounded normal gameplay; final=${JSON.stringify(await snapshot())}`);
+}
+
 async function writeEvidence(extraFailure = null) {
   const finalSnapshot = await snapshot().catch(() => null);
   if (extraFailure && !failures.includes(extraFailure)) failures.push(extraFailure);
@@ -185,7 +211,6 @@ try {
   await page.waitForTimeout(150);
   current = await snapshot();
   result('04-exercise-camera', current['player.alive'] ? 'pass' : 'fail', { playerStillControllable: current['player.alive'] }, [], ['Camera response is captured in browser screenshots; progression state remained intact.']);
-  // Return through the normal camera input so later navigation does not assume the camera test permanently changed the movement frame.
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(150);
 
@@ -206,9 +231,7 @@ try {
   current = await waitFor((s) => s['enemy.health'] < enemyBeforeHit, 'player damage to enemy', 3500);
   result('06-exchange-damage', current['player.health'] < 100 && current['enemy.health'] < 100 && current['player.health'] >= 0 && current['enemy.health'] >= 0 ? 'pass' : 'fail', { playerHealthAfterEnemy, playerHealth: current['player.health'], enemyHealth: current['enemy.health'] });
 
-  await moveToward(5, 0, 1.25);
-  await attack(1);
-  current = await waitFor((s) => s['salvage.broken'] === true, 'salvage break');
+  current = await breakSalvageThroughGameplay();
   result('07-break-salvage', current['salvage.broken'] ? 'pass' : 'fail', { salvageHealth: current['salvage.health'], rewardAvailable: current['reward.available'], rewardCount: current['reward.count'] }, ['07-break-salvage.png'], current['reward.count'] === 1 ? ['Reward auto-collected through normal proximity before step 7 capture completed.'] : []);
   await page.screenshot({ path: path.join(artifacts, '07-break-salvage.png'), fullPage: true });
 
