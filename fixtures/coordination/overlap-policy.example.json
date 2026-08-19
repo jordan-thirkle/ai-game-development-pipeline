@@ -1,0 +1,1 @@
+{"onOverlap":["avoid","stack","sequence","coordinate-ownership"],"forbidden":"two unstacked sessions knowingly mutate the same hotspot or own the same outcome"}
