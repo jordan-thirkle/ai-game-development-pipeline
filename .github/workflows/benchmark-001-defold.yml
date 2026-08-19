@@ -1,0 +1,81 @@
+name: Benchmark 001 Defold Runtime Tracer
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/defold/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-defold.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/defold/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-defold.yml'
+permissions:
+  contents: read
+jobs:
+  runtime-tracer:
+    name: runtime-tracer
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/defold
+      DEFOLD_VERSION: '1.13.0'
+      BOB_URL: https://github.com/defold/defold/releases/download/1.13.0/bob.jar
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - uses: actions/setup-java@v5.0.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Record execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/runtime-tracer" .tools/defold
+          {
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "chrome=$(google-chrome --version || true)"
+            echo "os=$(uname -a)"
+            echo "github_sha=$GITHUB_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "requested_defold_version=$DEFOLD_VERSION"
+            echo "bob_url=$BOB_URL"
+          } | tee "$CANDIDATE/artifacts/runtime-tracer/environment.txt"
+      - name: Acquire official Defold Bob
+        run: |
+          curl --fail --location --retry 3 "$BOB_URL" --output .tools/defold/bob.jar
+          sha256sum .tools/defold/bob.jar | tee "$CANDIDATE/artifacts/runtime-tracer/bob.sha256"
+          java -jar .tools/defold/bob.jar --version | tee "$CANDIDATE/artifacts/runtime-tracer/bob-version.txt"
+      - name: Install pinned browser proof dependency
+        run: npm --prefix "$CANDIDATE" install --ignore-scripts --no-audit --no-fund
+      - name: Syntax-check browser proof
+        run: npm --prefix "$CANDIDATE" run check
+      - name: Build real Defold HTML5 bundle
+        run: |
+          cd "$CANDIDATE"
+          java -jar "$GITHUB_WORKSPACE/.tools/defold/bob.jar" \
+            --platform=wasm-web \
+            --variant=debug \
+            --archive \
+            --bundle-output=bundle \
+            clean build bundle 2>&1 | tee artifacts/runtime-tracer/bob-build.log
+      - name: Execute normal-input tracer in Chrome
+        run: npm --prefix "$CANDIDATE" run test:runtime-tracer
+      - name: Upload Defold execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byjtt-lab-001-defold-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/defold/artifacts/runtime-tracer/**
+            experiments/BYJTT-LAB-001/candidates/defold/bundle/**
+            experiments/BYJTT-LAB-001/candidates/defold/package-lock.json
+          if-no-files-found: warn
+          retention-days: 30

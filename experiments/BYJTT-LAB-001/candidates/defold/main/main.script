@@ -1,0 +1,72 @@
+local WALK_SPEED = 3.5
+local ACCELERATION = 18.0
+local DECELERATION = 22.0
+local ARENA_HALF_DEPTH = 16.0
+local PUBLISH_INTERVAL = 0.05
+local FORWARD = hash("forward")
+
+local function approach(current, target, delta)
+  if current < target then
+    return math.min(current + delta, target)
+  end
+  return math.max(current - delta, target)
+end
+
+local function publish_observation(self)
+  self.sequence = self.sequence + 1
+  local position = go.get_position()
+  local script = string.format([[
+window.__BYJTT_DEFOLD = {
+  seq: %d,
+  runtime: { ready: true },
+  scene: { gameplay_active: true },
+  player: {
+    position: [%.6f, %.6f, %.6f],
+    health: 100,
+    alive: true,
+    speed: %.6f
+  }
+};
+]], self.sequence, position.x, position.y, position.z, self.speed)
+  html5.run(script)
+end
+
+function init(self)
+  self.forward = false
+  self.speed = 0.0
+  self.sequence = 0
+  self.publish_elapsed = 0.0
+  msg.post(".", "acquire_input_focus")
+  publish_observation(self)
+end
+
+function update(self, dt)
+  local target_speed = self.forward and WALK_SPEED or 0.0
+  local rate = self.forward and ACCELERATION or DECELERATION
+  self.speed = approach(self.speed, target_speed, rate * dt)
+
+  if self.speed > 0.0 then
+    local position = go.get_position()
+    position.z = math.max(-ARENA_HALF_DEPTH, position.z - self.speed * dt)
+    go.set_position(position)
+  end
+
+  self.publish_elapsed = self.publish_elapsed + dt
+  if self.publish_elapsed >= PUBLISH_INTERVAL then
+    self.publish_elapsed = 0.0
+    publish_observation(self)
+  end
+end
+
+function on_input(self, action_id, action)
+  if action_id ~= FORWARD then
+    return false
+  end
+
+  if action.pressed then
+    self.forward = true
+  elseif action.released then
+    self.forward = false
+  end
+  return true
+end

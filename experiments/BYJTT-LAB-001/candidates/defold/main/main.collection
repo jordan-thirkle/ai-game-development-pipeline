@@ -1,0 +1,13 @@
+name: "main"
+scale_along_z: 0
+embedded_instances {
+  id: "player"
+  position {
+    z: 10.0
+  }
+  data: "components {\n"
+  "  id: \"controller\"\n"
+  "  component: \"/main/main.script\"\n"
+  "}\n"
+  ""
+}

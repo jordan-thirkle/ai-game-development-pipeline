@@ -1,0 +1,8 @@
+key_trigger {
+  input: KEY_W
+  action: "forward"
+}
+key_trigger {
+  input: KEY_UP
+  action: "forward"
+}
