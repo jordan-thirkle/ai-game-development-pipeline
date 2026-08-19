@@ -7,6 +7,7 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 import '@babylonjs/core/Physics/v2/physicsEngineComponent';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
@@ -101,7 +102,8 @@ async function createScene(engine) {
 
   const havok = await HavokPhysics();
   const physics = new HavokPlugin(true, havok);
-  scene.enablePhysics(new Vector3(0, -9.81, 0), physics);
+  const physicsEnabled = scene.enablePhysics(new Vector3(0, -9.81, 0), physics);
+  if (!physicsEnabled) throw new Error('Babylon scene.enablePhysics returned false');
   state.havokReady = true;
   state.havokPluginVersion = physics.getPluginVersion();
 
