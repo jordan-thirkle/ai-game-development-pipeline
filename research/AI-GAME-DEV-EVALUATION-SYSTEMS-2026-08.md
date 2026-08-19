@@ -1,7 +1,9 @@
 # AI Game Development Evaluation Systems — 2026-08
 
 Status: living research companion to `AI-GAME-DEV-LANDSCAPE-2026-08.md`  
-Last verified: **2026-08-20**
+Last verified: **2026-08-20** (Europe/London project date)
+
+Materialized registry records: `../registry/ai-game-dev-systems.v1.json`.
 
 ## Why this exists
 
@@ -21,14 +23,15 @@ No single benchmark replaces the other three.
 ## GameDevBench — external agent capability benchmark
 
 Repository: https://github.com/waynchi/gamedevbench  
+Pinned revision: `3a80dfdfd01209485185909cb88ac1687dff925e` (verified 2026-08-20)  
 Paper/project: arXiv 2602.11103 / ICML 2026  
 Licence: Apache-2.0  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **INCUMBENT external game-development agent benchmark; BENCHMARK NOW**
 
-Repository snapshot checked 2026-08-20:
-- 101 stars / 7 forks;
-- pushed 2026-08-13;
+Pinned repository snapshot:
+- 101 stars / 7 forks at the original check;
+- revision dated 2026-08-13;
 - exact validation environment uses Godot 4.4.1;
 - public runner supports Claude Code, Codex, Gemini CLI, OpenCode and OpenHands.
 
@@ -40,12 +43,7 @@ The project defines **333 game-development tasks** across:
 
 Its README reports that reference solutions average 4.7 changed files and 114 lines across 3.2 file types, making the tasks meaningfully multimodal rather than toy one-file coding prompts.
 
-The camera-ready README reports:
-- best tested agent/method solves 63.7% of tasks;
-- average success falls materially on graphics-heavy tasks;
-- simple image/video feedback mechanisms substantially improve performance for at least one reported model configuration.
-
-Treat those numbers as **benchmark-author results**, not our execution evidence, until we run the suite ourselves.
+The pinned project materials report benchmark results and visual-feedback effects. Treat every reported score as **benchmark-author evidence**, not ByJTT execution evidence, until we run the suite ourselves.
 
 ### Why it changes BYJTT-LAB
 
@@ -77,14 +75,15 @@ Record success, retries, elapsed time, token/cost, files touched, test validity 
 ## Roblox OpenGameEval — official platform evaluation suite
 
 Repository: https://github.com/Roblox/open-game-eval  
+Pinned revision: `99d231ffef36a80872657a4594246a1bdebfa588` (verified 2026-08-20)  
 Owner: Roblox  
 Licence: MIT  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **BENCHMARK NOW for Roblox adapter / creator-agent evaluation**
 
-Repository snapshot checked 2026-08-20:
-- 65 stars / 15 forks;
-- pushed 2026-07-30;
+Pinned repository snapshot:
+- 65 stars / 15 forks at the original check;
+- revision dated 2026-07-30;
 - repository contains evaluation scripts, places, detailed reviews and an LLM leaderboard for automated assessments in Roblox Studio.
 
 ### Why it matters
@@ -98,18 +97,19 @@ We should inspect its task design and scoring before inventing Roblox-specific c
 ## Vitric — AI-first deterministic engine + swarm playtesting
 
 Repository: https://github.com/BlackBearCC/vitric  
+Pinned revision: `24428f36a02d1669ff441245b1732e945814d5b8` (verified 2026-08-20)  
 Licence: MIT  
 Language: Rust  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **BENCHMARK NOW / architecture study; do not dismiss because adoption metrics are currently tiny**
 
-Repository snapshot checked 2026-08-20:
+Pinned repository snapshot:
 - created 2026-06-10;
-- pushed 2026-08-07;
-- currently 0 stars / 0 forks;
+- revision dated 2026-08-07;
+- 0 stars / 0 forks at the original check;
 - pre-1.0 and explicitly under active development.
 
-The repository describes an unusually relevant architecture:
+The pinned repository describes an unusually relevant architecture:
 - deterministic fixed-step simulation and seeded RNG;
 - exact snapshot/restore and input recording/replay;
 - JSON-schema'd scenes/entities/state;
@@ -120,12 +120,11 @@ The repository describes an unusually relevant architecture:
 - delivery gates based on replaying a winning recording and requiring terminal events/assertions;
 - MCP server and a built-in multi-agent team/turf model.
 
-The README explicitly distinguishes **mechanical floor** from **human quality ceiling**: automated playtest can prove reachability/mechanical properties but not fun, feel or art. That aligns closely with our evidence philosophy.
+The README distinguishes a **mechanical floor** from a **human quality ceiling**: automated playtest can establish mechanical properties represented by its tests, but not fun, feel or art. Treat that as the project's documented design position until independently executed.
 
 ### Why it matters
 
 Vitric may or may not become a production runtime for us, but several primitives deserve direct study even if the engine is never adopted:
-
 - deterministic replay as evidence;
 - snapshot/restore for lookahead tests;
 - semantic state designed for models rather than scraping editor UI;
@@ -133,7 +132,7 @@ Vitric may or may not become a production runtime for us, but several primitives
 - delivery certificates tied to exact replayable behavior;
 - engine errors carrying stable codes + fix hints for agents.
 
-These are stronger than generic screenshot-only QA for properties that can be represented deterministically.
+These are candidates for stronger verification than generic screenshot-only QA where properties can be represented deterministically.
 
 ### Required experiment
 
@@ -151,16 +150,18 @@ Do **not** compare Vitric directly to Unity/Unreal on visual scope. Instead eval
 ## Unity Code Agent — in-editor implementation + screenshot/play verification
 
 Repository: https://github.com/Signal-Loop/UnityCodeAgent  
+Pinned revision: `978b1c26f77301a20cf92a90f7ccc024c3544c8b` (verified 2026-08-20)  
+Licence: **MIT as declared by the README at the pinned revision**  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **WATCH / benchmark selected verification patterns**
 
-Repository metadata checked 2026-08-20:
-- created 2026-06-26;
-- pushed 2026-07-21;
+Pinned repository evidence:
 - public C# project;
-- GitHub metadata currently exposes **no detected licence**, so do not embed/fork until licence status is clarified.
+- README explicitly declares `MIT` under its License section;
+- README documents editor mutation, tests, screenshot analysis and playing the game to verify implementation;
+- repository code licence does **not** automatically establish the licences/redistribution terms of dependencies, generated outputs or bundled assets.
 
-Repository documentation describes an editor agent that can create/modify Unity content, run tests, analyze screenshots and play the game to verify implementation. It also distributes agent skill files for editor scripting and closed-loop game playing.
+Before embedding, forking or redistributing, inventory the GitHub Copilot SDK and all other dependencies/assets separately rather than treating the README's MIT declaration as a blanket licence for the dependency graph.
 
 ### Why it matters
 
@@ -169,14 +170,12 @@ This is a direct example of **skills + engine tools + runtime verification** bei
 - one strong OSS editor-agent implementation;
 - our provider-neutral adapter requirements.
 
-Licence uncertainty is itself part of the solved-system evaluation record.
-
 ---
 
 ## Unity ML-Agents — mature gameplay-agent baseline
 
 Repository: https://github.com/Unity-Technologies/ml-agents  
-Evidence: **SOURCE-VERIFIED**  
+Evidence: **SOURCE-VERIFIED** for the repository-level capability description; exact experiment inputs must be pinned before use  
 Disposition: **REFERENCE / benchmark when learning agents are justified**
 
 Unity ML-Agents is a mature open toolkit for training intelligent agents in Unity through reinforcement learning, imitation learning and related approaches. Its documented use cases include automated testing and evaluating game-design decisions.
@@ -190,7 +189,7 @@ Do not use an LLM/VLM for every automated playtest problem. Where a deterministi
 ## GamingAgent / LMGame Bench — computer-use game-playing evaluation
 
 Repository: https://github.com/lmgame-org/GamingAgent  
-Evidence: **SOURCE-VERIFIED**  
+Evidence: **SOURCE-VERIFIED** for repository-level scope; exact experiment inputs must be pinned before use  
 Disposition: **WATCH / benchmark for black-box visual playtesting**
 
 This project evaluates LLM/VLM models across interactive games and provides a computer-use gaming-agent harness. Its relevance is different from GameDevBench:
@@ -204,7 +203,7 @@ This distinction maps well to our verifier architecture: a builder agent's imple
 ## Playcaller — Unity real-input MCP playtesting
 
 Repository: https://github.com/takashicompany/playcaller  
-Evidence: **SOURCE-VERIFIED from repository**  
+Evidence: **SOURCE-VERIFIED** for repository-level scope; exact experiment inputs must be pinned before use  
 Disposition: **WATCH / test against normal-input conformance requirement**
 
 Playcaller exposes Unity Game View interactions such as tap/drag/flick to AI agents through MCP. This is directly relevant to our rule that test harnesses should use normal player inputs rather than privileged gameplay mutation shortcuts when validating user-facing behavior.
@@ -219,11 +218,11 @@ Rather than one giant "AI game-dev score", Standard v0.1 should eventually produ
 
 ```text
 AgentDevCapability:
-  external_suite: GameDevBench
+  benchmark_id: bench.gamedevbench
   result: ...
 
 PlatformAgentCapability:
-  external_suite: OpenGameEval (when Roblox)
+  benchmark_id: bench.roblox.open-game-eval
   result: ...
 
 RuntimeMechanicalQA:
@@ -238,6 +237,8 @@ PipelineConformance:
 HumanPlaytest:
   clarity / feel / fun / taste / accessibility: ...
 ```
+
+Stable benchmark IDs are defined in `../registry/ai-game-dev-systems.v1.json`; experiment evidence must additionally satisfy `../registry/PROVENANCE.md`.
 
 This prevents a system from becoming "best AI game engine" simply because it optimizes one benchmark.
 
