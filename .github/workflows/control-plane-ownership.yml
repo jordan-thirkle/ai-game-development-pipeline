@@ -1,0 +1,30 @@
+name: Control plane ownership projection
+
+on:
+  pull_request:
+    paths:
+      - 'fixtures/control-plane/**'
+      - 'tools/control-plane-ownership.mjs'
+      - 'tools/sync-control-plane-ownership.mjs'
+      - 'tools/test-control-plane-ownership.mjs'
+      - '.github/workflows/control-plane-ownership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ownership-projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+      - name: Adversarial ownership projection tests
+        run: node --test tools/test-control-plane-ownership.mjs
+      - name: Check live GitHub ownership projection
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/sync-control-plane-ownership.mjs
