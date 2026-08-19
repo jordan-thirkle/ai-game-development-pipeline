@@ -1,0 +1,50 @@
+name: PlayCanvas Phase A tracer
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tracer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/playcanvas
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install pinned candidate dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck candidate
+        run: npm run typecheck
+      - name: Build candidate
+        run: npm run build
+      - name: Install browser driver
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
+      - name: Serve built candidate
+        run: |
+          npm run preview -- --port 4175 > /tmp/playcanvas-preview.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4175/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/playcanvas-preview.log
+          exit 1
+      - name: Run browser tracer
+        env:
+          PLAYCANVAS_URL: http://127.0.0.1:4175/
+          PLAYCANVAS_ARTIFACTS: artifacts/browser-tracer
+        run: node tools/browser-tracer.mjs
+      - name: Upload tracer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playcanvas-phase-a-tracer-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/playcanvas/artifacts/browser-tracer/**
+            /tmp/playcanvas-preview.log
+          if-no-files-found: warn
