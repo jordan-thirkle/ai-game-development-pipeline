@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "last_verified_at": "2026-08-20",
+  "evidence_labels": ["EXECUTED", "SOURCE-VERIFIED", "VENDOR-CLAIM", "PAPER-CLAIM", "UNKNOWN"],
+  "adoption_status_map": {
+    "BENCHMARK NOW": "benchmark",
+    "INCUMBENT": "incumbent",
+    "ADAPTER CANDIDATE": "adapter_candidate",
+    "WATCH": "watch",
+    "REJECT FOR NOW": "rejected",
+    "REFERENCE": "reference"
+  },
+  "benchmarks": [
+    {"benchmark_id":"bench.gamedevbench","name":"GameDevBench","category":"builder_agent","canonical_url":"https://github.com/waynchi/gamedevbench","revision":"3a80dfdfd01209485185909cb88ac1687dff925e"},
+    {"benchmark_id":"bench.roblox.open-game-eval","name":"OpenGameEval","category":"platform_builder_agent","canonical_url":"https://github.com/Roblox/open-game-eval","revision":"99d231ffef36a80872657a4594246a1bdebfa588"},
+    {"benchmark_id":"bench.vitric.verification","name":"Vitric verification primitives","category":"runtime_mechanical_qa","canonical_url":"https://github.com/BlackBearCC/vitric","revision":"24428f36a02d1669ff441245b1732e945814d5b8"},
+    {"benchmark_id":"bench.byjtt.creator-journey","name":"BYJTT Creator Journey","category":"creator_experience","canonical_url":"../research/AI-GAME-DEV-LANDSCAPE-2026-08.md","revision":"pr-92"},
+    {"benchmark_id":"bench.byjtt.engine-adapter","name":"BYJTT engine adapter conformance","category":"engine_adapter","canonical_url":"../research/AI-GAME-DEV-LANDSCAPE-2026-08.md","revision":"pr-92"}
+  ],
+  "entries": [
+    {
+      "entry_id":"system.godot-mcp.tomyud1","name":"tomyud1/godot-mcp","category":"engine_agent_bridge","canonical_url":"https://github.com/tomyud1/godot-mcp","source_type":"repository","license":"MIT","version_or_revision":"0d3f473922ea270c38df5c17cf061aa9da8470a2","last_verified_at":"2026-08-20","activity_signal":"main commit 2026-04-21; release notes identify v0.5.0","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.byjtt.engine-adapter","adoption_status":"incumbent+benchmark","replacement_cost":"medium","lock_in_risk":"low","redistribution_status":"verify dependencies before redistribution","notes":"Live-editor Godot bridge baseline; no ByJTT execution claim yet."},
+    {
+      "entry_id":"system.godot-mcp.better","name":"n24q02m/better-godot-mcp","category":"engine_agent_bridge","canonical_url":"https://github.com/n24q02m/better-godot-mcp","source_type":"repository","license":"Apache-2.0","version_or_revision":"85d7de392d2a59e32a82b41b643b3c389f5d1133","last_verified_at":"2026-08-20","activity_signal":"main commit 2026-08-19","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.byjtt.engine-adapter","adoption_status":"benchmark","replacement_cost":"medium","lock_in_risk":"low","redistribution_status":"verify dependencies before redistribution","notes":"File-first/composite-tool Godot bridge baseline; test round-trip runtime truth."},
+    {
+      "entry_id":"system.unity.mcp.emeryporter","name":"emeryporter/UnityMCP","category":"engine_agent_bridge","canonical_url":"https://github.com/emeryporter/UnityMCP","source_type":"repository","license":"GPL-3.0","version_or_revision":"846caa5b15fe9758c4ed0caa60022b80c1c81229","last_verified_at":"2026-08-20","activity_signal":"main release commit 2026-04-17; v2.2.4","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.byjtt.engine-adapter","adoption_status":"watch","replacement_cost":"medium","lock_in_risk":"medium","redistribution_status":"explicit GPL/dependency review required","notes":"External-tool candidate if official Unity MCP is insufficient."},
+    {
+      "entry_id":"system.unity.code-agent","name":"Signal-Loop/UnityCodeAgent","category":"engine_agent_and_verifier","canonical_url":"https://github.com/Signal-Loop/UnityCodeAgent","source_type":"repository","license":"MIT (declared in README at pinned revision; repository dependency/assets require separate inventory)","version_or_revision":"978b1c26f77301a20cf92a90f7ccc024c3544c8b","last_verified_at":"2026-08-20","activity_signal":"pinned main commit 2026-07-17","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.byjtt.engine-adapter","adoption_status":"watch","replacement_cost":"medium","lock_in_risk":"medium","redistribution_status":"inventory bundled dependencies/assets before embedding or redistribution","notes":"README documents editor mutation, tests, screenshots and closed-loop play verification."},
+    {
+      "entry_id":"benchmark.gamedevbench","name":"GameDevBench","category":"external_benchmark","canonical_url":"https://github.com/waynchi/gamedevbench","source_type":"repository+paper","license":"Apache-2.0","version_or_revision":"3a80dfdfd01209485185909cb88ac1687dff925e","last_verified_at":"2026-08-20","activity_signal":"main commit 2026-08-13","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.gamedevbench","adoption_status":"incumbent+benchmark","replacement_cost":"low","lock_in_risk":"low","redistribution_status":"preserve Apache-2.0 notices and inspect task assets separately","notes":"333 Godot development tasks; author-reported scores are not ByJTT execution evidence."},
+    {
+      "entry_id":"benchmark.roblox.open-game-eval","name":"Roblox OpenGameEval","category":"external_benchmark","canonical_url":"https://github.com/Roblox/open-game-eval","source_type":"repository","license":"MIT","version_or_revision":"99d231ffef36a80872657a4594246a1bdebfa588","last_verified_at":"2026-08-20","activity_signal":"main commit 2026-07-30","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.roblox.open-game-eval","adoption_status":"benchmark","replacement_cost":"low","lock_in_risk":"high-platform","redistribution_status":"inspect included place/assets separately","notes":"Platform-specific benchmark; map rather than replace cross-provider conformance."},
+    {
+      "entry_id":"system.vitric","name":"BlackBearCC/vitric","category":"runtime_verification_research","canonical_url":"https://github.com/BlackBearCC/vitric","source_type":"repository","license":"MIT","version_or_revision":"24428f36a02d1669ff441245b1732e945814d5b8","last_verified_at":"2026-08-20","activity_signal":"main commit 2026-08-07; pre-1.0","execution_status":"SOURCE-VERIFIED","benchmark_id":"bench.vitric.verification","adoption_status":"benchmark","replacement_cost":"high-as-runtime; low-as-concept-study","lock_in_risk":"medium","redistribution_status":"inspect dependencies/assets before redistribution","notes":"Study deterministic replay, snapshot/restore, semantic state and swarm verification primitives independently of runtime adoption."}
+  ],
+  "provenance_rule":"Any entry used by an experiment must also satisfy registry/PROVENANCE.md for source, version, licence, validation and redistribution metadata. Narrative research files are explanatory views; this JSON is the joinable registry for materialized entries."
+}
