@@ -81,9 +81,9 @@ await record('mobile layout and navigation stay usable',async()=>{
   await page.locator('#workstreams').waitFor({state:'visible'});
   assert((await page.locator('#workstream-list .item').count())>0,'mobile Workstreams view did not render');
   await page.locator('[data-view="overview"]').click();
+  await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
-  await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   await page.close();
 });
 
