@@ -1,0 +1,62 @@
+name: Babylon Phase A tracer
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tracer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Record execution environment
+        run: |
+          mkdir -p artifacts/browser-tracer
+          {
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version || true)"
+            echo "github_sha=$GITHUB_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+          } | tee artifacts/browser-tracer/environment.txt
+        env:
+          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.base.sha }}
+      - name: Install pinned candidate dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build candidate
+        run: npm run build
+      - name: Install browser driver
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
+      - name: Serve built candidate
+        run: |
+          npm run preview -- --port 4176 > /tmp/babylon-preview.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4176/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/babylon-preview.log
+          exit 1
+      - name: Run browser tracer
+        env:
+          BABYLON_URL: http://127.0.0.1:4176/
+          BABYLON_ARTIFACTS: artifacts/browser-tracer
+          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node tools/browser-tracer.mjs
+      - name: Upload tracer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: babylon-phase-a-tracer-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/babylonjs/artifacts/browser-tracer/**
+            experiments/BYJTT-LAB-001/candidates/babylonjs/dist/**
+            /tmp/babylon-preview.log
+          if-no-files-found: warn
