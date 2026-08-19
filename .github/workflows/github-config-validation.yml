@@ -1,0 +1,34 @@
+name: Validate GitHub configuration
+
+on:
+  pull_request:
+    paths:
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/**'
+      - 'tools/validate-github-config.mjs'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/**'
+      - 'tools/validate-github-config.mjs'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-github-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install validation dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate GitHub configuration
+        run: npm run validate:github-config
