@@ -181,12 +181,12 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
         if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
-        let brief;
-        try { brief = await readBriefBody(request); }
-        catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
         running = true;
         downloadableBundle = null;
         try {
+          let brief;
+          try { brief = await readBriefBody(request); }
+          catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
           const result = await execute({ brief });
           const payload = exposeBundle(result, (bundle) => { downloadableBundle = bundle; });
           return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
