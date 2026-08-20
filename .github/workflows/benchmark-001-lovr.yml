@@ -1,5 +1,12 @@
 name: Benchmark 001 LÖVR physics gate
 on:
+  push:
+    branches:
+      - benchmark/001-lovr-physics-tracer
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/lovr/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-lovr.yml'
   pull_request:
     paths:
       - 'experiments/BYJTT-LAB-001/candidates/lovr/**'
