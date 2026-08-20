@@ -10,7 +10,7 @@ This candidate is additive because every original Benchmark 001 candidate subtre
 - Avian `0.7.0`: Bevy 0.19-compatible ECS-native 3D physics generation.
 - Avian `PhysicsPlugins`: real engine physics execution, using the same headless `MinimalPlugins` + `TransformPlugin` pattern exercised by Avian's own test suite.
 - Four native static Avian colliders represent the shared 24 × 32 m arena.
-- A dynamic Avian player body starts at `(8, 0, 10)` with the unchanged shared 3.5 m/s walk speed and is expected to stop at the east wall by collision response.
+- A dynamic Avian player body starts at the exact shared `(0, 0, 10)` player spawn with the unchanged shared 3.5 m/s walk speed and is expected to stop at the east wall by collision response.
 
 No manual/post-physics arena clamp is present.
 
@@ -41,6 +41,10 @@ This first gate proves only headless Bevy/Avian toolchain and native-collision f
 
 Avian 0.7 exposes `MoveAndSlide` character-controller primitives but explicitly does not provide a complete built-in character controller. That lifecycle gap remains benchmark evidence and must not be hidden by bespoke code before mature alternatives are evaluated.
 
+## Failure / recovery evidence
+
+The first exact-head workflow attempt failed during dependency resolution because the tracer pinned Serde 1.0.219 while Bevy 0.19's resolved graph required Serde >=1.0.220. The failed run and artifact are retained. The pin was corrected to 1.0.229 without weakening checks; the subsequent exact-head run compiled, tested, release-built and executed native Avian collision successfully. A later refinement then restored the player's exact shared spawn before final evidence, so the earlier successful near-wall tracer is treated as intermediate evidence rather than the final benchmark proof.
+
 ## Reproducibility note
 
-Direct Bevy and Avian versions are exact-pinned. This initial branch cannot commit a generated Cargo lockfile until a network-capable Rust execution environment resolves the full transitive graph. The workflow therefore generates the lockfile before any `--locked` build/test/run step and preserves that exact resolved lockfile as evidence. A later integration slice should commit the proven lockfile if this candidate is retained.
+Direct Bevy and Avian versions are exact-pinned. This branch cannot commit a generated Cargo lockfile until a network-capable Rust execution environment resolves the full transitive graph. The workflow therefore generates the lockfile before any `--locked` build/test/run step and preserves that exact resolved lockfile as evidence. A later integration slice should commit the proven lockfile if this candidate is retained.
