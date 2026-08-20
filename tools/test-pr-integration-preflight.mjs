@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeIntegrationRisk } from './pr-integration-preflight.mjs';
+import {
+  analyzeIntegrationRisk,
+  loadLiveState,
+  mapWithConcurrency
+} from './pr-integration-preflight.mjs';
 
 const base = {
   currentPr: {
@@ -10,7 +14,8 @@ const base = {
     mergeable: true,
     files: ['tools/example.mjs', 'docs/example.md'],
     changed_files: 2,
-    files_complete: true
+    files_complete: true,
+    revision_consistent: true
   },
   compare: { behind_by: 0, ahead_by: 1 },
   peerFiles: []
@@ -24,7 +29,34 @@ function completePeer(overrides = {}) {
     files,
     changed_files: files.length,
     files_complete: true,
+    revision_consistent: true,
     ...overrides
+  };
+}
+
+function headers(values = {}) {
+  const normalized = new Map(Object.entries(values).map(([key, value]) => [key.toLowerCase(), String(value)]));
+  return { get: (name) => normalized.get(name.toLowerCase()) ?? null };
+}
+
+function jsonResponse(data, { status = 200, headers: headerValues = {} } = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: headers(headerValues),
+    json: async () => data
+  };
+}
+
+function prDetail(number, { head = 'a'.repeat(40), baseSha = 'b'.repeat(40), mergeable = true, changedFiles = 1 } = {}) {
+  return {
+    number,
+    title: `PR ${number}`,
+    state: 'open',
+    mergeable,
+    changed_files: changedFiles,
+    base: { ref: 'main', sha: baseSha },
+    head: { sha: head }
   };
 }
 
@@ -120,6 +152,24 @@ test('incomplete peer PR file inventory fails closed even when retrieved paths d
   assert.deepEqual(result.incomplete_file_inventories, [{ number: 201, expected: 3001, retrieved: 3000 }]);
 });
 
+test('current PR revision changes during scan fail closed', () => {
+  const result = analyzeIntegrationRisk({
+    ...base,
+    currentPr: { ...base.currentPr, revision_consistent: false }
+  });
+  assert.equal(result.safe_to_continue, false);
+  assert.deepEqual(result.blockers, ['current-pr-state-changed-during-scan']);
+});
+
+test('peer revision changes during scan fail closed', () => {
+  const result = analyzeIntegrationRisk({
+    ...base,
+    peerFiles: [completePeer({ revision_consistent: false })]
+  });
+  assert.equal(result.safe_to_continue, false);
+  assert.deepEqual(result.blockers, ['peer-pr-state-changed-during-scan']);
+});
+
 test('multiple blockers remain distinct', () => {
   const result = analyzeIntegrationRisk({
     ...base,
@@ -140,4 +190,145 @@ test('unknown comparison remains explicitly unknown without inventing base fresh
   assert.equal(result.stale_base, false);
   assert.equal(result.safe_to_continue, true);
   assert.match(result.evidence_boundary, /does not prove/);
+});
+
+test('mergeability polling accepts null followed by true', async () => {
+  const repoRoot = 'https://api.test/repos/acme/repo';
+  const prUrl = `${repoRoot}/pulls/200`;
+  let prReads = 0;
+  const sleeps = [];
+  const fetchFn = async (url) => {
+    if (url === prUrl) {
+      prReads += 1;
+      return jsonResponse(prDetail(200, { mergeable: prReads === 1 ? null : true }));
+    }
+    if (url === `${prUrl}/files?per_page=100`) return jsonResponse([{ filename: 'tools/example.mjs' }]);
+    if (url === `${repoRoot}/pulls?state=open&per_page=100`) return jsonResponse([]);
+    if (url.startsWith(`${repoRoot}/compare/`)) return jsonResponse({ behind_by: 0, ahead_by: 1 });
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const state = await loadLiveState({
+    repository: 'acme/repo',
+    prNumber: 200,
+    token: 'token',
+    apiBase: 'https://api.test',
+    fetchFn,
+    sleepFn: async (ms) => sleeps.push(ms),
+    mergeabilityPollDelayMs: 7
+  });
+
+  assert.equal(state.currentPr.mergeable, true);
+  assert.equal(state.currentPr.revision_consistent, true);
+  assert.equal(prReads, 3);
+  assert.deepEqual(sleeps, [7]);
+});
+
+test('live scan detects current revision changes after inventories are collected', async () => {
+  const repoRoot = 'https://api.test/repos/acme/repo';
+  const prUrl = `${repoRoot}/pulls/200`;
+  let prReads = 0;
+  const fetchFn = async (url) => {
+    if (url === prUrl) {
+      prReads += 1;
+      return jsonResponse(prDetail(200, { head: prReads === 1 ? 'a'.repeat(40) : 'c'.repeat(40) }));
+    }
+    if (url === `${prUrl}/files?per_page=100`) return jsonResponse([{ filename: 'tools/example.mjs' }]);
+    if (url === `${repoRoot}/pulls?state=open&per_page=100`) return jsonResponse([]);
+    if (url.startsWith(`${repoRoot}/compare/`)) return jsonResponse({ behind_by: 0, ahead_by: 1 });
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const state = await loadLiveState({
+    repository: 'acme/repo',
+    prNumber: 200,
+    token: 'token',
+    apiBase: 'https://api.test',
+    fetchFn
+  });
+  const result = analyzeIntegrationRisk(state);
+  assert.equal(state.currentPr.revision_consistent, false);
+  assert.deepEqual(result.blockers, ['current-pr-state-changed-during-scan']);
+});
+
+test('peer inspections respect bounded concurrency', async () => {
+  const repoRoot = 'https://api.test/repos/acme/repo';
+  const currentUrl = `${repoRoot}/pulls/200`;
+  const peers = [201, 202, 203, 204, 205].map((number) => prDetail(number));
+  let activePeerRequests = 0;
+  let maxActivePeerRequests = 0;
+  const fetchFn = async (url) => {
+    const peerMatch = url.match(/\/pulls\/(20[1-5])(?:\/files\?per_page=100)?$/);
+    if (peerMatch) {
+      activePeerRequests += 1;
+      maxActivePeerRequests = Math.max(maxActivePeerRequests, activePeerRequests);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activePeerRequests -= 1;
+      if (url.includes('/files?')) return jsonResponse([{ filename: `peer-${peerMatch[1]}.txt` }]);
+      return jsonResponse(prDetail(Number(peerMatch[1])));
+    }
+    if (url === currentUrl) return jsonResponse(prDetail(200));
+    if (url === `${currentUrl}/files?per_page=100`) return jsonResponse([{ filename: 'tools/example.mjs' }]);
+    if (url === `${repoRoot}/pulls?state=open&per_page=100`) return jsonResponse([prDetail(200), ...peers]);
+    if (url.startsWith(`${repoRoot}/compare/`)) return jsonResponse({ behind_by: 0, ahead_by: 1 });
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const state = await loadLiveState({
+    repository: 'acme/repo',
+    prNumber: 200,
+    token: 'token',
+    apiBase: 'https://api.test',
+    fetchFn,
+    concurrency: 2
+  });
+
+  assert.equal(state.peerFiles.length, 5);
+  assert.ok(maxActivePeerRequests <= 2, `expected <=2 peer requests, saw ${maxActivePeerRequests}`);
+  assert.ok(maxActivePeerRequests >= 2, 'test should exercise parallel peer requests');
+});
+
+test('rate limited requests honor Retry-After before retrying', async () => {
+  const repoRoot = 'https://api.test/repos/acme/repo';
+  const prUrl = `${repoRoot}/pulls/200`;
+  let fileAttempts = 0;
+  const sleeps = [];
+  const fetchFn = async (url) => {
+    if (url === prUrl) return jsonResponse(prDetail(200));
+    if (url === `${prUrl}/files?per_page=100`) {
+      fileAttempts += 1;
+      if (fileAttempts === 1) return jsonResponse({}, { status: 429, headers: { 'Retry-After': '0.01' } });
+      return jsonResponse([{ filename: 'tools/example.mjs' }]);
+    }
+    if (url === `${repoRoot}/pulls?state=open&per_page=100`) return jsonResponse([]);
+    if (url.startsWith(`${repoRoot}/compare/`)) return jsonResponse({ behind_by: 0, ahead_by: 1 });
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const state = await loadLiveState({
+    repository: 'acme/repo',
+    prNumber: 200,
+    token: 'token',
+    apiBase: 'https://api.test',
+    fetchFn,
+    sleepFn: async (ms) => sleeps.push(ms)
+  });
+
+  assert.equal(state.currentPr.files_complete, true);
+  assert.equal(fileAttempts, 2);
+  assert.deepEqual(sleeps, [10]);
+});
+
+test('generic concurrency helper preserves order while bounding work', async () => {
+  let active = 0;
+  let maxActive = 0;
+  const result = await mapWithConcurrency([1, 2, 3, 4], 2, async (value) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    active -= 1;
+    return value * 2;
+  });
+  assert.deepEqual(result, [2, 4, 6, 8]);
+  assert.equal(maxActive, 2);
 });
