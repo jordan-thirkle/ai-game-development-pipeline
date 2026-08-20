@@ -25,11 +25,14 @@ function semanticErrors(record, filePath) {
     if (!['high', 'medium'].includes(record.provenance?.confidence)) {
       errors.push(`${filePath}: ${record.state} records require high/medium provenance confidence`);
     }
-    if (!record.maintenance?.status || record.maintenance.status === 'unknown') {
-      errors.push(`${filePath}: ${record.state} records require a non-unknown maintenance assessment`);
+    if (!record.maintenance?.status || ['unclear', 'inactive'].includes(record.maintenance.status)) {
+      errors.push(`${filePath}: ${record.state} records require active, stable-static, or not-applicable maintenance status`);
     }
-    if (!record.supplyChain?.risk || record.supplyChain.risk === 'unknown') {
+    if (!record.risk?.supplyChain || record.risk.supplyChain === 'unknown') {
       errors.push(`${filePath}: ${record.state} records require a non-unknown supply-chain assessment`);
+    }
+    if (!record.risk?.dependencyBurden || record.risk.dependencyBurden === 'unknown') {
+      errors.push(`${filePath}: ${record.state} records require a non-unknown dependency-burden assessment`);
     }
   }
 
@@ -39,6 +42,9 @@ function semanticErrors(record, filePath) {
     }
     if (!Array.isArray(record.evidence) || !record.evidence.some((item) => item.type === 'execution' || item.type === 'benchmark')) {
       errors.push(`${filePath}: promoted records require execution or benchmark evidence`);
+    }
+    if (!Array.isArray(record.usedIn) || record.usedIn.length === 0) {
+      errors.push(`${filePath}: promoted records require at least one usedIn project/evaluation reference`);
     }
   }
 
