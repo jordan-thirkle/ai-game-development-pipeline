@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import { request } from 'node:http';
+import { resolve } from 'node:path';
 import { createStudioServer, executeSampleRun } from './studio-server.mjs';
 
 async function withServer(options, callback) {
@@ -10,6 +13,41 @@ async function withServer(options, callback) {
   });
   try { return await callback(`http://127.0.0.1:${server.address().port}`); }
   finally { await new Promise((resolve) => server.close(resolve)); }
+}
+
+async function writeJson(path, value) {
+  await writeFile(path, `${JSON.stringify(value)}\n`, 'utf8');
+}
+
+async function failureRun(stage) {
+  let removedOutput;
+  const result = await executeSampleRun({
+    scaffold: (projectDir) => mkdir(projectDir, { recursive: true }),
+    run: async ({ outputDir }) => {
+      removedOutput = outputDir;
+      await mkdir(outputDir, { recursive: true });
+      await writeJson(resolve(outputDir, 'intake.json'), { validation: { status: 'pass' } });
+      await writeJson(resolve(outputDir, 'registry-selection.json'), { entries: [{}] });
+      await writeJson(resolve(outputDir, 'build-result.json'), { executed: true, status: stage === 'build' ? 'fail' : 'pass' });
+      await writeJson(resolve(outputDir, 'qa-result.json'), { executed: stage === 'qa', status: 'fail' });
+      return { status: 'fail', record: { summary: `${stage} failed` } };
+    }
+  });
+  await assert.rejects(access(removedOutput), { code: 'ENOENT' });
+  return result;
+}
+
+async function chunkedPost(url) {
+  const target = new URL(url);
+  return new Promise((resolvePromise, reject) => {
+    const outgoing = request({ hostname: target.hostname, port: target.port, path: target.pathname, method: 'POST', headers: { 'transfer-encoding': 'chunked' } }, (response) => {
+      response.resume();
+      response.once('end', () => resolvePromise(response.statusCode));
+    });
+    outgoing.once('error', reject);
+    outgoing.write('unsafe-body');
+    outgoing.end();
+  });
 }
 
 test('capabilities disclose the fail-closed publishing boundary', async () => {
@@ -38,6 +76,18 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   });
 });
 
+test('expected build and QA failures preserve partial evidence and clean workspaces', async () => {
+  const build = await failureRun('build');
+  assert.equal(build.status, 'fail');
+  assert.equal(build.evidence.build.status, 'fail');
+  assert.equal(build.evidence.releaseCandidate, undefined);
+  const qa = await failureRun('qa');
+  assert.equal(qa.status, 'fail');
+  assert.equal(qa.evidence.build.status, 'pass');
+  assert.equal(qa.evidence.qa.status, 'fail');
+  assert.equal(qa.evidence.publishing, undefined);
+});
+
 test('run endpoint rejects other methods and concurrent execution', async () => {
   let release;
   const pending = new Promise((resolve) => { release = resolve; });
@@ -61,6 +111,18 @@ test('run endpoint rejects cross-origin and parameterized requests', async () =>
     const port = new URL(base).port;
     const spoofed = await fetch(`${base}/api/pipeline/runs`, { method: 'POST', headers: { host: `evil.test:${port}`, origin: `http://evil.test:${port}` } });
     assert.equal(spoofed.status, 403);
+    assert.equal(await chunkedPost(`${base}/api/pipeline/runs`), 400);
+  });
+});
+
+test('failed execution returns partial evidence as a non-success response', async () => {
+  await withServer({ execute: () => failureRun('qa') }, async (base) => {
+    const response = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(response.status, 422);
+    const result = await response.json();
+    assert.equal(result.status, 'fail');
+    assert.equal(result.evidence.build.status, 'pass');
+    assert.equal(result.evidence.qa.status, 'fail');
   });
 });
 

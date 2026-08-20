@@ -76,6 +76,21 @@ await record('visual sample failure stays explicit and retryable',async()=>{
   await page.close();
 });
 
+await record('visual partial evidence identifies a QA stop',async()=>{
+  const {page}=await open({width:1280,height:800});
+  const partial={status:'fail',error:'QA failed',evidence:{intake:{validation:{status:'pass'}},registry:{entries:[{}]},build:{executed:true,status:'pass'},qa:{executed:true,status:'fail'}}};
+  await page.route('**/api/pipeline/runs',route=>route.fulfill({status:422,contentType:'application/json',body:JSON.stringify(partial)}));
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('QA failed'));
+  assert.equal(await page.locator('[data-run-step="intake"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="registry"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="build"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="qa"].fail').count(),1);
+  assert.equal(await page.locator('[data-run-step="publishing"].fail').count(),1);
+  await page.close();
+});
+
 await record('blocked human gate cannot be actioned',async()=>{
   const {page}=await open({width:1280,height:800});
   const actions=page.locator('#gate [data-verdict]');

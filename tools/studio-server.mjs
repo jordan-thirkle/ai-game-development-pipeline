@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, rm } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp } from 'node:fs/promises';
@@ -33,29 +33,35 @@ function sendJson(response, status, value) {
 }
 
 async function readEvidence(outputDir) {
-  return Object.fromEntries(await Promise.all(JSON_FILES.map(async ([key, name]) => [key, JSON.parse(await readFile(resolve(outputDir, name), 'utf8'))])));
+  const entries = await Promise.all(JSON_FILES.map(async ([key, name]) => {
+    try { return [key, JSON.parse(await readFile(resolve(outputDir, name), 'utf8'))]; }
+    catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+  }));
+  return Object.fromEntries(entries.filter(Boolean));
 }
 
-export async function executeSampleRun() {
+export async function executeSampleRun({ run = runPipeline, scaffold = scaffoldSampleProject } = {}) {
   const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-studio-'));
-  const projectDir = resolve(workspace, 'sample-game');
-  const outputDir = resolve(workspace, 'evidence');
-  await scaffoldSampleProject(projectDir);
-  const result = await runPipeline({ projectDir, outputDir, dryRun: true });
-  const evidence = await readEvidence(outputDir);
-  return {
-    status: result.status,
-    workspace,
-    projectDir,
-    outputDir,
-    safety: {
-      dryRun: evidence.publishing.dryRun,
-      publicationExecuted: evidence.publishing.executed,
-      secretsUsed: evidence.publishing.secretsUsed,
-      destination: evidence.publishing.destination
-    },
-    evidence
-  };
+  try {
+    const projectDir = resolve(workspace, 'sample-game');
+    const outputDir = resolve(workspace, 'evidence');
+    await scaffold(projectDir);
+    const result = await run({ projectDir, outputDir, dryRun: true });
+    const evidence = await readEvidence(outputDir);
+    return {
+      status: result.status,
+      error: result.status === 'pass' ? null : result.record?.summary || 'Pipeline evidence did not pass.',
+      safety: evidence.publishing ? {
+        dryRun: evidence.publishing.dryRun,
+        publicationExecuted: evidence.publishing.executed,
+        secretsUsed: evidence.publishing.secretsUsed,
+        destination: evidence.publishing.destination
+      } : null,
+      evidence
+    };
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 }
 
 async function staticFileFor(url) {
@@ -89,10 +95,14 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
         const expectedOrigin = `http://${expectedHost}`;
         if (request.headers.host !== expectedHost || (origin && origin !== expectedOrigin)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
-        if (Number(request.headers['content-length'] || 0) > 0) return sendJson(response, 400, { error: 'The sample run accepts no request body.' });
+        const contentLength = request.headers['content-length'];
+        if (request.headers['transfer-encoding'] || (contentLength !== undefined && contentLength !== '0')) return sendJson(response, 400, { error: 'The sample run accepts no request body.' });
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
-        try { return sendJson(response, 201, await execute()); }
+        try {
+          const result = await execute();
+          return sendJson(response, result.status === 'pass' ? 201 : 422, result);
+        }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
         finally { running = false; }
       }
