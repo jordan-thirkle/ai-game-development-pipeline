@@ -1,0 +1,70 @@
+{
+  "id": "godot-shaders",
+  "name": "Godot Shaders",
+  "description": "Community shader catalogue for Godot with an explicit per-post licence model including CC0, MIT and GPLv3 shader code.",
+  "kind": "shader",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://godotshaders.com/",
+    "provider": "Godot Shaders"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "Mixed per-shader licences (CC0, MIT, GPL-3.0)",
+    "evidenceUrl": "https://godotshaders.com/license/",
+    "attributionRequired": true,
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notice": "The site states shader/code snippets use the licence selected by each author. Featured images, screenshots, videos and assets shown with a shader are explicitly outside that shader-code licence. Exact shader licence must be preserved before reuse."
+  },
+  "commercialUse": "conditional",
+  "provenance": {
+    "confidence": "medium",
+    "notes": "Community submissions declare that submitted shader code is the author's or otherwise free to share, but exact-post provenance and licence must be reviewed individually."
+  },
+  "maintenance": {
+    "status": "active",
+    "evidence": "Official catalogue and licence pages were active and contained current shader submissions when checked.",
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notes": "Catalogue activity does not make older shaders compatible with the target Godot renderer/version; validate each selected shader."
+  },
+  "compatibility": {
+    "engines": ["Godot"],
+    "platforms": ["web", "desktop", "mobile"],
+    "formats": ["Godot shader code"],
+    "notes": "Renderer/Godot-version and mobile/web performance compatibility are shader-specific."
+  },
+  "risk": {
+    "supplyChain": "not-applicable",
+    "dependencyBurden": "not-applicable",
+    "legalNotes": "Mixed per-post licensing; GPL shaders can be incompatible with desired proprietary distribution assumptions. Images/videos/assets illustrating a shader are not covered by the shader-code licence. Prefer CC0/MIT where equivalent and inspect each post.",
+    "securityNotes": "Shader code can cause GPU/performance instability; review loops, texture access and target-renderer behavior before production use."
+  },
+  "assessment": {
+    "integrationEffort": "medium",
+    "lifecycleRisk": "medium",
+    "scores": {
+      "ecosystemUtility": 5,
+      "licenceCommercialCompatibility": 3.5,
+      "provenanceConfidence": 3.5,
+      "visualLeverage": 5,
+      "integrationEffort": 3.5
+    },
+    "recommendation": "benchmark",
+    "notes": "High-value shader discovery surface when exact-post licence and renderer/performance checks are automated; never treat screenshots/assets as reusable because shader code is reusable."
+  },
+  "evidence": [
+    {
+      "type": "official-licence-guidance",
+      "url": "https://godotshaders.com/license/",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Official terms describe CC0/MIT/GPLv3 per-submission licences and explicitly exclude featured images/screenshots/videos/assets from the shader-code licence."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "godot-shaders",
+    "notes": "Public page must emphasize per-shader licensing and the separate status of illustrative media/assets."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T03:40:00Z"
+}
