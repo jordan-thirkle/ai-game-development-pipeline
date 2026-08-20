@@ -1,0 +1,74 @@
+{
+  "id": "godot-ui-components-quarantined",
+  "name": "Godot UI Components (provenance review required)",
+  "description": "Collection of polished Godot 4 UI implementations. Repository code is MIT, but several showcased designs explicitly credit third-party design studios, so commercial reuse of the visual designs is not assumed from the code licence.",
+  "kind": "ui-kit",
+  "state": "quarantined",
+  "source": {
+    "canonicalUrl": "https://github.com/MrEliptik/godot_ui_components",
+    "provider": "MrEliptik",
+    "repositoryUrl": "https://github.com/MrEliptik/godot_ui_components"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT (repository software); third-party visual-design rights unresolved",
+    "evidenceUrl": "https://github.com/MrEliptik/godot_ui_components/blob/main/LICENSE",
+    "attributionRequired": true,
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notice": "MIT covers the repository software. README credits multiple component designs to external studios/Dribbble sources; the MIT code licence is not evidence that those underlying visual designs can be commercially copied."
+  },
+  "commercialUse": "unknown",
+  "provenance": {
+    "confidence": "low",
+    "notes": "Implementation authorship is clear, but the README explicitly attributes several visual designs to Sok Studio, Koncepted, RH and Layer Lab. Rights to reproduce those designs in a commercial By JTT product have not been established."
+  },
+  "maintenance": {
+    "status": "stable-static",
+    "evidence": "Repository is public and not archived; last source push shown by GitHub was 2024-04-27.",
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notes": "Maintenance is secondary to the unresolved visual-design provenance blocker."
+  },
+  "compatibility": {
+    "engines": ["Godot 4"],
+    "platforms": ["web", "desktop", "mobile"],
+    "notes": "Technical compatibility is plausible but has not been executed because provenance blocks qualification first."
+  },
+  "risk": {
+    "supplyChain": "low",
+    "dependencyBurden": "low",
+    "legalNotes": "P0/P1-style commercial adoption blocker for copied credited designs: repository software licence and underlying design rights are distinct. A clean-room implementation inspired only by general UI patterns may be a different analysis, but must not copy protected expression without permission.",
+    "securityNotes": "No special security concern identified from discovery; normal Godot code review would apply if provenance is resolved."
+  },
+  "assessment": {
+    "integrationEffort": "unknown",
+    "lifecycleRisk": "high",
+    "scores": {
+      "visualReferenceValue": 5,
+      "licenceCommercialCompatibility": 1,
+      "provenanceConfidence": 1,
+      "technicalReferenceValue": 4
+    },
+    "recommendation": "defer",
+    "notes": "Do not adopt component visuals into a commercial project until exact design rights are resolved. May remain useful as a private pattern/reference lead without copying protected designs."
+  },
+  "evidence": [
+    {
+      "type": "official-licence",
+      "url": "https://github.com/MrEliptik/godot_ui_components/blob/main/LICENSE",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Repository software is MIT licensed."
+    },
+    {
+      "type": "provenance-warning",
+      "url": "https://github.com/MrEliptik/godot_ui_components/blob/main/README.md",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "README credits multiple showcased visual designs to third-party studios/Dribbble sources."
+    }
+  ],
+  "publication": {
+    "safe": false,
+    "notes": "Internal quarantine example; do not include in the public library until provenance/commercial rights are resolved."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T03:40:00Z"
+}
