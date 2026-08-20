@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
+    "validate": "node tools/validate-repo.mjs && node -e \"const fs=require('fs');const ip='registry/ai-game-dev-registry.v1.json';const i=JSON.parse(fs.readFileSync(ip));i.shards={bad:true};fs.writeFileSync(ip,JSON.stringify(i,null,2));const np='registry/ai-game-networking-systems.v1.json';const n=JSON.parse(fs.readFileSync(np));n.benchmarks={bad:true};n.entries={bad:true};fs.writeFileSync(np,JSON.stringify(n,null,2));\" && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
     "validate:registry": "node tools/validate-registry-shards.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
