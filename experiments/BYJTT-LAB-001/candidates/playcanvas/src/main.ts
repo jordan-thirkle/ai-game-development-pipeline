@@ -6,7 +6,7 @@ type Vec3Tuple = [number, number, number];
 type TargetState = 'idle' | 'acquired';
 
 type Observation = {
-  runtime: { ready: boolean; backend: string; seed: number };
+  runtime: { ready: boolean; backend: string; physics_backend: 'ammo'; seed: number };
   scene: { gameplay_active: boolean };
   player: { position: Vec3Tuple; health: number; alive: boolean };
   enemy: { position: Vec3Tuple; health: number; alive: boolean; target_state: TargetState };
@@ -44,6 +44,23 @@ const playerSpawn = frozenTuple(contract.arena.player_spawn, 'player_spawn');
 const enemySpawn = frozenTuple(contract.arena.enemy_spawn, 'enemy_spawn');
 const salvageSpawn = frozenTuple(contract.arena.salvage_spawn, 'salvage_spawn');
 
+pc.WasmModule.setConfig('Ammo', {
+  glueUrl: '/ammo/ammo.wasm.js',
+  wasmUrl: '/ammo/ammo.wasm.wasm',
+  fallbackUrl: '/ammo/ammo.js',
+  errorHandler: (message) => {
+    throw new Error(`Ammo WasmModule load failed: ${String(message)}`);
+  }
+});
+
+await new Promise<void>((resolve, reject) => {
+  const timer = window.setTimeout(() => reject(new Error('Ammo WasmModule timed out after 12 seconds')), 12_000);
+  pc.WasmModule.getInstance('Ammo', () => {
+    window.clearTimeout(timer);
+    resolve();
+  });
+});
+
 const graphicsDevice = await pc.createGraphicsDevice(canvas, {
   deviceTypes: [pc.DEVICETYPE_WEBGPU],
   antialias: true,
@@ -57,6 +74,8 @@ const app = new pc.Application(canvas, { graphicsDevice, keyboard, mouse, touch 
 app.setCanvasResolution(pc.RESOLUTION_AUTO);
 app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.start();
+
+if (!app.systems.rigidbody) throw new Error('PlayCanvas rigidbody system unavailable after Ammo load');
 
 const state = {
   gameplayActive: false,
@@ -95,19 +114,49 @@ function primitive(
   return entity;
 }
 
+function staticPhysicsBox(
+  name: string,
+  position: Vec3Tuple,
+  scale: Vec3Tuple,
+  material: pc.Material
+): pc.Entity {
+  const entity = primitive(name, 'box', position, scale, material);
+  entity.addComponent('collision', {
+    type: 'box',
+    halfExtents: new pc.Vec3(scale[0] / 2, scale[1] / 2, scale[2] / 2)
+  });
+  entity.addComponent('rigidbody', {
+    type: pc.BODYTYPE_STATIC,
+    friction: 0.8,
+    restitution: 0
+  });
+  return entity;
+}
+
 const floorMaterial = makeMaterial([0.12, 0.15, 0.18]);
 const wallMaterial = makeMaterial([0.2, 0.23, 0.27]);
 const playerMaterial = makeMaterial([0.25, 0.75, 1], 0.12);
 const enemyMaterial = makeMaterial([1, 0.28, 0.24], 0.08);
 const salvageMaterial = makeMaterial([0.95, 0.68, 0.2], 0.08);
 
-primitive('Arena floor', 'box', [0, -0.25, 0], [contract.arena.width, 0.5, contract.arena.depth], floorMaterial);
-primitive('Wall north', 'box', [0, 1, -contract.arena.depth / 2], [contract.arena.width, 2, 0.35], wallMaterial);
-primitive('Wall south', 'box', [0, 1, contract.arena.depth / 2], [contract.arena.width, 2, 0.35], wallMaterial);
-primitive('Wall west', 'box', [-contract.arena.width / 2, 1, 0], [0.35, 2, contract.arena.depth], wallMaterial);
-primitive('Wall east', 'box', [contract.arena.width / 2, 1, 0], [0.35, 2, contract.arena.depth], wallMaterial);
+staticPhysicsBox('Arena floor', [0, -0.25, 0], [contract.arena.width, 0.5, contract.arena.depth], floorMaterial);
+staticPhysicsBox('Wall north', [0, 1, -contract.arena.depth / 2], [contract.arena.width, 2, 0.4], wallMaterial);
+staticPhysicsBox('Wall south', [0, 1, contract.arena.depth / 2], [contract.arena.width, 2, 0.4], wallMaterial);
+staticPhysicsBox('Wall west', [-contract.arena.width / 2, 1, 0], [0.4, 2, contract.arena.depth], wallMaterial);
+staticPhysicsBox('Wall east', [contract.arena.width / 2, 1, 0], [0.4, 2, contract.arena.depth], wallMaterial);
 
 const player = primitive('Player', 'capsule', [playerSpawn[0], 1, playerSpawn[2]], [0.8, 1.7, 0.8], playerMaterial);
+player.addComponent('collision', { type: 'capsule', radius: 0.4, height: 1.6 });
+player.addComponent('rigidbody', {
+  type: pc.BODYTYPE_DYNAMIC,
+  mass: 1,
+  friction: 0,
+  restitution: 0,
+  linearDamping: 0.1,
+  linearFactor: new pc.Vec3(1, 0, 1),
+  angularFactor: new pc.Vec3(0, 0, 0)
+});
+
 const enemy = primitive('Enemy', 'capsule', [enemySpawn[0], 1, enemySpawn[2]], [0.9, 1.8, 0.9], enemyMaterial);
 const salvage = primitive('Salvage', 'box', [salvageSpawn[0], 0.65, salvageSpawn[2]], [1.3, 1.3, 1.3], salvageMaterial);
 
@@ -129,6 +178,7 @@ app.scene.ambientLight = new pc.Color(0.18, 0.2, 0.24);
 const held = new Set<string>();
 const touchDirections = new Set<string>();
 const velocity = new pc.Vec3();
+const physicsVelocity = new pc.Vec3();
 let yaw = 0;
 let pitch = 24;
 let dragging = false;
@@ -148,7 +198,10 @@ window.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keyup', (event) => setHeld(event.code, false));
-window.addEventListener('blur', () => held.clear());
+window.addEventListener('blur', () => {
+  held.clear();
+  touchDirections.clear();
+});
 
 document.querySelectorAll<HTMLButtonElement>('[data-move]').forEach((button) => {
   const direction = button.dataset.move;
@@ -184,7 +237,8 @@ canvas.addEventListener('pointercancel', () => { dragging = false; });
 startButton.addEventListener('click', () => {
   state.gameplayActive = true;
   startButton.hidden = true;
-  statusLabel.textContent = `Gameplay · ${graphicsDevice.deviceType}`;
+  player.rigidbody?.activate();
+  statusLabel.textContent = `Gameplay · ${graphicsDevice.deviceType} · Ammo`;
 });
 
 function inputAxis(): { x: number; z: number; running: boolean } {
@@ -223,7 +277,7 @@ function performAttack(): void {
 }
 
 function updatePlayer(dt: number): void {
-  if (!state.gameplayActive || state.playerHealth <= 0) return;
+  if (!state.gameplayActive || state.playerHealth <= 0 || !player.rigidbody) return;
   const axis = inputAxis();
   const inputLength = Math.hypot(axis.x, axis.z);
   const desiredSpeed = axis.running ? contract.player.run_speed : contract.player.walk_speed;
@@ -233,11 +287,8 @@ function updatePlayer(dt: number): void {
   const maxDelta = response * dt;
   velocity.x += pc.math.clamp(targetX - velocity.x, -maxDelta, maxDelta);
   velocity.z += pc.math.clamp(targetZ - velocity.z, -maxDelta, maxDelta);
-  const position = player.getPosition().clone();
-  position.x = pc.math.clamp(position.x + velocity.x * dt, -contract.arena.width / 2 + 0.6, contract.arena.width / 2 - 0.6);
-  position.z = pc.math.clamp(position.z + velocity.z * dt, -contract.arena.depth / 2 + 0.6, contract.arena.depth / 2 - 0.6);
-  player.setPosition(position);
-  if (Math.hypot(velocity.x, velocity.z) > 0.15) player.setEulerAngles(0, Math.atan2(velocity.x, velocity.z) * pc.math.RAD_TO_DEG, 0);
+  physicsVelocity.set(velocity.x, 0, velocity.z);
+  player.rigidbody.linearVelocity = physicsVelocity;
 }
 
 function updateEnemy(dt: number): void {
@@ -289,7 +340,7 @@ function tuple(position: pc.Vec3): Vec3Tuple {
 
 function snapshot(): Readonly<Observation> {
   return Object.freeze(structuredClone({
-    runtime: { ready: true, backend: graphicsDevice.deviceType, seed: 1337 },
+    runtime: { ready: true, backend: graphicsDevice.deviceType, physics_backend: 'ammo', seed: 1337 },
     scene: { gameplay_active: state.gameplayActive },
     player: { position: tuple(player.getPosition()), health: state.playerHealth, alive: state.playerHealth > 0 },
     enemy: { position: tuple(enemy.getPosition()), health: state.enemyHealth, alive: state.enemyHealth > 0, target_state: state.enemyTargetState },
@@ -312,4 +363,4 @@ app.on('update', (dt: number) => {
 });
 
 updateCamera();
-statusLabel.textContent = `Ready · ${graphicsDevice.deviceType}`;
+statusLabel.textContent = `Ready · ${graphicsDevice.deviceType} · Ammo`;
