@@ -12,25 +12,39 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["external_discovery_required_before_bespoke", "popularity_never_overrides_fit_or_licence", "code_and_asset_licences_are_separate", "rechallenge_days"],
+      "required": ["external_discovery_required_before_bespoke", "popularity_never_overrides_fit_or_licence", "code_and_asset_licences_are_separate", "rechallenge_days", "ranking_weights"],
       "properties": {
         "external_discovery_required_before_bespoke": { "const": true },
         "popularity_never_overrides_fit_or_licence": { "const": true },
         "code_and_asset_licences_are_separate": { "const": true },
-        "rechallenge_days": { "type": "integer", "minimum": 1, "maximum": 365 }
+        "rechallenge_days": { "type": "integer", "minimum": 1, "maximum": 365 },
+        "ranking_weights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_fit", "maintenance", "licence_provenance", "integration_cost", "docs_tests", "platform_fit", "popularity"],
+          "properties": {
+            "task_fit": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "maintenance": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "licence_provenance": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "integration_cost": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "docs_tests": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "platform_fit": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "popularity": { "type": "integer", "minimum": 0, "maximum": 10 }
+          }
+        }
       }
     },
     "entries": {
       "type": "array",
-      "minItems": 4,
+      "minItems": 6,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["entry_id", "name", "category", "canonical_url", "source_type", "source_revision_status", "version_or_revision", "last_verified_at", "evidence_status", "licensing", "adoption_status", "fit", "risk", "notes"],
+        "required": ["entry_id", "name", "category", "canonical_url", "source_type", "source_revision_status", "version_or_revision", "last_verified_at", "evidence_status", "licensing", "adoption_status", "fit", "risk", "popularity_snapshot", "notes"],
         "properties": {
           "entry_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" },
           "name": { "type": "string", "minLength": 1 },
-          "category": { "enum": ["official_template_collection", "whole_game_reference", "mechanic_framework", "asset_library", "discovery_index"] },
+          "category": { "enum": ["official_template_collection", "starter_kit", "whole_game_reference", "mechanic_framework", "asset_library", "asset_discovery", "discovery_index"] },
           "canonical_url": { "type": "string", "format": "uri" },
           "source_type": { "enum": ["github_repository", "official_website"] },
           "source_revision_status": { "enum": ["immutable_commit", "mutable_web_snapshot"] },
@@ -49,7 +63,7 @@
               "commercial_use_status": { "enum": ["allowed_with_conditions", "blocked_for_drop_in", "per_item_review_required"] }
             }
           },
-          "adoption_status": { "enum": ["drop_in_candidate", "asset_source_candidate", "architecture_reference", "discovery_source"] },
+          "adoption_status": { "enum": ["drop_in_candidate", "component_candidate", "asset_source_candidate", "asset_discovery_candidate", "architecture_reference", "discovery_source"] },
           "fit": {
             "type": "object",
             "additionalProperties": false,
@@ -57,7 +71,7 @@
             "properties": {
               "engine_or_stack": { "type": "string", "minLength": 1 },
               "platforms": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-              "maintenance_signal": { "enum": ["active", "stable", "unknown"] },
+              "maintenance_signal": { "enum": ["active", "stable", "static_mature", "stale", "unknown"] },
               "integration_effort": { "enum": ["low", "medium", "high", "reference_only"] }
             }
           },
@@ -69,6 +83,16 @@
               "dependency_burden": { "enum": ["low", "medium", "high", "unknown"] },
               "supply_chain": { "enum": ["low", "medium", "high", "unknown"] },
               "licence": { "enum": ["low", "medium", "high", "unknown"] }
+            }
+          },
+          "popularity_snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["stars", "forks", "observed_at"],
+            "properties": {
+              "stars": { "type": ["integer", "null"], "minimum": 0 },
+              "forks": { "type": ["integer", "null"], "minimum": 0 },
+              "observed_at": { "type": "string", "format": "date-time" }
             }
           },
           "notes": { "type": "string", "minLength": 1 }
