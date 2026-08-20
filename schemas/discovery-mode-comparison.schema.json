@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byjtt.com/schemas/discovery-mode-comparison.schema.json",
+  "title": "By JTT external discovery mode comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "comparison_id", "brief", "capabilities", "interactive_baseline", "bounded_worker", "decision", "evidence_boundary"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "comparison_id": {"const": "DISCOVERY-COMPARISON-001"},
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "platform_priority", "description"],
+      "properties": {
+        "title": {"const": "Mobile co-op survival-builder"},
+        "platform_priority": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 2}},
+        "description": {"type": "string", "minLength": 20}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"}
+    },
+    "interactive_baseline": {"$ref": "#/$defs/modeResult"},
+    "bounded_worker": {"$ref": "#/$defs/modeResult"},
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason", "agent_deployment_approved", "public_library_deployment_approved"],
+      "properties": {
+        "status": {"enum": ["PENDING_COMPARISON", "APPROVE", "APPROVE_WITH_CONDITIONS", "DEFER_PENDING_EVIDENCE", "REJECT"]},
+        "reason": {"type": "string", "minLength": 20},
+        "agent_deployment_approved": {"type": "boolean"},
+        "public_library_deployment_approved": {"type": "boolean"}
+      }
+    },
+    "evidence_boundary": {"type": "string", "minLength": 30}
+  },
+  "$defs": {
+    "modeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "measurement_status", "search_actions", "source_fetches", "distinct_sources_inspected", "candidate_count", "reviewable_candidate_count", "capability_candidate_coverage_pct", "fully_cleared_capability_coverage_pct", "irrelevant_or_duplicate_filtered", "human_interventions", "unsafe_promotions", "elapsed_minutes", "cost_status", "cost_value_usd", "queue", "notes"],
+      "properties": {
+        "mode": {"enum": ["interactive_manual_agent", "bounded_discovery_worker"]},
+        "measurement_status": {"enum": ["instrumented", "action_counts_only", "pending"]},
+        "search_actions": {"type": ["integer", "null"], "minimum": 0},
+        "source_fetches": {"type": ["integer", "null"], "minimum": 0},
+        "distinct_sources_inspected": {"type": ["integer", "null"], "minimum": 0},
+        "candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "reviewable_candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "capability_candidate_coverage_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+        "fully_cleared_capability_coverage_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+        "irrelevant_or_duplicate_filtered": {"type": ["integer", "null"], "minimum": 0},
+        "human_interventions": {"type": ["integer", "null"], "minimum": 0},
+        "unsafe_promotions": {"type": ["integer", "null"], "minimum": 0},
+        "elapsed_minutes": {"type": ["number", "null"], "minimum": 0},
+        "cost_status": {"enum": ["known", "unknown", "pending"]},
+        "cost_value_usd": {"type": ["number", "null"], "minimum": 0},
+        "queue": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/candidate"}
+        },
+        "notes": {"type": "string", "minLength": 10}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "capabilities", "repository", "revision", "stars", "forks", "license_spdx", "maintenance", "screening_status", "asset_boundary", "dependency_boundary", "reason"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+        "capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"}},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+        "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "stars": {"type": "integer", "minimum": 0},
+        "forks": {"type": "integer", "minimum": 0},
+        "license_spdx": {"type": ["string", "null"]},
+        "maintenance": {"enum": ["active", "stable", "stale", "unknown"]},
+        "screening_status": {"enum": ["reviewable", "blocked_license", "blocked_provenance", "reference_only", "needs_deeper_review"]},
+        "asset_boundary": {"enum": ["cleared", "separate_or_replace", "requires_review", "not_applicable", "unknown"]},
+        "dependency_boundary": {"enum": ["cleared", "requires_review", "not_applicable", "unknown"]},
+        "reason": {"type": "string", "minLength": 10}
+      }
+    }
+  }
+}
