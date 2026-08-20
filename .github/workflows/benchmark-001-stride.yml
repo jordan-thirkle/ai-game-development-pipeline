@@ -35,9 +35,9 @@ jobs:
             echo "os=$(uname -a)"
           } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
           dotnet --info >> "$CANDIDATE/artifacts/physics-gate/environment.txt"
-      - name: Restore exact direct package pin
+      - name: Restore committed dependency graph
         working-directory: ${{ env.CANDIDATE }}
-        run: dotnet restore StridePhysicsGate.csproj --use-lock-file | tee artifacts/physics-gate/restore.log
+        run: dotnet restore StridePhysicsGate.csproj --locked-mode | tee artifacts/physics-gate/restore.log
       - name: Strict release build
         working-directory: ${{ env.CANDIDATE }}
         run: dotnet build StridePhysicsGate.csproj -c Release --no-restore /warnaserror | tee artifacts/physics-gate/build.log
