@@ -259,7 +259,7 @@ performance_results
 
 This record extends, and MUST remain compatible with, `registry/PROVENANCE.md`.
 
-### Provenance completeness
+## Provenance completeness
 
 `provenance_complete=true` is permitted only when all fields required by the asset's source/use path are present, including stable identity, source/revision, author/publisher, licence/commercial status, attribution, modifications, experiment linkage, validation, redistribution state, and generator/source metadata.
 
@@ -271,7 +271,7 @@ Missing required provenance blocks:
 
 Raw quarantined outputs may be retained solely for investigation if clearly marked `provenance_incomplete` and cannot be consumed downstream.
 
-### Pre-generation/import gate
+## Pre-generation/import gate
 
 Before generation or third-party import:
 - intended commercial/non-commercial use known;
@@ -283,7 +283,7 @@ Before generation or third-party import:
 - mandatory provenance record allocated;
 - unresolved legal/licensing ambiguity sets `licence_review_status=blocked` and prevents execution when human review is required.
 
-### Separate approval gates
+## Separate approval gates
 
 **Art approval** covers style, quality, identity/consistency and fit.
 
@@ -291,7 +291,7 @@ Before generation or third-party import:
 
 When licence terms are straightforward and machine-verifiable, the automated gate can record `licence_review_status=machine_cleared`. If terms are ambiguous/material, status remains `blocked_pending_human_review` until a human decision is recorded.
 
-### Post-generation gate
+## Post-generation gate
 
 Before an asset becomes `production_candidate`:
 - output file parses;
