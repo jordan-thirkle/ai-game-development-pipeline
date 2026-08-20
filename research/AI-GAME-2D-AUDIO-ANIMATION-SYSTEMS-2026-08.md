@@ -100,12 +100,13 @@ The external providers/models named by the skill are **not licensed by this MIT 
 
 Repository: https://github.com/VAST-AI-Research/UniRig  
 Pinned code revision: `6793c6640ff01c8fb389f3993434124bb43d2933`  
-Model card: https://huggingface.co/VAST-AI/UniRig  
-Model-card licence: MIT  
+Official model repository: https://huggingface.co/VAST-AI/UniRig  
+Pinned model-repository revision: `36842e2b5947e9e60f89275b83208c8e74071c63`  
+Model-card licence at that revision: MIT  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **BENCHMARK NOW as open auto-rigging baseline**
 
-The current official model card identifies the released UniRig Skeleton & Skinning Prediction component as MIT and says it was trained on `Seed3D/Articulation-XL2.0`. Other models/datasets discussed in the paper may be released separately, so this clearance applies only to the exact released component being benchmarked.
+The pinned official model repository identifies the released UniRig Skeleton & Skinning Prediction component as MIT and says it was trained on `Seed3D/Articulation-XL2.0`. Other models/datasets discussed in the paper may be released separately, so this clearance applies only to the exact released component and revision being benchmarked.
 
 ### Required benchmark
 
@@ -121,7 +122,7 @@ Use a frozen set of representative game meshes and measure:
 - GPU/runtime requirements;
 - failure/retry/manual cleanup time.
 
-Every model file and input mesh gets its own asset/provenance record even where the model repository is MIT.
+Every model file and input mesh gets its own asset/provenance record even where the model repository is MIT. Before execution, exact downloaded model files are hashed rather than relying on repository revision alone.
 
 ### Animation-provider separation
 
@@ -201,12 +202,18 @@ Music:
 
 Repository: https://github.com/resemble-ai/chatterbox  
 Pinned code revision: `5de7a54aa4e5e2baadb0182dde554908b48b85c2`  
-Official Hugging Face model family: https://huggingface.co/ResembleAI/chatterbox  
+Official model repository: https://huggingface.co/ResembleAI/chatterbox  
+Pinned model-repository revision: `5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18`  
 Official model-card licence: MIT  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **BENCHMARK NOW as open/local TTS baseline**
 
-The current official model card marks Chatterbox MIT and covers multilingual/voice-cloning-oriented TTS models. Repository documentation also exposes smaller/low-latency variants. Exact model artifacts used by an experiment must still be pinned and hashed.
+The pinned official model repository marks Chatterbox MIT and contains multilingual/voice-cloning-oriented TTS artifacts. Exact artifacts remain independently pin-able. Current V3 examples include:
+- `t3_mtl23ls_v3.safetensors` — LFS SHA-256 `5abca8321ede76f8e61f1cc0d19aea6c946b28871017ce8726f8a69203f05953`;
+- `s3gen_v3.safetensors` — LFS SHA-256 `4a46190f3dccc2230fbb3488a930bccc925862ee68f2662433dfcfe93ce6c2cb`;
+- `s3gen_v3.pt` — LFS SHA-256 `f7abce4b196dae2d08d9296cbebc6521b046079577643b42a19a03499d08721e`.
+
+An experiment records the exact subset downloaded and hashes the local bytes before inference; a model-repository head alone is not sufficient provenance.
 
 ### Voice safety/provenance gate
 
@@ -310,8 +317,6 @@ A provider is selected only after licence/privacy/cost eligibility checks.
 
 ## Research gaps remaining
 
-- commercially eligible open music generation weights with strong current maintenance;
-- commercially eligible open SFX/text-to-audio model;
 - production retargeting/motion-generation incumbents;
 - lip-sync/facial animation;
 - localisation/dubbing pipeline and pronunciation management;
