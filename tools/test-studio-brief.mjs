@@ -43,6 +43,11 @@ test('briefed sample executes the real build and QA while publication stays loca
   assert.equal(result.evidence.qa.executed, true);
   assert.equal(result.evidence.qa.status, 'pass');
   assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
+  assert.equal(Buffer.isBuffer(result.bundle.bytes), true);
+  assert.equal(result.bundle.bytes[0], 0x1f);
+  assert.equal(result.bundle.bytes[1], 0x8b);
+  assert.equal(result.bundle.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
+  assert.match(result.bundle.sha256, /^sha256:[a-f0-9]{64}$/);
   assert.deepEqual(result.safety, {
     dryRun: true,
     publicationExecuted: false,
@@ -51,7 +56,7 @@ test('briefed sample executes the real build and QA while publication stays loca
   });
 });
 
-test('brief endpoint accepts only bounded same-origin JSON and returns revision-bearing evidence', async () => {
+test('brief endpoint returns a same-origin download with revision-bearing evidence', async () => {
   await withServer(async (base) => {
     const response = await fetch(`${base}/api/pipeline/brief-runs`, {
       method: 'POST',
@@ -64,6 +69,41 @@ test('brief endpoint accepts only bounded same-origin JSON and returns revision-
     assert.match(result.evidence.intake.sourceRevision, /^(sha256:)?[a-f0-9]{40,64}$/);
     assert.equal(result.evidence.publishing.executed, false);
     assert.equal(result.evidence.publishing.secretsUsed, false);
+    assert.match(result.download.url, /^\/api\/pipeline\/downloads\/[0-9a-f-]+$/i);
+    assert.equal(result.download.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
+    assert.match(result.download.sha256, /^sha256:[a-f0-9]{64}$/);
+
+    const download = await fetch(`${base}${result.download.url}`);
+    assert.equal(download.status, 200);
+    assert.equal(download.headers.get('content-type'), 'application/gzip');
+    assert.match(download.headers.get('content-disposition'), /attachment; filename="brief-harbour-run-verified-local-starter\.tar\.gz"/);
+    assert.equal(download.headers.get('x-byjtt-bundle-sha256'), result.download.sha256);
+    const bytes = Buffer.from(await download.arrayBuffer());
+    assert.equal(bytes.length, result.download.sizeBytes);
+    assert.equal(bytes[0], 0x1f);
+    assert.equal(bytes[1], 0x8b);
+
+    const crossOrigin = await fetch(`${base}${result.download.url}`, { headers: { origin: 'https://example.com' } });
+    assert.equal(crossOrigin.status, 403);
+  });
+});
+
+test('a newer successful run invalidates the previous in-memory download token', async () => {
+  await withServer(async (base) => {
+    const firstResponse = await fetch(`${base}/api/pipeline/brief-runs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(goodBrief)
+    });
+    assert.equal(firstResponse.status, 201);
+    const first = await firstResponse.json();
+
+    const secondResponse = await fetch(`${base}/api/pipeline/brief-runs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...goodBrief, name: 'Second Starter' })
+    });
+    assert.equal(secondResponse.status, 201);
+    const second = await secondResponse.json();
+    assert.notEqual(first.download.url, second.download.url);
+    assert.equal((await fetch(`${base}${first.download.url}`)).status, 404);
+    assert.equal((await fetch(`${base}${second.download.url}`)).status, 200);
   });
 });
 
