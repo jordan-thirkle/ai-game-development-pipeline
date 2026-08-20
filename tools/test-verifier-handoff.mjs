@@ -20,9 +20,10 @@ function event(overrides = {}) {
   };
 }
 
-function env(sha = HEAD) {
+function env(checkoutSha = HEAD, triggerSha = MERGE) {
   return {
-    GITHUB_SHA: sha,
+    GITHUB_SHA: triggerSha,
+    VERIFIER_CHECKOUT_SHA: checkoutSha,
     GITHUB_REPOSITORY: 'jordan-thirkle/ai-game-development-pipeline',
     GITHUB_RUN_ID: '123456789',
     GITHUB_RUN_ATTEMPT: '2',
@@ -33,34 +34,36 @@ function env(sha = HEAD) {
 
 const NOW = new Date('2026-08-20T00:30:00.000Z');
 
-test('classifies exact candidate-head execution without promoting merge evidence', () => {
-  const handoff = compileVerifierHandoff({ event: event(), env: env(HEAD), now: NOW });
+test('classifies exact candidate-head checkout even when pull_request trigger SHA is synthetic merge', () => {
+  const handoff = compileVerifierHandoff({ event: event(), env: env(HEAD, MERGE), now: NOW });
+  assert.equal(handoff.workflow_run.trigger_sha, MERGE);
+  assert.equal(handoff.workflow_run.checkout_sha, HEAD);
   assert.equal(handoff.workflow_run.checkout_kind, 'candidate-head');
   assert.equal(handoff.evidence_boundary.candidate_head_proven, true);
   assert.equal(handoff.evidence_boundary.merge_revision_proven, false);
   assert.equal(handoff.evidence_boundary.revision_proven_by_this_run, HEAD);
 });
 
-test('classifies GitHub synthetic merge revision separately from candidate head', () => {
-  const handoff = compileVerifierHandoff({ event: event(), env: env(MERGE), now: NOW });
+test('classifies an actual synthetic merge checkout separately from candidate head', () => {
+  const handoff = compileVerifierHandoff({ event: event(), env: env(MERGE, MERGE), now: NOW });
   assert.equal(handoff.workflow_run.checkout_kind, 'github-merge-revision');
   assert.equal(handoff.evidence_boundary.candidate_head_proven, false);
   assert.equal(handoff.evidence_boundary.merge_revision_proven, true);
   assert.match(handoff.evidence_boundary.note, /not the candidate head/);
 });
 
-test('fails closed when workflow revision matches neither event head nor merge revision', () => {
-  const handoff = compileVerifierHandoff({ event: event(), env: env(OTHER), now: NOW });
+test('fails closed when actual checkout matches neither event head nor merge revision', () => {
+  const handoff = compileVerifierHandoff({ event: event(), env: env(OTHER, MERGE), now: NOW });
   assert.equal(handoff.workflow_run.checkout_kind, 'other-revision');
   assert.equal(handoff.evidence_boundary.candidate_head_proven, false);
   assert.equal(handoff.evidence_boundary.merge_revision_proven, false);
   assert.match(handoff.evidence_boundary.note, /matches neither/);
 });
 
-test('treats absent merge SHA as unknown rather than candidate evidence', () => {
+test('treats absent merge SHA as unknown rather than merge evidence', () => {
   const handoff = compileVerifierHandoff({
     event: event({ merge_commit_sha: null }),
-    env: env(OTHER),
+    env: env(OTHER, OTHER),
     now: NOW,
   });
   assert.equal(handoff.pull_request.merge_commit_sha, null);
@@ -81,18 +84,26 @@ test('rejects malformed candidate SHA before producing evidence', () => {
   );
 });
 
-test('rejects malformed workflow SHA before producing evidence', () => {
+test('rejects malformed trigger SHA before producing evidence', () => {
   assert.throws(
-    () => compileVerifierHandoff({ event: event(), env: env('DEADBEEF'), now: NOW }),
+    () => compileVerifierHandoff({ event: event(), env: env(HEAD, 'DEADBEEF'), now: NOW }),
     /GITHUB_SHA must be a 40-character lowercase Git SHA/,
   );
 });
 
-test('renders a human-readable verifier summary with explicit evidence booleans', () => {
-  const markdown = renderVerifierHandoffMarkdown(
-    compileVerifierHandoff({ event: event(), env: env(MERGE), now: NOW }),
+test('rejects malformed actual checkout SHA before producing evidence', () => {
+  assert.throws(
+    () => compileVerifierHandoff({ event: event(), env: env('DEADBEEF', MERGE), now: NOW }),
+    /VERIFIER_CHECKOUT_SHA must be a 40-character lowercase Git SHA/,
   );
-  assert.match(markdown, /Candidate head proven by this run: \*\*false\*\*/);
-  assert.match(markdown, /Merge revision proven by this run: \*\*true\*\*/);
-  assert.match(markdown, /3333333333333333333333333333333333333333/);
+});
+
+test('renders both trigger and checkout revisions with explicit evidence booleans', () => {
+  const markdown = renderVerifierHandoffMarkdown(
+    compileVerifierHandoff({ event: event(), env: env(HEAD, MERGE), now: NOW }),
+  );
+  assert.match(markdown, /Candidate head proven by this run: \*\*true\*\*/);
+  assert.match(markdown, /Merge revision proven by this run: \*\*false\*\*/);
+  assert.match(markdown, new RegExp(HEAD));
+  assert.match(markdown, new RegExp(MERGE));
 });
