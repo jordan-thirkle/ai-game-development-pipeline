@@ -68,6 +68,9 @@ local function emit(passed, reason)
   local release_stable = release_drift >= 0 and release_drift <= 0.02 and math.abs(final_vx) <= 0.05
   local rendered = render_frames >= 10 and max_draws >= 6
   local external_input_executed = key_pressed and key_released
+  local window_open = lovr.system.isWindowOpen()
+  local window_visible = lovr.system.isWindowVisible()
+  local window_width, window_height = lovr.system.getWindowDimensions()
 
   local result = '{'
     .. '"passed":' .. bool(passed) .. ','
@@ -87,6 +90,9 @@ local function emit(passed, reason)
     .. '"release_drift_m":' .. number(release_drift) .. ','
     .. '"render_frames":' .. render_frames .. ','
     .. '"max_draws_per_frame":' .. max_draws .. ','
+    .. '"window_open":' .. bool(window_open) .. ','
+    .. '"window_visible":' .. bool(window_visible) .. ','
+    .. '"window_dimensions":[' .. window_width .. ',' .. window_height .. '],'
     .. '"rendered_window_path_executed":' .. bool(rendered) .. ','
     .. '"external_input_executed":' .. bool(external_input_executed) .. ','
     .. '"native_wall_stop_observed":' .. bool(native_wall_stop_observed) .. ','
@@ -100,6 +106,21 @@ local function emit(passed, reason)
 end
 
 function lovr.load()
+  if not lovr.system.isWindowOpen() then
+    lovr.system.openWindow({
+      width = 960,
+      height = 540,
+      title = 'BYJTT LÖVR Render Input Gate',
+      resizable = false,
+      fullscreen = false
+    })
+  end
+
+  local window_width, window_height = lovr.system.getWindowDimensions()
+  print('BYJTT_WINDOW_OPEN=' .. bool(lovr.system.isWindowOpen()))
+  print('BYJTT_WINDOW_VISIBLE=' .. bool(lovr.system.isWindowVisible()))
+  print('BYJTT_WINDOW_DIMENSIONS=' .. window_width .. 'x' .. window_height)
+
   lovr.graphics.setBackgroundColor(.04, .05, .07)
   camera = lovr.math.newMat4():target({ 0, 18, 28 }, { 0, 0, 2 })
 
