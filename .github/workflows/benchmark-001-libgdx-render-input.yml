@@ -83,7 +83,7 @@ jobs:
           glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1 || true
 
           CLASSPATH="target/classes:$(cat "$ARTIFACTS/classpath.txt")"
-          java -cp "$CLASSPATH" com.byjtt.lab.LibgdxRenderedInputGate \
+          timeout --signal=TERM 45s java -cp "$CLASSPATH" com.byjtt.lab.LibgdxRenderedInputGate \
             "$ARTIFACTS/result.json" >"$ARTIFACTS/runtime.log" 2>&1 &
           APP_PID=$!
 
@@ -102,20 +102,20 @@ jobs:
           {
             echo "window_id=$WINDOW_ID"
             echo "external_key_hold_seconds=$INPUT_HOLD_SECONDS"
-            xdotool search --onlyvisible --name 'libGDX\|BYJTT-LAB' getwindowname %@ 2>&1 || true
-            xdotool getactivewindow getwindowname 2>&1 || true
+            timeout 5s xdotool search --onlyvisible --name 'libGDX\|BYJTT-LAB' getwindowname %@ 2>&1 || true
+            timeout 5s xdotool getactivewindow getwindowname 2>&1 || true
           } | tee "$ARTIFACTS/window-diagnostics.txt"
           test -n "$WINDOW_ID"
 
-          xdotool windowactivate --sync "$WINDOW_ID"
-          xdotool windowfocus --sync "$WINDOW_ID"
+          timeout 5s xdotool windowactivate --sync "$WINDOW_ID"
+          timeout 5s xdotool windowfocus --sync "$WINDOW_ID"
           sleep 0.5
-          import -window "$WINDOW_ID" "$ARTIFACTS/before-input.png"
-          xdotool keydown --window "$WINDOW_ID" d
+          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/before-input.png"
+          timeout 5s xdotool keydown --window "$WINDOW_ID" d
           sleep "$INPUT_HOLD_SECONDS"
-          xdotool keyup --window "$WINDOW_ID" d
+          timeout 5s xdotool keyup --window "$WINDOW_ID" d
           sleep 1.5
-          import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png" || true
+          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png" || true
 
           set +e
           wait "$APP_PID"
