@@ -6,7 +6,7 @@ namespace ByJtt.Benchmark.Unity
     {
         public const float ArenaWidth = 24f;
         public const float ArenaDepth = 32f;
-        public static readonly Vector3 PlayerSpawn = new(0f, 1f, 10f);
+        public static readonly Vector3 PlayerSpawn = new(0f, 0f, 10f);
 
         public const float WalkSpeed = 3.5f;
         public const float RunSpeed = 5.5f;
