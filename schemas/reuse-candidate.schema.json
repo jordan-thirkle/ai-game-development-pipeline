@@ -18,9 +18,9 @@
       }
     },
     "licence": {
-      "type":"object","additionalProperties":false,"required":["status","identifier","evidenceUrl","attributionRequired"],
+      "type":"object","additionalProperties":false,"required":["status","identifier","evidenceUrl","attributionRequired","checkedAt"],
       "properties": {
-        "status":{"type":"string","enum":["verified","ambiguous","restricted","unknown"]},"identifier":{"type":"string"},"evidenceUrl":{"type":"string","format":"uri"},"attributionRequired":{"type":"boolean"},"notice":{"type":"string"}
+        "status":{"type":"string","enum":["verified","ambiguous","restricted","unknown"]},"identifier":{"type":"string"},"evidenceUrl":{"type":"string","format":"uri"},"attributionRequired":{"type":"boolean"},"checkedAt":{"type":"string","format":"date-time"},"notice":{"type":"string"}
       }
     },
     "commercialUse":{"type":"string","enum":["verified-allowed","conditional","not-allowed","unknown"]},
@@ -29,8 +29,8 @@
       "properties":{"confidence":{"type":"string","enum":["high","medium","low","unknown"]},"notes":{"type":"string"}}
     },
     "maintenance": {
-      "type":"object","additionalProperties":false,"required":["status","evidence","notes"],
-      "properties":{"status":{"type":"string","enum":["active","stable-static","unclear","inactive","not-applicable"]},"evidence":{"type":"string"},"notes":{"type":"string"}}
+      "type":"object","additionalProperties":false,"required":["status","evidence","checkedAt","notes"],
+      "properties":{"status":{"type":"string","enum":["active","stable-static","unclear","inactive","not-applicable"]},"evidence":{"type":"string"},"checkedAt":{"type":"string","format":"date-time"},"notes":{"type":"string"}}
     },
     "compatibility": {
       "type":"object","additionalProperties":false,"required":["notes"],
