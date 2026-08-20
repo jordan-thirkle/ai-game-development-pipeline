@@ -15,8 +15,12 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    var navigation_map: RID = NavigationServer3D.map_create()
-    NavigationServer3D.map_set_active(navigation_map, true)
+    # Use Godot's World3D-owned navigation map so the engine applies its current
+    # project navigation settings (cell size/height, up vector, connections).
+    var world_node := Node3D.new()
+    root.add_child(world_node)
+    await process_frame
+    var navigation_map: RID = world_node.get_world_3d().get_navigation_map()
 
     var region: RID = NavigationServer3D.region_create()
     NavigationServer3D.region_set_enabled(region, true)
@@ -34,9 +38,9 @@ func _run() -> void:
     navigation_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
     NavigationServer3D.region_set_navigation_mesh(region, navigation_mesh)
 
-    # The native server applies map/region changes at physics-frame synchronization.
+    var initial_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
     var sync_frames := 0
-    while NavigationServer3D.map_get_iteration_id(navigation_map) == 0 and sync_frames < MAX_SYNC_FRAMES:
+    while NavigationServer3D.map_get_iteration_id(navigation_map) <= initial_iteration_id and sync_frames < MAX_SYNC_FRAMES:
         sync_frames += 1
         await physics_frame
 
@@ -88,8 +92,9 @@ func _run() -> void:
     var result := {
         "experiment_id": "BYJTT-LAB-001",
         "slice": "godot-native-navigation-gate",
-        "result": "pass" if map_iteration_id > 0 and path_found and path_inside_arena and final_distance < start_distance and observation_isolated else "fail",
+        "result": "pass" if map_iteration_id > initial_iteration_id and path_found and path_inside_arena and final_distance < start_distance and observation_isolated else "fail",
         "engine_system": "NavigationServer3D",
+        "navigation_map_source": "World3D",
         "arena_width_m": ARENA_WIDTH,
         "arena_depth_m": ARENA_DEPTH,
         "player_spawn": [PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z],
@@ -98,6 +103,7 @@ func _run() -> void:
         "fixed_dt_s": FIXED_DT,
         "driven_steps": DRIVEN_STEPS,
         "sync_frames": sync_frames,
+        "initial_map_iteration_id": initial_iteration_id,
         "map_iteration_id": map_iteration_id,
         "closest_enemy_point": [closest_enemy_point.x, closest_enemy_point.y, closest_enemy_point.z],
         "closest_player_point": [closest_player_point.x, closest_player_point.y, closest_player_point.z],
@@ -115,5 +121,5 @@ func _run() -> void:
 
     print("BYJTT_RESULT=" + JSON.stringify(result))
     NavigationServer3D.free_rid(region)
-    NavigationServer3D.free_rid(navigation_map)
+    world_node.queue_free()
     quit(0 if result["result"] == "pass" else 1)
