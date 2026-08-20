@@ -21,11 +21,11 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install Rust 1.87
+      - name: Install Rust 1.88
         run: |
           set -euo pipefail
-          rustup toolchain install 1.87.0 --profile minimal
-          rustup override set 1.87.0
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup override set 1.88.0
       - name: Install Linux runtime dependencies
         run: |
           set -euo pipefail
@@ -46,6 +46,9 @@ jobs:
             echo "rustc=$(rustc --version)"
             echo "cargo=$(cargo --version)"
             echo "os=$(uname -a)"
+            echo "fyrox_declared_rust_version=1.87"
+            echo "effective_dependency_floor=1.88"
+            echo "effective_floor_reason=fyrox-impl_1.0.0_requires_libloading_0.9"
           } | tee "$CANDIDATE/evidence/environment.txt"
       - name: Freeze dependency graph
         working-directory: ${{ env.CANDIDATE }}
