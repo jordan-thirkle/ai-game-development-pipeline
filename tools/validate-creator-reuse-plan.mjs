@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const planPath = process.argv[2] ?? 'examples/creator-mode/reuse-plan-001.json';
 const registryPath = process.argv[3] ?? 'registry/open-source-game-reuse.v1.json';
+const expectedRegistryRevision = 'cf98798b5d63ef434ad137e4016007883a3d10a6';
 const failures = [];
 const sha40 = /^[0-9a-f]{40}$/i;
 
@@ -15,6 +17,13 @@ function asObject(value) {
 
 function nonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function gitBlobSha(content) {
+  const hash = createHash('sha1');
+  hash.update(`blob ${Buffer.byteLength(content, 'utf8')}\0`);
+  hash.update(content, 'utf8');
+  return hash.digest('hex');
 }
 
 function sameClearance(planSnapshot, entry) {
@@ -47,6 +56,7 @@ function eligibleForPlanReuse(entry, capabilityKind) {
 
 let plan;
 let registry;
+let registryRaw;
 try {
   plan = JSON.parse(await readFile(planPath, 'utf8'));
 } catch (error) {
@@ -54,7 +64,8 @@ try {
   process.exit(1);
 }
 try {
-  registry = JSON.parse(await readFile(registryPath, 'utf8'));
+  registryRaw = await readFile(registryPath, 'utf8');
+  registry = JSON.parse(registryRaw);
 } catch (error) {
   console.error(`Unable to read external reuse registry ${registryPath}: ${error.message}`);
   process.exit(1);
@@ -67,6 +78,12 @@ if (!asObject(plan?.brief)) fail('brief must be an object');
 if (!asObject(plan?.source_registry)) fail('source_registry must be an object');
 if (plan?.source_registry?.path !== 'registry/open-source-game-reuse.v1.json') fail('source_registry.path must use the canonical external reuse registry');
 if (!sha40.test(plan?.source_registry?.revision ?? '')) fail('source_registry.revision must be a 40-character commit SHA');
+if (plan?.source_registry?.revision !== expectedRegistryRevision) fail(`source_registry.revision must remain pinned to dogfood dependency revision ${expectedRegistryRevision}`);
+if (!sha40.test(plan?.source_registry?.git_blob_sha ?? '')) fail('source_registry.git_blob_sha must be a 40-character Git blob SHA');
+const actualRegistryBlobSha = gitBlobSha(registryRaw);
+if (plan?.source_registry?.git_blob_sha !== actualRegistryBlobSha) {
+  fail(`source_registry.git_blob_sha must match the loaded registry bytes (${actualRegistryBlobSha})`);
+}
 if (plan?.source_registry?.dependency_pr !== 110) fail('source_registry.dependency_pr must point to PR #110 for dogfood 001');
 
 for (const key of ['whole_starter_search_completed', 'mechanic_search_completed', 'free_asset_search_completed', 'internal_incumbent_checked_after_external']) {
@@ -213,4 +230,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Creator reuse plan valid: ${capabilities.length} capabilities; ${counts.planned_reuse_or_adapt} reuse/adapt; ${counts.blocked_review} blocked; ${counts.discovery_gaps} discovery gaps; external coverage=${externalCandidateCoveragePct}%; eligible coverage=${eligibleCandidateCoveragePct}%; planned generic surface reduction=${plannedSurfaceReductionPct}%; discovery effort=${effort.measurement_status}.`);
+console.log(`Creator reuse plan valid: ${capabilities.length} capabilities; ${counts.planned_reuse_or_adapt} reuse/adapt; ${counts.blocked_review} blocked; ${counts.discovery_gaps} discovery gaps; external coverage=${externalCandidateCoveragePct}%; eligible coverage=${eligibleCandidateCoveragePct}%; planned generic surface reduction=${plannedSurfaceReductionPct}%; discovery effort=${effort.measurement_status}; registry blob=${actualRegistryBlobSha}.`);
