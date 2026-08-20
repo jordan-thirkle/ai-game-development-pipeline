@@ -17,6 +17,24 @@ Do **not** buy or build “one analytics stack” as a monolith. Separate four r
 
 The canonical event/config model belongs to the game project. Provider SDK objects, dashboard IDs and proprietary event names are adapters only. A provider can fill more than one role, but benchmark results are recorded per role.
 
+## Reproducible evidence records
+
+Mutable vendor documentation is pinned by retrieval date and claim scope; open-source SDK claims additionally use immutable source commits. Hosted-service/product terms are deliberately separate from SDK licences.
+
+| Evidence ID | Scope | Primary source | Pin / retrieval |
+|---|---|---|---|
+| `liveops.sentry.unity-4.8.0` | Unity SDK source/release/licence | `https://github.com/getsentry/sentry-unity` | release commit `01f2aacb7ac4e29c3f801cb94ab6be7ca501e01a`; retrieved 2026-08-20 |
+| `liveops.firebase.unity-release` | Firebase Unity SDK release | `https://firebase.google.com/support/release-notes/unity` | mutable vendor docs; v13.14.0 dated 2026-07-17; retrieved 2026-08-20 |
+| `liveops.firebase.crashlytics-unity` | Crashlytics Unity collection, crash, symbolication behavior | `https://firebase.google.com/docs/crashlytics/unity/customize-crash-reports` and `https://firebase.google.com/docs/crashlytics/unity/get-started` | mutable vendor docs; retrieved 2026-08-20 |
+| `liveops.firebase.remote-config-unity` | Remote Config defaults/fetch/activate/realtime behavior | `https://firebase.google.com/docs/remote-config/unity/get-started`, `https://firebase.google.com/docs/remote-config/unity/real-time`, `https://firebase.google.com/docs/remote-config/quotas-limits` | mutable vendor docs; retrieved 2026-08-20 |
+| `liveops.gameanalytics.unity-8.0.1` | Unity SDK source/release/licence | `https://github.com/GameAnalytics/GA-SDK-UNITY` | commit `af7b0d28dc607b8cb0b2daddf60a813635d1abfe`; retrieved 2026-08-20 |
+| `liveops.gameanalytics.ab` | A/B enrollment, limits and enhanced-JSON compatibility | `https://docs.gameanalytics.com/products-and-features/segment-iq/ab-testing/how-to-create-and-manage-ab-tests/` and `https://docs.gameanalytics.com/products-and-features/segment-iq/ab-testing/best-practices-and-faq/` | mutable vendor docs; retrieved 2026-08-20 |
+| `liveops.posthog.unity-1.1.1` | first-party Unity SDK source/release/licence | `https://github.com/PostHog/posthog-unity` | release commit `79b930c851b0acc9a04ae2262745fc8402f71a58`; retrieved 2026-08-20 |
+| `liveops.posthog.unity-docs` | queueing, feature flags/experiments, error tracking, platform behavior | `https://posthog.com/docs/libraries/unity` | mutable vendor docs; retrieved 2026-08-20 |
+| `liveops.otel` | vendor-neutral instrumentation/Collector role | `https://opentelemetry.io/docs/`, `https://opentelemetry.io/docs/what-is-opentelemetry/`, `https://opentelemetry.io/docs/collector/` | mutable project docs; retrieved 2026-08-20 |
+
+Pricing, retention, DPA/region availability and hosted-plan limits are **not frozen by this table** unless explicitly captured in a benchmark run manifest; they change too quickly to be treated as timeless SDK facts.
+
 ---
 
 # 1. Canonical telemetry contract
@@ -115,7 +133,7 @@ On `granted`, new eligible events may flow. Events captured while consent was no
 
 On `granted -> revoked`, adapters stop new optional capture/upload, purge project-owned unsent queues, rotate/revoke project-controlled pseudonymous analytics identifiers where applicable, and invoke provider-specific opt-out/deletion controls that actually exist. Already-uploaded provider data is governed by that provider’s deletion/export capabilities and documented separately; the project must not claim deletion guarantees a provider cannot deliver.
 
-Provider-managed crash SDKs require separate treatment. For example, current Firebase Crashlytics Unity behavior can retain crash information locally while automatic collection is disabled and later transmit it if collection becomes enabled. Therefore “collection disabled” is not assumed to mean “no local provider cache.” Every crash provider benchmark must record local caching, re-enable behavior, available unsent-report purge controls, identifier behavior and server-side deletion limits for the exact SDK/platform version.
+Provider-managed crash SDKs require separate treatment. Current Firebase Crashlytics Unity documentation states that crash information can remain stored locally while automatic collection is disabled and can later be sent if collection is enabled. Therefore “collection disabled” is not assumed to mean “no local provider cache.” Every crash provider benchmark records local caching, re-enable behavior, available unsent-report purge controls, identifier behavior and server-side deletion limits for the exact SDK/platform version.
 
 No email, phone, real name, raw IP-derived identity, voice transcript, child identifier or other direct PII belongs in the default telemetry contract. Crash breadcrumbs/custom context receive the same privacy review. Remote config is never a secret, entitlement or anti-cheat authority store.
 
@@ -134,41 +152,23 @@ SDK repository licence at pin: **MIT**
 Evidence: **SOURCE-VERIFIED; NOT BYJTT EXECUTED**  
 Disposition: **INCUMBENT CROSS-PLATFORM GAME CRASH/ERROR BENCHMARK**
 
-The Unity SDK is independently versioned and open-source. Sentry’s current game support materially extends beyond mobile; console feasibility is benchmarked only with the required platform/developer access and never inferred from desktop behavior.
+The Unity SDK is independently versioned and open-source. Console feasibility is benchmarked only with required platform/developer access and never inferred from desktop behavior.
 
-### Required benchmark
-
-- caught/non-fatal managed exception;
-- unhandled managed exception;
-- native/IL2CPP crash where supported;
-- symbol upload and readable production stack;
-- build/release/environment correlation;
-- breadcrumbs/custom context;
-- crash-free users/sessions;
-- offline buffering and next-launch delivery;
-- privacy/scrubbing and consent behavior;
-- alert latency;
-- SDK CPU/RAM/network/build-size overhead;
-- Unity editor/development-build filtering;
-- console path feasibility where applicable.
+Required benchmark: caught/non-fatal and unhandled managed exceptions; native/IL2CPP where supported; symbolication; release correlation; breadcrumbs/context; crash-free health; offline delivery; privacy/consent; alert latency; CPU/RAM/network/build-size overhead; development-build filtering; and console path feasibility where applicable.
 
 Repository MIT licensing applies to SDK code only. Hosted-service terms, retention and data processing are separate records.
 
 ## Firebase Crashlytics for Unity
 
-Current Unity SDK release observed in official Firebase release notes: **13.14.0 — 2026-07-17**  
+Current Unity SDK release in official release notes: **13.14.0 — 2026-07-17**  
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **INCUMBENT MOBILE/UNITY CRASH BENCHMARK + FIREBASE-SUITE BENCHMARK**
 
-Current Unity documentation covers managed/native crash reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires generated symbol upload; Apple symbol handling follows the Unity/Xcode path.
+Current Unity docs cover managed/native crash reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires generated symbol upload; Apple symbol handling follows the Unity/Xcode path.
 
-Crashlytics collection is automatic by default but supports disabling automatic collection/runtime opt-in. Importantly, current Unity documentation states that crash information can remain stored locally while collection is disabled and can be sent if collection is later enabled. This exact cached-report path is a required privacy benchmark.
+Crashlytics collection is automatic by default but supports disabling automatic collection/runtime opt-in. Current docs explicitly state local crash information may be retained while disabled and sent after later enablement. This cached-report path is a required privacy benchmark.
 
-### Required benchmark
-
-Use the same failure matrix/build as Sentry and compare symbolication, grouping, actionable context, non-fatal/fatal semantics, crash-free metrics, alerting, build integration, Analytics dependency for breadcrumbs, consent transitions, local cached-report behavior, export/deletion feasibility and mobile cost/ops burden.
-
-Do not run two native crash SDKs in production merely to “have more data” until handler ordering, coexistence and overhead are explicitly tested.
+Use the same failure matrix/build as Sentry. Compare symbolication, grouping, context, fatal/non-fatal semantics, crash-free metrics, alerting, build integration, Analytics dependency for breadcrumbs, consent transitions, cached reports, export/deletion feasibility and mobile cost/ops burden. Do not run two native crash SDKs simultaneously until coexistence and handler ordering are proven.
 
 ---
 
@@ -183,13 +183,9 @@ SDK repository licence at pin: **MIT**
 Evidence: **SOURCE-VERIFIED SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
 Disposition: **INCUMBENT GAME-SPECIFIC ANALYTICS + REMOTE-CONFIG/EXPERIMENT BENCHMARK**
 
-GameAnalytics remains valuable because its model is game-oriented. Current product documentation supports analytics plus Remote Config/A-B testing including enhanced JSON configs; Unity SDK 8.0.0+ is the documented minimum for enhanced JSON support.
+Current product docs support analytics plus Remote Config/A-B testing including enhanced JSON configs; Unity SDK 8.0.0+ is the documented minimum for enhanced JSON support. Current experiment docs state one active experiment enrollment per user, no assignment when the first qualifying session is offline, a 1,000,000-user maximum, and compatible SDK requirements for enhanced JSON.
 
-Current experiment constraints belong in every run manifest: only one active experiment enrollment per user, no first qualifying offline-session enrollment, a documented 1,000,000-user experiment ceiling, and SDK-version compatibility requirements for enhanced JSON configuration.
-
-### Required benchmark
-
-Using one frozen synthetic dataset plus an instrumented vertical slice, measure retention/cohorts, onboarding, progression/failure, economy source/sink, lawful acquisition segmentation, ad/IAP correlation, cardinality limits, operator answer time, export/API access, ingest delay, offline behavior, SDK overhead, privacy/deletion/export workflow, config fallback/propagation and experiment assignment reproducibility.
+Benchmark retention/cohorts, onboarding, progression/failure, economy, lawful acquisition segmentation, ad/IAP correlation, cardinality limits, operator answer time, export/API access, ingest delay, offline behavior, SDK overhead, privacy/deletion/export workflow, config fallback and assignment reproducibility.
 
 Hosted-service pricing/data terms remain separate from the MIT SDK.
 
@@ -198,31 +194,13 @@ Hosted-service pricing/data terms remain separate from the MIT SDK.
 Official repository: `PostHog/posthog-unity`  
 Pinned release commit: `79b930c851b0acc9a04ae2262745fc8402f71a58`  
 Release: **1.1.1 — 2026-07-29**  
-SDK repository licence at pin: **MIT**, with files derived from Sentry explicitly carrying their applicable notice  
+SDK repository licence at pin: **MIT**, with applicable inherited Sentry notices retained where stated  
 Evidence: **SOURCE-VERIFIED SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
 Disposition: **CROSS-PRODUCT + UNITY ANALYTICS/FLAGS/ERROR BENCHMARK**
 
-PostHog now has a first-party Unity SDK. The current Unity surface documents asynchronous queueing/batching, configurable queue/batch limits, analytics capture, feature flags/experiments and error tracking. Unity therefore enters the benchmark directly rather than through a hypothetical custom adapter.
+PostHog now has a first-party Unity SDK. Current Unity docs describe asynchronous queueing/batching, analytics capture, feature flags/experiments and error tracking. This earns direct Unity benchmarking, not default status.
 
-This does **not** make PostHog the default. Its unusually broad studio/web/app/game surface and agent-operable product direction are advantages to measure, while Unity platform limitations, WebGL persistence/CORS behavior, privacy controls, failure modes and unsupported features such as Session Replay on Unity must be frozen in the exact benchmark manifest.
-
-### Required benchmark
-
-- first-party Unity install/update/removal friction;
-- canonical event mapping and `event_id` preservation where feasible;
-- queue/batch overflow and offline behavior;
-- consent opt-in/opt-out plus restart behavior;
-- funnels/retention/cohorts;
-- feature flags and experiment assignment/exposure;
-- error tracking versus dedicated crash providers;
-- WebGL storage/CORS limitations;
-- session-replay unavailability on Unity;
-- warehouse/export portability;
-- API/MCP/agent operability;
-- cost at realistic analytics + flag volumes;
-- cloud-region/privacy/security requirements.
-
-PostHog is not allowed to become the canonical telemetry schema merely because its control surface is attractive.
+Benchmark install/update/removal, canonical event mapping and ID preservation, queue overflow/offline behavior, consent/restart behavior, funnels/cohorts, flags/assignments/exposure, error tracking versus dedicated crash incumbents, WebGL storage/CORS constraints, Unity Session Replay availability, export portability, API/MCP operability, cost and privacy/security requirements. Platform/feature claims must be frozen from the exact official Unity docs in the run manifest rather than assumed from another PostHog SDK.
 
 ---
 
@@ -233,9 +211,22 @@ PostHog is not allowed to become the canonical telemetry schema merely because i
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **UNITY/MOBILE LIVE-CONFIG BENCHMARK**
 
-Firebase Remote Config supports Unity with in-app defaults, targeted overrides, rollouts and A/B tests. Current Unity documentation supports real-time Remote Config updates on Android/Apple with Firebase Unity SDK 11.0.0+.
+Firebase Remote Config supports Unity with source-code in-app defaults, explicit fetch/cache/activate behavior, targeted overrides, rollouts and A/B tests. Current Unity docs support real-time updates on Android/Apple with Firebase Unity SDK 11.0.0+ **and require the Firebase Remote Config Realtime API to be enabled**.
 
-The safety property is source-controlled typed defaults plus explicit validation/fetch/activation. Remote values are overrides, never the only definition of a gameplay-critical value.
+Real-time mode opens a foreground HTTP connection. Listener registrations share that connection; removing the final listener closes it, and the SDK stops listening in background and restarts in foreground. Current Firebase limits projects to **20,000,000 concurrent open real-time connections**. Above the limit, incremental real-time connection requests can be rejected and the client SDK falls back to standard fetch. A newly published template receives a temporary propagation exception to that connection ceiling as documented by Firebase.
+
+Therefore every Firebase realtime benchmark manifest records:
+
+- exact Firebase Unity SDK version;
+- Realtime API enabled/disabled state;
+- listener registration/removal lifecycle;
+- foreground/background transition behavior;
+- concurrent-connection quota assumptions;
+- standard-fetch fallback path;
+- fetch/activate timing policy;
+- setup failures separately from provider capability failures.
+
+The safety property remains typed source-controlled defaults plus explicit validation/fetch/activation. Remote values are overrides, never the only definition of a gameplay-critical value.
 
 ## GameAnalytics Remote Config + A/B
 
@@ -249,7 +240,7 @@ Current docs support string/enhanced-JSON configs, version identifiers, targeted
 Evidence: **SOURCE-VERIFIED UNITY SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
 Disposition: **UNITY/WEB/APP + AGENT-OPERATED ROLLOUT BENCHMARK**
 
-The first-party Unity SDK means flags/experiments are benchmarked on Unity directly. Provider calls still remain outside economy, entitlement and anti-cheat logic: gameplay receives a validated typed snapshot/assignment from the boundary.
+The first-party Unity SDK means flags/experiments are benchmarked on Unity directly. Provider calls remain outside economy, entitlement and anti-cheat logic: gameplay receives a validated typed snapshot/assignment from the boundary.
 
 ---
 
@@ -257,15 +248,15 @@ The first-party Unity SDK means flags/experiments are benchmarked on Unity direc
 
 ## OpenTelemetry
 
-Official docs: `https://opentelemetry.io/docs/`  
+Evidence sources: `liveops.otel` above  
 Evidence: **SOURCE/SPEC-VERIFIED; NOT BYJTT EXECUTED**  
 Disposition: **INCUMBENT VENDOR-NEUTRAL SERVER TELEMETRY CONTRACT**
 
-OpenTelemetry is the open vendor-neutral instrumentation/collection/export boundary for traces, metrics and logs. It is deliberately **not an observability backend**. The Collector provides a vendor-agnostic receive/process/export layer, allowing backend changes without re-instrumenting authoritative servers and services.
+OpenTelemetry is the open vendor-neutral instrumentation/collection/export boundary for traces, metrics and logs and is explicitly **not an observability backend**. The Collector is a vendor-agnostic receive/process/export layer, allowing backend changes without re-instrumenting authoritative servers and services.
 
 Stable resource attributes include `service.name`, `service.version`, `service.instance.id`, `deployment.environment`, `byjtt.game_id`, `byjtt.build_id`, `byjtt.region`, `byjtt.server_provider` and `byjtt.server_image_digest`. Bounded-cardinality session correlation is allowed where justified; raw PII, tokens, chat content and arbitrary payloads are not.
 
-Required benchmarks cover OTLP via Collector, cross-service traces, server loop/tick metrics, allocation/startup timing, error/log correlation, sampling under load, collector outage/backpressure, backend swap without instrumentation change, and cardinality/cost guardrails.
+Required benchmarks cover OTLP via Collector, cross-service traces, server loop/tick metrics, allocation/startup timing, error/log correlation, sampling, collector outage/backpressure, backend swap without instrumentation change, and cardinality/cost guardrails.
 
 ---
 
@@ -323,12 +314,12 @@ ExperimentSnapshot
   generated_at_utc
 ```
 
-Gameplay systems receive domain events, typed configuration snapshots or immutable experiment assignments. They do not import Firebase, GameAnalytics, PostHog, Sentry or an observability backend directly.
+Gameplay systems receive domain events, typed configuration snapshots or immutable experiment assignments. They do not import provider SDKs directly.
 
 ## Failure semantics
 
-- `capture()` is non-blocking with respect to gameplay; it either accepts to a bounded local queue, drops with an explicit reason, or reports disabled collection.
-- `flush()` accepts a deadline and never blocks game shutdown indefinitely.
+- `capture()` is non-blocking with respect to gameplay; it either accepts to a bounded queue, drops with explicit reason, or reports disabled collection.
+- `flush()` accepts a deadline and never blocks shutdown indefinitely.
 - queues have frozen count/byte bounds and deterministic overflow policy;
 - retries use capped exponential backoff with jitter and a maximum retention age;
 - retries preserve canonical `event_id`;
@@ -336,8 +327,8 @@ Gameplay systems receive domain events, typed configuration snapshots or immutab
 - crash reporting must not cause a second crash;
 - missing/invalid remote config yields a validated source-controlled local default snapshot;
 - a feature flag cannot grant purchases, entitlements or server authority by itself;
-- assignment persistence scope is explicit rather than provider-default magic;
-- experiment exposure is emitted once per defined exposure boundary with a canonical event ID;
+- assignment persistence scope is explicit;
+- experiment exposure is emitted once per defined boundary with a canonical event ID;
 - every production SDK has an operational kill switch/collection policy where practical;
 - duplicate simultaneous sinks must prove value and overhead before production use.
 
@@ -347,9 +338,9 @@ Gameplay systems receive domain events, typed configuration snapshots or immutab
 
 ## Benchmark A — game analytics conformance
 
-Instrument one identical vertical slice and answer the same retention, onboarding, progression, economy, monetisation, segmentation, release-comparison and raw-export questions. Measure implementation time, event loss, duplicate rate, schema-rejection/drop rate, queue behavior, query latency, dashboard usability, exportability, cost, SDK overhead and provider replacement cost.
+Instrument one identical vertical slice and answer the same retention, onboarding, progression, economy, monetisation, segmentation, release-comparison and raw-export questions. Measure implementation time, event loss, duplicate rate, schema-rejection/drop rate, queue behavior, query latency, usability, exportability, cost, SDK overhead and replacement cost.
 
-The test matrix includes retries with the same `event_id`, process restart, offline replay, duplicate injection, queue overflow, oversized payload, excessive cardinality, invalid property type and out-of-order delivery.
+Test retries with the same `event_id`, process restart, offline replay, duplicate injection, queue overflow, oversized payload, excessive cardinality, invalid property type and out-of-order delivery.
 
 ## Benchmark B — crash fidelity and privacy
 
@@ -357,13 +348,13 @@ Use the same release build and controlled managed/native failure matrix. Score c
 
 ## Benchmark C — remote config and experiment safety
 
-Use one typed config schema with source-controlled defaults. Exercise online/offline cold start, fetch timeout, invalid response, old-client/new-config mismatch, cached stale config, rollout progression, emergency rollback, assignment persistence, exposure de-duplication, consent transitions, client tampering and server-authoritative boundaries.
+Use one typed config schema with source-controlled defaults. Exercise online/offline cold start, fetch timeout, invalid response, old-client/new-config mismatch, stale cache, rollout progression, emergency rollback, assignment persistence, exposure de-duplication, consent transitions, client tampering and server-authoritative boundaries. For Firebase realtime runs, also exercise API-disabled setup, foreground/background listener lifecycle and the documented standard-fetch fallback path.
 
 A provider fails conformance if its absence can make the game unbootable, remove local defaults, silently change entitlement/security authority, or make assignment/config provenance unknowable.
 
 ## Benchmark D — server observability portability
 
-One authoritative test server emits OTel traces/metrics/logs through a Collector. Route the same instrumentation to two destinations (or one hosted destination plus an open local stack) without application-instrumentation changes. Measure fidelity, operations, sampling, outage/backpressure behavior, overhead, cost and switch effort.
+One authoritative test server emits OTel traces/metrics/logs through a Collector. Route the same instrumentation to two destinations (or one hosted destination plus an open local stack) without application-instrumentation changes. Measure fidelity, operations, sampling, outage/backpressure, overhead, cost and switch effort.
 
 ---
 
@@ -371,13 +362,13 @@ One authoritative test server emits OTel traces/metrics/logs through a Collector
 
 This is **research ordering, not production adoption**:
 
-1. **Sentry Unity** — primary cross-platform crash/error benchmark, especially where release-health depth or console feasibility matters.
-2. **Firebase Crashlytics + Remote Config** — primary Unity/mobile integrated stability + live-config benchmark, with cached-crash privacy behavior explicitly tested.
+1. **Sentry Unity** — primary cross-platform crash/error benchmark.
+2. **Firebase Crashlytics + Remote Config** — primary Unity/mobile integrated stability + live-config benchmark, with cached-crash and realtime prerequisites explicitly tested.
 3. **GameAnalytics** — primary game-specific analytics + Remote Config/A-B benchmark.
-4. **PostHog Unity** — first-party Unity plus broad product/agent-operable analytics/flags/error benchmark; not promoted above game-specific/dedicated incumbents until execution evidence proves it.
+4. **PostHog Unity** — first-party Unity plus broad product/agent-operable analytics/flags/error benchmark; not promoted above incumbents until execution evidence proves it.
 5. **OpenTelemetry + Collector** — incumbent vendor-neutral server observability boundary, not a product-analytics replacement.
 
-A game may legitimately compose GameAnalytics or PostHog for product analytics, Sentry or Crashlytics for crash diagnostics, and OpenTelemetry for backend telemetry. Consolidation matters only when it lowers real cost/maintenance without reducing evidence quality, privacy or portability.
+A game may legitimately compose providers. Consolidation matters only when it lowers real cost/maintenance without reducing evidence quality, privacy or portability.
 
 ---
 
@@ -387,10 +378,12 @@ No candidate becomes `EXECUTED`, `preferred` or a default template until a compl
 
 - exact SDK/package/service versions;
 - immutable source revision where available;
+- primary-source evidence IDs and mutable-doc retrieval date;
 - platform/build/runtime manifest;
 - consent state-machine configuration and transition evidence;
 - canonical event/config schema revision;
 - queue/retry/drop/idempotency configuration;
+- provider prerequisites (including Firebase Realtime API/listener mode where applicable);
 - synthetic/real workload definition;
 - raw evidence including duplicate/loss/drop counts;
 - provider cache/deletion/export behavior;
