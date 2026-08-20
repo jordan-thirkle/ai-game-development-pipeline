@@ -100,12 +100,13 @@ try {
     }
   };
 
-  const evidenceLabelsValid = Array.isArray(registry.evidence_labels);
-  if (!evidenceLabelsValid) failures.push(`${registryPath} evidence_labels must be an array`);
+  const evidenceLabelsValid = Array.isArray(registry.evidence_labels) && registry.evidence_labels.every((value) => typeof value === 'string' && value.length > 0);
+  if (!evidenceLabelsValid) failures.push(`${registryPath} evidence_labels must be an array of non-empty strings`);
   const evidenceLabels = new Set(evidenceLabelsValid ? registry.evidence_labels : []);
+  if (evidenceLabelsValid && evidenceLabels.size !== registry.evidence_labels.length) failures.push(`${registryPath} evidence_labels must not contain duplicates`);
 
-  const adoptionMapValid = registry.adoption_status_map !== null && typeof registry.adoption_status_map === 'object' && !Array.isArray(registry.adoption_status_map);
-  if (!adoptionMapValid) failures.push(`${registryPath} adoption_status_map must be a non-null object`);
+  const adoptionMapValid = registry.adoption_status_map !== null && typeof registry.adoption_status_map === 'object' && !Array.isArray(registry.adoption_status_map) && Object.entries(registry.adoption_status_map).every(([key, value]) => key.length > 0 && typeof value === 'string' && value.length > 0);
+  if (!adoptionMapValid) failures.push(`${registryPath} adoption_status_map must be a non-null object with non-empty string values`);
   const adoptionTokens = new Set(adoptionMapValid ? Object.values(registry.adoption_status_map) : []);
 
   if (typeof registry.schema_version !== 'string' || !/^\d+\.\d+\.\d+$/.test(registry.schema_version)) failures.push(`${registryPath} requires a semantic-version schema_version`);
@@ -120,10 +121,11 @@ try {
   } else {
     for (const benchmark of registry.benchmarks) {
       const benchmarkId = benchmark?.benchmark_id ?? '<missing-benchmark-id>';
-      if (!benchmark || typeof benchmark !== 'object' || !benchmark.benchmark_id || !benchmark.name || !benchmark.category || !benchmark.canonical_url || !benchmark.revision) failures.push('Every AI game-dev benchmark requires benchmark_id, name, category, canonical_url, and revision');
+      const benchmarkFields = ['benchmark_id','name','category','canonical_url','revision'];
+      if (!benchmark || typeof benchmark !== 'object' || benchmarkFields.some((field) => typeof benchmark[field] !== 'string' || benchmark[field].length === 0)) failures.push('Every AI game-dev benchmark requires non-empty string benchmark_id, name, category, canonical_url, and revision');
       if (benchmarkIds.has(benchmark?.benchmark_id)) failures.push(`Duplicate AI game-dev benchmark id: ${benchmark?.benchmark_id}`);
       benchmarkIds.add(benchmark?.benchmark_id);
-      if (!immutableRevision.test(String(benchmark?.revision ?? ''))) failures.push(`AI game-dev benchmark ${benchmarkId} requires an immutable Git SHA or sha256 content hash revision`);
+      if (!immutableRevision.test(benchmark?.revision ?? '')) failures.push(`AI game-dev benchmark ${benchmarkId} requires an immutable Git SHA or sha256 content hash revision`);
     }
   }
 
@@ -138,18 +140,18 @@ try {
         continue;
       }
       for (const field of ['entry_id','name','category','canonical_url','source_type','source_revision_status','license','version_or_revision','last_verified_at','execution_status','benchmark_id','adoption_status','replacement_cost','lock_in_risk','license_review_status','redistribution_status']) {
-        if (entry[field] === undefined || entry[field] === null || entry[field] === '') failures.push(`AI game-dev entry ${id} requires ${field}`);
+        if (typeof entry[field] !== 'string' || entry[field].length === 0) failures.push(`AI game-dev entry ${id} requires non-empty string ${field}`);
       }
       if (entryIds.has(entry.entry_id)) failures.push(`Duplicate AI game-dev entry id: ${entry.entry_id}`);
       entryIds.add(entry.entry_id);
-      if (!evidenceLabels.has(entry.execution_status)) failures.push(`Invalid evidence status for ${id}: ${entry.execution_status}`);
-      if (!benchmarkIds.has(entry.benchmark_id)) failures.push(`Unknown benchmark_id for ${id}: ${entry.benchmark_id}`);
+      if (typeof entry.execution_status !== 'string' || !evidenceLabels.has(entry.execution_status)) failures.push(`Invalid evidence status for ${id}: ${entry.execution_status}`);
+      if (typeof entry.benchmark_id !== 'string' || !benchmarkIds.has(entry.benchmark_id)) failures.push(`Unknown benchmark_id for ${id}: ${entry.benchmark_id}`);
       const adoptionParts = typeof entry.adoption_status === 'string' ? entry.adoption_status.split('+').filter(Boolean) : [];
       if (adoptionParts.length === 0 || adoptionParts.some((part) => !adoptionTokens.has(part))) failures.push(`Invalid adoption_status for ${id}: ${entry.adoption_status}`);
       if (new Set(adoptionParts).size !== adoptionParts.length) failures.push(`Duplicate adoption_status token for ${id}: ${entry.adoption_status}`);
       if (adoptionParts.includes('rejected') && adoptionParts.length !== 1) failures.push(`Rejected AI game-dev entry ${id} cannot combine rejected with another adoption status`);
       if (!isValidOffsetTimestamp(entry.last_verified_at)) failures.push(`Invalid calendar-valid offset-aware last_verified_at for ${id}: ${entry.last_verified_at}`);
-      if (/immutable.*commit/i.test(String(entry.source_revision_status)) && !/^[0-9a-f]{40}$/i.test(String(entry.version_or_revision))) failures.push(`AI game-dev entry ${id} declares an immutable commit but revision is not a 40-character Git SHA`);
+      if (/immutable.*commit/i.test(entry.source_revision_status ?? '') && !/^[0-9a-f]{40}$/i.test(entry.version_or_revision ?? '')) failures.push(`AI game-dev entry ${id} declares an immutable commit but revision is not a 40-character Git SHA`);
       if (adoptionParts.includes('rejected') && (!entry.notes || !/(block|reject|restrict|licen|territor|incompat)/i.test(entry.notes))) failures.push(`Rejected AI game-dev entry ${id} requires an explanatory blocking reason in notes`);
     }
   }
