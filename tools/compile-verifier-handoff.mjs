@@ -24,7 +24,8 @@ export function compileVerifierHandoff({ event, env, now = new Date() }) {
   const pr = event.pull_request;
   const headSha = requireSha(pr.head?.sha, 'pull_request.head.sha');
   const baseSha = requireSha(pr.base?.sha, 'pull_request.base.sha');
-  const workflowSha = requireSha(env.GITHUB_SHA, 'GITHUB_SHA');
+  const triggerSha = requireSha(env.GITHUB_SHA, 'GITHUB_SHA');
+  const checkoutSha = requireSha(env.VERIFIER_CHECKOUT_SHA, 'VERIFIER_CHECKOUT_SHA');
   const repository = requireString(env.GITHUB_REPOSITORY, 'GITHUB_REPOSITORY');
   const runId = requireString(env.GITHUB_RUN_ID, 'GITHUB_RUN_ID');
   const runAttempt = requireString(env.GITHUB_RUN_ATTEMPT ?? '1', 'GITHUB_RUN_ATTEMPT');
@@ -35,9 +36,9 @@ export function compileVerifierHandoff({ event, env, now = new Date() }) {
     ? pr.merge_commit_sha
     : null;
 
-  const checkoutKind = workflowSha === headSha
+  const checkoutKind = checkoutSha === headSha
     ? 'candidate-head'
-    : workflowSha === mergeCommitSha
+    : checkoutSha === mergeCommitSha
       ? 'github-merge-revision'
       : 'other-revision';
 
@@ -57,19 +58,20 @@ export function compileVerifierHandoff({ event, env, now = new Date() }) {
       run_id: runId,
       run_attempt: runAttempt,
       actor,
-      github_sha: workflowSha,
+      trigger_sha: triggerSha,
+      checkout_sha: checkoutSha,
       checkout_kind: checkoutKind,
       run_url: `https://github.com/${repository}/actions/runs/${runId}`,
     },
     evidence_boundary: {
-      revision_proven_by_this_run: workflowSha,
+      revision_proven_by_this_run: checkoutSha,
       candidate_head_proven: checkoutKind === 'candidate-head',
       merge_revision_proven: checkoutKind === 'github-merge-revision',
       note: checkoutKind === 'candidate-head'
-        ? 'This workflow revision equals the pull request candidate head.'
+        ? 'The actually checked-out revision equals the pull request candidate head. The GitHub trigger SHA is retained separately and may be a synthetic merge revision.'
         : checkoutKind === 'github-merge-revision'
-          ? 'This workflow revision is GitHub\'s synthetic pull-request merge revision, not the candidate head. Candidate-head execution requires a separate exact-head checkout/run.'
-          : 'This workflow revision matches neither the pull request head nor the event merge revision; do not attribute candidate-head or merge-revision execution without additional evidence.',
+          ? 'The actually checked-out revision is GitHub\'s synthetic pull-request merge revision, not the candidate head. Candidate-head execution requires a separate exact-head checkout/run.'
+          : 'The actually checked-out revision matches neither the pull request head nor the event merge revision; do not attribute candidate-head or merge-revision execution without additional evidence.',
     },
   };
 }
@@ -82,7 +84,8 @@ export function renderVerifierHandoffMarkdown(handoff) {
     `- PR: #${handoff.pull_request.number}`,
     `- Candidate head: \`${handoff.pull_request.head.sha}\``,
     `- Base: \`${handoff.pull_request.base.sha}\``,
-    `- Workflow revision: \`${handoff.workflow_run.github_sha}\``,
+    `- GitHub trigger revision: \`${handoff.workflow_run.trigger_sha}\``,
+    `- Checked-out revision: \`${handoff.workflow_run.checkout_sha}\``,
     `- Checkout classification: **${handoff.workflow_run.checkout_kind}**`,
     `- Candidate head proven by this run: **${e.candidate_head_proven}**`,
     `- Merge revision proven by this run: **${e.merge_revision_proven}**`,
