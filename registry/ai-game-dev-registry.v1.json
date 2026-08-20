@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.1.0",
-  "last_verified_at": "2026-08-20T03:59:00+01:00",
+  "schema_version": "1.2.0",
+  "last_verified_at": "2026-08-20T04:58:00+01:00",
   "verification_timezone": "Europe/London",
   "policy_shard": "registry/ai-game-dev-systems.v1.json",
   "shards": [
@@ -20,6 +20,12 @@
       "shard_id": "networking",
       "path": "registry/ai-game-networking-systems.v1.json",
       "namespace": "networking",
+      "required": true
+    },
+    {
+      "shard_id": "liveops",
+      "path": "registry/ai-game-liveops-systems.v1.json",
+      "namespace": "liveops",
       "required": true
     }
   ],
