@@ -93,6 +93,16 @@ test('a passing run exposes its exact playable artifact only through the local p
   });
 });
 
+test('a fresh failed run invalidates the previous successful playable sandbox', async () => {
+  let runNumber = 0;
+  await withServer({ execute: () => ++runNumber === 1 ? executeSampleRun() : failureRun('qa') }, async (base) => {
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 201);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 200);
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 422);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+  });
+});
+
 test('expected build and QA failures preserve partial evidence and clean workspaces', async () => {
   const build = await failureRun('build');
   assert.equal(build.status, 'fail');

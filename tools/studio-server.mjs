@@ -126,9 +126,10 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
         try {
+          await latestRuntime?.cleanup?.();
+          latestRuntime = null;
           const result = await execute();
           if (result.status === 'pass' && result[RUNTIME]) {
-            await latestRuntime?.cleanup?.();
             latestRuntime = result[RUNTIME];
           }
           return sendJson(response, result.status === 'pass' ? 201 : 422, result);
