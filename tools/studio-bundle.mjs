@@ -14,6 +14,11 @@ export class StudioBundleError extends Error {
 const MAX_FILES = 256;
 const MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024;
 const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
+const VERIFIED_PLAYABLE_PATH = 'starter/dist/index.html';
+const START_HERE_PATH = 'START_HERE.html';
+const START_HERE_BYTES = Buffer.from(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=starter/dist/index.html"><title>Open verified starter</title></head><body><p>Opening the verified local starter. <a href="starter/dist/index.html">Open it manually</a> if your browser does not continue automatically.</p></body></html>
+`, 'utf8');
 
 function pathContains(basePath, candidatePath) {
   const rest = relative(resolve(basePath), resolve(candidatePath));
@@ -92,7 +97,10 @@ export async function createStudioBundle({ projectDir, outputDir, projectId = 's
     excludePaths: pathContains(project, output) ? [output] : []
   });
   const evidenceFiles = await collectFiles(output, 'evidence');
-  const files = [...projectFiles, ...evidenceFiles].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
+  if (!projectFiles.some((file) => file.path === VERIFIED_PLAYABLE_PATH)) {
+    throw new StudioBundleError('Verified local starter is missing dist/index.html', 'PLAYABLE_MISSING');
+  }
+  const files = [{ path: START_HERE_PATH, body: START_HERE_BYTES }, ...projectFiles, ...evidenceFiles].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
   if (files.length === 0) throw new StudioBundleError('Local bundle would be empty', 'EMPTY_BUNDLE');
   if (files.length > MAX_FILES) throw new StudioBundleError(`Local bundle exceeds ${MAX_FILES} files`, 'BUNDLE_TOO_LARGE');
   const totalBytes = files.reduce((sum, file) => sum + file.body.length, 0);
