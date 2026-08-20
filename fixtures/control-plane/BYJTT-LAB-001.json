@@ -1,37 +1,862 @@
 {
-  "schemaVersion":"0.2.0",
-  "generatedAt":"2026-08-19T06:57:00+01:00",
-  "project":{"id":"BYJTT-LAB-001","name":"Mobile 3D Action Slice","kind":"benchmark","lifecycleStage":"prototype","summary":"Compare serious runtimes against one shared playable mobile-3D action contract.","repository":"jordan-thirkle/ai-game-development-pipeline","latestBuildId":null},
-  "stages":[
-    {"id":"research","label":"Research & solved-system scan","status":"pass","dependsOn":[],"evidenceIds":["ev-preflight"],"nextAction":null},
-    {"id":"baseline","label":"Shared gameplay & asset baseline","status":"pass","dependsOn":["research"],"evidenceIds":["ev-baseline","ev-provenance"],"nextAction":null},
-    {"id":"implement","label":"Competing implementations","status":"running","dependsOn":["baseline"],"evidenceIds":["ev-three-phase-a","ev-babylon-phase-a"],"nextAction":"Advance remaining independent runtime lanes; PlayCanvas native Ammo proof is the next blocked execution gate."},
-    {"id":"automated-qa","label":"Automated QA","status":"running","dependsOn":["implement"],"evidenceIds":["ev-three-phase-a","ev-babylon-phase-a"],"nextAction":"Retain exact-revision runtime evidence for each candidate; do not promote hosted-browser proof into real-device proof."},
-    {"id":"human-playtest","label":"Human playtest","status":"blocked","dependsOn":["automated-qa"],"evidenceIds":[],"nextAction":"Becomes eligible after candidate integration and a human-launchable build exists."},
-    {"id":"compare","label":"Compare & promote","status":"blocked","dependsOn":["human-playtest"],"evidenceIds":[],"nextAction":"Compare only validated candidates after human playtest; no engine winner is declared yet."}
+  "schemaVersion": "0.2.0",
+  "generatedAt": "2026-08-20T16:17:08+01:00",
+  "project": {
+    "id": "BYJTT-LAB-001",
+    "name": "Mobile 3D Action Slice",
+    "kind": "benchmark",
+    "lifecycleStage": "prototype",
+    "summary": "Compare serious runtimes against one shared playable mobile-3D action contract.",
+    "repository": "jordan-thirkle/ai-game-development-pipeline",
+    "latestBuildId": null
+  },
+  "stages": [
+    {
+      "id": "research",
+      "label": "Research & solved-system scan",
+      "status": "pass",
+      "dependsOn": [],
+      "evidenceIds": [
+        "ev-preflight"
+      ],
+      "nextAction": null
+    },
+    {
+      "id": "baseline",
+      "label": "Shared gameplay & asset baseline",
+      "status": "pass",
+      "dependsOn": [
+        "research"
+      ],
+      "evidenceIds": [
+        "ev-baseline",
+        "ev-provenance"
+      ],
+      "nextAction": null
+    },
+    {
+      "id": "implement",
+      "label": "Competing implementations",
+      "status": "running",
+      "dependsOn": [
+        "baseline"
+      ],
+      "evidenceIds": [
+        "ev-three-phase-a",
+        "ev-babylon-phase-a",
+        "ev-godot-tracer",
+        "ev-playcanvas-ammo-gate",
+        "ev-defold-tracer",
+        "ev-bevy-avian-gate",
+        "ev-jmonkeyengine-gate",
+        "ev-three-current-phase-a",
+        "ev-playcanvas-integrated-ammo",
+        "ev-godot-navigation",
+        "ev-defold-current-tracer",
+        "ev-defold-native-collision",
+        "ev-jmonkeyengine-current-jbullet",
+        "ev-jmonkeyengine-minie",
+        "ev-stride-bepu",
+        "ev-libgdx-bullet",
+        "ev-lovr-physics",
+        "ev-lovr-current-physics"
+      ],
+      "nextAction": "Stop opening additional shallow feasibility lanes for now. Consolidate the active runtime queue, advance execution-backed candidates toward the unchanged full Phase A contract, preserve failed/blocked evidence, and require exact-head proof before promotion."
+    },
+    {
+      "id": "automated-qa",
+      "label": "Automated QA",
+      "status": "running",
+      "dependsOn": [
+        "implement"
+      ],
+      "evidenceIds": [
+        "ev-three-phase-a",
+        "ev-three-jolt-boundary",
+        "ev-babylon-phase-a",
+        "ev-godot-tracer",
+        "ev-playcanvas-ammo-gate",
+        "ev-defold-tracer",
+        "ev-bevy-avian-gate",
+        "ev-jmonkeyengine-gate",
+        "ev-babylon-havok-boundary-failed",
+        "ev-fyrox-gate-failed",
+        "ev-panda3d-gate-failed",
+        "ev-three-current-phase-a",
+        "ev-playcanvas-integrated-ammo",
+        "ev-playcanvas-integrated-ammo-failed",
+        "ev-godot-navigation",
+        "ev-defold-current-tracer",
+        "ev-defold-native-collision",
+        "ev-jmonkeyengine-current-jbullet",
+        "ev-jmonkeyengine-minie",
+        "ev-stride-bepu",
+        "ev-stride-current-bepu-failed",
+        "ev-stride-character-followup-failed",
+        "ev-libgdx-bullet",
+        "ev-lovr-physics",
+        "ev-lovr-current-physics",
+        "ev-lovr-render-input-failed",
+        "ev-ezengine-gate-failed",
+        "ev-wicked-engine-gate-failed"
+      ],
+      "nextAction": "Retain revision-bound runtime evidence, including failures and bounded stacked follow-ups. No feasibility, physics, navigation, input, or collision gate alone proves full Phase A, device readiness, human quality, comparison, or a winner."
+    },
+    {
+      "id": "human-playtest",
+      "label": "Human playtest",
+      "status": "blocked",
+      "dependsOn": [
+        "automated-qa"
+      ],
+      "evidenceIds": [],
+      "nextAction": "Remains blocked until comparable candidate implementations and a human-launchable verified build exist."
+    },
+    {
+      "id": "compare",
+      "label": "Compare & promote",
+      "status": "blocked",
+      "dependsOn": [
+        "human-playtest"
+      ],
+      "evidenceIds": [],
+      "nextAction": "Compare only validated candidates after human playtest; no engine winner is declared yet."
+    }
   ],
-  "workstreams":[
-    {"id":"ws-three-webgpu","title":"Three.js/WebGPU Phase A candidate","status":"verification","sessionId":"integrated","branch":"main","base":"main","environment":"GitHub Actions + stable Chrome","ownedPaths":["experiments/BYJTT-LAB-001/candidates/three-webgpu/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**"],"dependencies":[],"evidenceIds":["ev-three-phase-a"],"nextSafeAction":"Preserve Phase A evidence and defer production assets/device claims to later gates.","sourceUri":"experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md"},
-    {"id":"ws-playcanvas","title":"PlayCanvas Phase A candidate","status":"blocked","sessionId":"available","branch":"benchmark/001-playcanvas","base":"main","environment":"Codex/local + browser automation","ownedPaths":["experiments/BYJTT-LAB-001/candidates/playcanvas/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**"],"dependencies":[],"evidenceIds":["ev-playcanvas-tracer"],"nextSafeAction":"Acquire and hash the canonical Ammo module trio in a binary-capable environment, then execute native collision/controller proof.","sourceUri":"experiments/BYJTT-LAB-001/candidates/playcanvas/README.md"},
-    {"id":"ws-babylon","title":"Babylon.js Phase A candidate","status":"verification","sessionId":"claimed-external-worker","branch":"benchmark/001-babylonjs","base":"main","environment":"GitHub Actions + stable Chrome","ownedPaths":["experiments/BYJTT-LAB-001/candidates/babylonjs/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**","apps/studio/**"],"dependencies":[],"evidenceIds":["ev-babylon-phase-a"],"nextSafeAction":"Owning worker should refresh against current main and run exact-head proof before integration.","sourceUri":"experiments/BYJTT-LAB-001/candidates/babylonjs/README.md"},
-    {"id":"ws-godot","title":"Godot Phase A candidate","status":"planned","sessionId":"unclaimed","branch":"benchmark/001-godot","base":"main","environment":"Codex/local + Godot runtime","ownedPaths":["experiments/BYJTT-LAB-001/candidates/godot/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**"],"dependencies":[],"evidenceIds":[],"nextSafeAction":"Claim only in a Godot-capable execution environment.","sourceUri":null},
-    {"id":"ws-unity","title":"Unity Phase A candidate","status":"planned","sessionId":"unclaimed","branch":"benchmark/001-unity","base":"main","environment":"Codex/local + Unity editor/runtime","ownedPaths":["experiments/BYJTT-LAB-001/candidates/unity/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**"],"dependencies":[],"evidenceIds":[],"nextSafeAction":"Claim only in a supported Unity execution environment.","sourceUri":null},
-    {"id":"ws-defold","title":"Defold Phase A candidate","status":"planned","sessionId":"unclaimed","branch":"benchmark/001-defold","base":"main","environment":"Codex/local + Defold runtime","ownedPaths":["experiments/BYJTT-LAB-001/candidates/defold/**"],"avoidedPaths":["experiments/BYJTT-LAB-001/shared/**"],"dependencies":[],"evidenceIds":[],"nextSafeAction":"Claim only in a Defold-capable execution environment and retain/reject based on comparable 3D effort evidence.","sourceUri":null}
+  "workstreams": [
+    {
+      "id": "ws-three-webgpu",
+      "title": "Three.js/WebGPU Phase A candidate",
+      "status": "verification",
+      "sessionId": "github-pr:99",
+      "branch": "benchmark/001-three-native-boundary",
+      "base": "main",
+      "environment": "GitHub Actions + stable Chrome",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/three-webgpu/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-three-phase-a",
+        "ev-three-jolt-boundary",
+        "ev-three-current-phase-a"
+      ],
+      "nextSafeAction": "Integrated Phase A remains the accepted baseline and PR #99 has fresh exact-head shared Phase A proof. Preserve the older Jolt boundary proof as revision-bound evidence; no device, human-playtest, comparison, or winner claim is implied.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md"
+    },
+    {
+      "id": "ws-playcanvas",
+      "title": "PlayCanvas Phase A candidate",
+      "status": "verification",
+      "sessionId": "github-pr:159",
+      "branch": "benchmark/001-playcanvas-integrated-ammo",
+      "base": "main",
+      "environment": "GitHub Actions + Chromium",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/playcanvas/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-playcanvas-tracer",
+        "ev-playcanvas-ammo-gate",
+        "ev-playcanvas-integrated-ammo",
+        "ev-playcanvas-integrated-ammo-failed"
+      ],
+      "nextSafeAction": "PR #159 has a successful PR-triggered integrated native Ammo run and a failed push run on the same revision. Preserve both, diagnose the mixed same-revision history, and require deterministic rerun evidence before promotion.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/playcanvas/README.md"
+    },
+    {
+      "id": "ws-babylon",
+      "title": "Babylon.js Phase A candidate",
+      "status": "verification",
+      "sessionId": "github-pr:98",
+      "branch": "benchmark/001-babylon-havok-boundary",
+      "base": "main",
+      "environment": "GitHub Actions + stable Chrome",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/babylonjs/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**",
+        "apps/studio/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-babylon-phase-a",
+        "ev-babylon-havok-boundary-failed"
+      ],
+      "nextSafeAction": "Integrated Phase A remains valid. PR #98's retained Havok follow-up failure must be repaired and rerun before native-physics promotion.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/babylonjs/README.md"
+    },
+    {
+      "id": "ws-godot",
+      "title": "Godot Phase A candidate",
+      "status": "verification",
+      "sessionId": "github-pr:155",
+      "branch": "benchmark/001-godot-navigation-gate",
+      "base": "benchmark/001-godot",
+      "environment": "GitHub Actions + official Godot runtime",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/godot/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-godot-tracer",
+        "ev-godot-navigation"
+      ],
+      "nextSafeAction": "PR #155 has exact-head native navigation proof layered on the earlier CharacterBody3D tracer. Continue through the unchanged full Phase A contract; device and human evidence remain unproved.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/godot/README.md"
+    },
+    {
+      "id": "ws-unity",
+      "title": "Unity Phase A candidate",
+      "status": "blocked",
+      "sessionId": "github-pr:93",
+      "branch": "benchmark/001-unity-proof-handoff",
+      "base": "main",
+      "environment": "Licensed Unity 6.3 editor/runtime required",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/unity/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-unity-runtime-blocker"
+      ],
+      "nextSafeAction": "Reroute to a licensed Unity execution environment and bind PlayMode/runtime results to exact PR head; source/tests/workflow presence are not runtime evidence.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/unity/README.md"
+    },
+    {
+      "id": "ws-defold",
+      "title": "Defold Phase A candidate",
+      "status": "verification",
+      "sessionId": "github-pr:161",
+      "branch": "benchmark/001-defold-native-collision",
+      "base": "benchmark/001-defold-runtime-tracer",
+      "environment": "GitHub Actions + official Defold Bob/HTML5 runtime",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/defold/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-defold-tracer",
+        "ev-defold-current-tracer",
+        "ev-defold-native-collision"
+      ],
+      "nextSafeAction": "PR #161 has exact-head native collision proof layered on the bounded runtime tracer. Preserve both evidence boundaries and advance only through the unchanged full Phase A contract.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/defold/README.md"
+    },
+    {
+      "id": "ws-bevy-avian",
+      "title": "Bevy 0.19 + Avian feasibility candidate",
+      "status": "verification",
+      "sessionId": "github-pr:105",
+      "branch": "benchmark/001-bevy-avian-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + Rust/headless Bevy",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/bevy-avian/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-bevy-avian-gate"
+      ],
+      "nextSafeAction": "Preserve the native-physics feasibility proof and decide whether the lane earns expansion toward full Phase A.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/bevy-avian/README.md"
+    },
+    {
+      "id": "ws-fyrox",
+      "title": "Fyrox 1.0 native-physics feasibility candidate",
+      "status": "blocked",
+      "sessionId": "github-pr:126",
+      "branch": "benchmark/001-fyrox-physics-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + Rust/headless Fyrox",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/fyrox/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-fyrox-gate-failed"
+      ],
+      "nextSafeAction": "Diagnose the retained exact-head failure without weakening shared constants; rerun before promotion.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/fyrox/README.md"
+    },
+    {
+      "id": "ws-panda3d",
+      "title": "Panda3D 1.10.16 Bullet feasibility candidate",
+      "status": "blocked",
+      "sessionId": "github-pr:129",
+      "branch": "benchmark/001-panda3d-bullet",
+      "base": "main",
+      "environment": "GitHub Actions + Python/Panda3D Bullet",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/panda3d/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-panda3d-gate-failed"
+      ],
+      "nextSafeAction": "Diagnose the retained exact-head failure and preserve the early-stage controller caveat; rerun before promotion.",
+      "sourceUri": null
+    },
+    {
+      "id": "ws-jmonkeyengine",
+      "title": "jMonkeyEngine 3.9 Bullet feasibility candidate",
+      "status": "verification",
+      "sessionId": "github-pr:141",
+      "branch": "benchmark/001-jmonkeyengine-physics-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + Java 17/headless jME Bullet",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/jmonkeyengine/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-jmonkeyengine-gate",
+        "ev-jmonkeyengine-current-jbullet",
+        "ev-jmonkeyengine-minie"
+      ],
+      "nextSafeAction": "Current parent head has exact-head jBullet and modern Minie execution proof. Keep both bounded to physics/toolchain feasibility; external input, rendering, full Phase A, device, and human evidence remain unproved.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/jmonkeyengine/README.md"
+    },
+    {
+      "id": "ws-stride",
+      "title": "Stride 4.3 Bepu feasibility candidate",
+      "status": "verification",
+      "sessionId": "github-pr:164",
+      "branch": "benchmark/001-stride-character-component",
+      "base": "benchmark/001-stride-bepu-tracer",
+      "environment": "GitHub Actions + .NET 10/Stride Bepu",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/stride/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-stride-bepu",
+        "ev-stride-current-bepu-failed",
+        "ev-stride-character-followup-failed"
+      ],
+      "nextSafeAction": "Parent PR #144 retains bounded Bepu feasibility proof. Current stacked PR #164 fails both its rebased Bepu and CharacterComponent gates; repair and rerun without promoting the parent proof into a CharacterComponent or full Phase A claim.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/stride/README.md"
+    },
+    {
+      "id": "ws-libgdx",
+      "title": "libGDX 1.14.2 Bullet feasibility candidate",
+      "status": "verification",
+      "sessionId": "github-pr:147",
+      "branch": "benchmark/001-libgdx-bullet-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + Java 17/libGDX Bullet",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/libgdx/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-libgdx-bullet"
+      ],
+      "nextSafeAction": "Preserve the exact-head native Bullet/toolchain feasibility proof. External input, rendering, browser, full Phase A, device, and human evidence remain unproved.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/libgdx/README.md"
+    },
+    {
+      "id": "ws-lovr",
+      "title": "LÖVR 0.19 Jolt feasibility candidate",
+      "status": "verification",
+      "sessionId": "github-pr:167",
+      "branch": "benchmark/001-lovr-render-input",
+      "base": "benchmark/001-lovr-physics-tracer",
+      "environment": "GitHub Actions + Lua/LÖVR Jolt",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/lovr/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-lovr-physics",
+        "ev-lovr-current-physics",
+        "ev-lovr-render-input-failed"
+      ],
+      "nextSafeAction": "Native Jolt feasibility remains proven, including on current stacked head. The rendered normal-input gate fails; repair it before any input/render/full Phase A promotion.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/lovr/README.md"
+    },
+    {
+      "id": "ws-ezengine",
+      "title": "ezEngine 26.3 Jolt feasibility candidate",
+      "status": "blocked",
+      "sessionId": "github-pr:150",
+      "branch": "benchmark/001-ezengine-jolt-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + C++/ezEngine Jolt",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/ezengine/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-ezengine-gate-failed"
+      ],
+      "nextSafeAction": "Retain the exact-head configuration failure; candidate compile and Jolt runtime did not execute. Repair the environment and rerun before any feasibility promotion.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/ezengine/README.md"
+    },
+    {
+      "id": "ws-wicked-engine",
+      "title": "Wicked Engine 0.72.106 Jolt character feasibility candidate",
+      "status": "blocked",
+      "sessionId": "github-pr:152",
+      "branch": "benchmark/001-wicked-jolt-character-tracer",
+      "base": "main",
+      "environment": "GitHub Actions + C++/Wicked Engine Jolt",
+      "ownedPaths": [
+        "experiments/BYJTT-LAB-001/candidates/wicked-engine/**"
+      ],
+      "avoidedPaths": [
+        "experiments/BYJTT-LAB-001/shared/**"
+      ],
+      "dependencies": [],
+      "evidenceIds": [
+        "ev-wicked-engine-gate-failed"
+      ],
+      "nextSafeAction": "Retain the exact-head candidate failure and rerun only after repair. Repository checks passing on the same head do not promote the native Jolt character gate.",
+      "sourceUri": "experiments/BYJTT-LAB-001/candidates/wicked-engine/README.md"
+    }
   ],
-  "gates":[{"id":"gate-human-playtest","label":"Human gameplay acceptance","kind":"human","status":"blocked","stageId":"human-playtest","evidenceIds":[],"verdict":null}],
-  "agents":[
-    {"id":"pipeline-governor","role":"Pipeline Governor","status":"running","objective":"Keep lifecycle and benchmark promotion evidence-gated while candidate work executes.","stageId":"compare","evidenceIds":[]},
-    {"id":"implementation-team","role":"Runtime implementation workers","status":"running","objective":"Produce comparable implementations without mutating the shared benchmark contract.","stageId":"implement","evidenceIds":["ev-three-phase-a","ev-babylon-phase-a"]},
-    {"id":"qa-critic","role":"QA Critic","status":"running","objective":"Bind browser/runtime claims to exact revisions and preserve unknown device claims.","stageId":"automated-qa","evidenceIds":["ev-three-phase-a","ev-babylon-phase-a"]}
+  "gates": [
+    {
+      "id": "gate-human-playtest",
+      "label": "Human gameplay acceptance",
+      "kind": "human",
+      "status": "blocked",
+      "stageId": "human-playtest",
+      "evidenceIds": [],
+      "verdict": null
+    }
   ],
-  "decisions":[{"id":"decision-benchmark-shape","title":"Use a shared playable contract across multiple serious runtimes","selected":"Comparative benchmark","alternatives":["Pick one engine by reputation","Build a bespoke engine","Compare synthetic microbenchmarks only"],"rationale":"A shared playable slice produces evidence about production efficiency, player-facing quality, performance, deployment reliability, economics and maintainability.","evidenceIds":["ev-preflight","ev-baseline"],"reviewAfter":null}],
-  "evidence":[
-    {"id":"ev-preflight","type":"document","label":"Benchmark 001 candidate preflight","status":"current","uri":"experiments/BYJTT-LAB-001/preflight-2026-08-19.md","revision":"8c261b45deb34d331db58c52b4a7071653e4a2f7","capturedAt":"2026-08-19T00:41:04+01:00"},
-    {"id":"ev-baseline","type":"document","label":"Shared gameplay baseline contract","status":"current","uri":"experiments/BYJTT-LAB-001/shared/contract.json","revision":"1f5dfcedac236524e00082ff00118c782264104b","capturedAt":"2026-08-19T00:41:04+01:00"},
-    {"id":"ev-provenance","type":"provenance","label":"Shared asset provenance ledger","status":"current","uri":"experiments/BYJTT-LAB-001/shared/provenance.json","revision":"1c47fc5c9ea6941dcee9b4146b4fb0f093306084","capturedAt":"2026-08-19T00:41:04+01:00"},
-    {"id":"ev-playcanvas-tracer","type":"test","label":"PlayCanvas tracer browser proof","status":"current","uri":"github-actions:32212343706/artifact/9351178495","revision":"7a486b74748a1fe2d1a9c548b05de4a134d73de5","capturedAt":"2026-08-19T04:30:32+01:00"},
-    {"id":"ev-three-phase-a","type":"benchmark","label":"Three.js/WebGPU Phase A execution","status":"current","uri":"experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md","revision":"integrated-main","capturedAt":"2026-08-19T05:00:00+01:00"},
-    {"id":"ev-babylon-phase-a","type":"benchmark","label":"Babylon.js 13-step hosted-browser execution","status":"current","uri":"github-actions:32213971781/artifact/9351705372","revision":"c7b3115dff72c198c9c4c1c6a4fc4fcb511c96d0","capturedAt":"2026-08-19T04:58:00+01:00"}
+  "agents": [
+    {
+      "id": "pipeline-governor",
+      "role": "Pipeline Governor",
+      "status": "running",
+      "objective": "Keep lifecycle, Studio state and benchmark promotion revision-exact and evidence-gated while candidate work executes.",
+      "stageId": "compare",
+      "evidenceIds": []
+    },
+    {
+      "id": "implementation-team",
+      "role": "Runtime implementation workers",
+      "status": "running",
+      "objective": "Advance execution-backed candidates toward comparable Phase A implementations while preserving failed/blocked lanes and the shared benchmark contract.",
+      "stageId": "implement",
+      "evidenceIds": [
+        "ev-three-phase-a",
+        "ev-babylon-phase-a",
+        "ev-godot-tracer",
+        "ev-playcanvas-ammo-gate",
+        "ev-defold-tracer",
+        "ev-bevy-avian-gate",
+        "ev-jmonkeyengine-gate",
+        "ev-three-current-phase-a",
+        "ev-playcanvas-integrated-ammo",
+        "ev-godot-navigation",
+        "ev-defold-current-tracer",
+        "ev-defold-native-collision",
+        "ev-jmonkeyengine-current-jbullet",
+        "ev-jmonkeyengine-minie",
+        "ev-stride-bepu",
+        "ev-libgdx-bullet",
+        "ev-lovr-physics",
+        "ev-lovr-current-physics"
+      ]
+    },
+    {
+      "id": "qa-critic",
+      "role": "QA Critic",
+      "status": "running",
+      "objective": "Bind execution claims to exact revisions, preserve failed/unknown lanes, and keep bounded, device and human evidence classes separate.",
+      "stageId": "automated-qa",
+      "evidenceIds": [
+        "ev-three-phase-a",
+        "ev-three-jolt-boundary",
+        "ev-babylon-phase-a",
+        "ev-godot-tracer",
+        "ev-playcanvas-ammo-gate",
+        "ev-defold-tracer",
+        "ev-bevy-avian-gate",
+        "ev-jmonkeyengine-gate",
+        "ev-babylon-havok-boundary-failed",
+        "ev-fyrox-gate-failed",
+        "ev-panda3d-gate-failed",
+        "ev-three-current-phase-a",
+        "ev-playcanvas-integrated-ammo",
+        "ev-playcanvas-integrated-ammo-failed",
+        "ev-godot-navigation",
+        "ev-defold-current-tracer",
+        "ev-defold-native-collision",
+        "ev-jmonkeyengine-current-jbullet",
+        "ev-jmonkeyengine-minie",
+        "ev-stride-bepu",
+        "ev-stride-current-bepu-failed",
+        "ev-stride-character-followup-failed",
+        "ev-libgdx-bullet",
+        "ev-lovr-physics",
+        "ev-lovr-current-physics",
+        "ev-lovr-render-input-failed",
+        "ev-ezengine-gate-failed",
+        "ev-wicked-engine-gate-failed"
+      ]
+    }
   ],
-  "builds":[]
+  "decisions": [
+    {
+      "id": "decision-benchmark-shape",
+      "title": "Use a shared playable contract across multiple serious runtimes",
+      "selected": "Comparative benchmark",
+      "alternatives": [
+        "Pick one engine by reputation",
+        "Build a bespoke engine",
+        "Compare synthetic microbenchmarks only"
+      ],
+      "rationale": "A shared playable slice produces evidence about production efficiency, player-facing quality, performance, deployment reliability, economics and maintainability.",
+      "evidenceIds": [
+        "ev-preflight",
+        "ev-baseline"
+      ],
+      "reviewAfter": null
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-preflight",
+      "type": "document",
+      "label": "Benchmark 001 candidate preflight",
+      "status": "current",
+      "uri": "experiments/BYJTT-LAB-001/preflight-2026-08-19.md",
+      "revision": "8c261b45deb34d331db58c52b4a7071653e4a2f7",
+      "capturedAt": "2026-08-19T00:41:04+01:00"
+    },
+    {
+      "id": "ev-baseline",
+      "type": "document",
+      "label": "Shared gameplay baseline contract",
+      "status": "current",
+      "uri": "experiments/BYJTT-LAB-001/shared/contract.json",
+      "revision": "1f5dfcedac236524e00082ff00118c782264104b",
+      "capturedAt": "2026-08-19T00:41:04+01:00"
+    },
+    {
+      "id": "ev-provenance",
+      "type": "provenance",
+      "label": "Shared asset provenance ledger",
+      "status": "current",
+      "uri": "experiments/BYJTT-LAB-001/shared/provenance.json",
+      "revision": "1c47fc5c9ea6941dcee9b4146b4fb0f093306084",
+      "capturedAt": "2026-08-19T00:41:04+01:00"
+    },
+    {
+      "id": "ev-playcanvas-tracer",
+      "type": "test",
+      "label": "PlayCanvas tracer browser proof",
+      "status": "current",
+      "uri": "github-actions:32212343706/artifact/9351178495",
+      "revision": "7a486b74748a1fe2d1a9c548b05de4a134d73de5",
+      "capturedAt": "2026-08-19T04:30:32+01:00"
+    },
+    {
+      "id": "ev-three-phase-a",
+      "type": "benchmark",
+      "label": "Three.js/WebGPU Phase A integrated execution evidence",
+      "status": "current",
+      "uri": "experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md",
+      "revision": "8b08b4f405980bccda6a10e4b98f2856b579e153",
+      "capturedAt": "2026-08-19T05:00:00+01:00"
+    },
+    {
+      "id": "ev-three-jolt-boundary",
+      "type": "test",
+      "label": "Three.js native Jolt boundary follow-up exact-head run",
+      "status": "current",
+      "uri": "github-actions:32321303239/artifact/9389853312",
+      "revision": "540c150a268a0770b773212eda900c1722c2be51",
+      "capturedAt": "2026-08-20T02:32:10+01:00"
+    },
+    {
+      "id": "ev-babylon-phase-a",
+      "type": "benchmark",
+      "label": "Babylon.js Phase A integrated execution evidence",
+      "status": "current",
+      "uri": "experiments/BYJTT-LAB-001/candidates/babylonjs/README.md",
+      "revision": "12ffc37b9b8aeb419de54fc9edcb9789d92f79c0",
+      "capturedAt": "2026-08-19T23:09:34+01:00"
+    },
+    {
+      "id": "ev-godot-tracer",
+      "type": "test",
+      "label": "Godot CharacterBody3D runtime tracer",
+      "status": "current",
+      "uri": "github-actions:32303293888/artifact/9383804553",
+      "revision": "b2be94fecd7e6615b2c161bca0e928b42b00a315",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-playcanvas-ammo-gate",
+      "type": "test",
+      "label": "PlayCanvas native Ammo collision gate",
+      "status": "current",
+      "uri": "github-actions:32308446517/artifact/9385568383",
+      "revision": "36e6f4368e66ecb8e5c3295bebda84baca371f9f",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-defold-tracer",
+      "type": "test",
+      "label": "Defold Bob/HTML5 runtime tracer",
+      "status": "current",
+      "uri": "github-actions:32312785464",
+      "revision": "cc568e7678bc869201380ba5b44a221d25784fe8",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-unity-runtime-blocker",
+      "type": "other",
+      "label": "Unity runtime execution blocked pending licensed editor credentials",
+      "status": "current",
+      "uri": "https://github.com/jordan-thirkle/ai-game-development-pipeline/pull/93",
+      "revision": "519b9cfa855777f4194b854cc202d404f1118744",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-babylon-havok-boundary-failed",
+      "type": "test",
+      "label": "Babylon Havok boundary follow-up exact-head run",
+      "status": "failed",
+      "uri": "github-actions:32320669662",
+      "revision": "b7e7474c7a0e206d1848470bd7df6e9f1a4eab9e",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-bevy-avian-gate",
+      "type": "test",
+      "label": "Bevy 0.19 + Avian native-physics feasibility exact-head run",
+      "status": "current",
+      "uri": "github-actions:32324580718",
+      "revision": "31c7f02175c73f0ba8d2d88f3a051f9a93ef5fbf",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-fyrox-gate-failed",
+      "type": "test",
+      "label": "Fyrox 1.0 native-physics feasibility exact-head run",
+      "status": "failed",
+      "uri": "github-actions:32329381028",
+      "revision": "5e032c47820bf98a3ad8b2e8d51562ab6788a0b3",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-panda3d-gate-failed",
+      "type": "test",
+      "label": "Panda3D 1.10.16 Bullet feasibility exact-head run",
+      "status": "failed",
+      "uri": "github-actions:32329499103",
+      "revision": "45a2bc65ec35a11154505706377f78145b28a214",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-jmonkeyengine-gate",
+      "type": "test",
+      "label": "jMonkeyEngine 3.9 jBullet feasibility exact-head run",
+      "status": "current",
+      "uri": "github-actions:32331622937/artifact/9393214359",
+      "revision": "8437fe22a6b745d9380aac97270cca9560354f75",
+      "capturedAt": "2026-08-20T05:22:24+01:00"
+    },
+    {
+      "id": "ev-three-current-phase-a",
+      "type": "test",
+      "label": "Three.js current PR head shared Phase A execution",
+      "status": "current",
+      "uri": "github-actions:32355185731",
+      "revision": "fb58d56816facd13114c227dd9dbfe9e217655d6",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-playcanvas-integrated-ammo",
+      "type": "test",
+      "label": "PlayCanvas integrated native Ammo exact-head execution",
+      "status": "current",
+      "uri": "github-actions:32368668959",
+      "revision": "013d0ff122bc44318a4a22ab2a6c477a7c9937c2",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-godot-navigation",
+      "type": "test",
+      "label": "Godot native navigation exact-head gate",
+      "status": "current",
+      "uri": "github-actions:32379286346",
+      "revision": "f62469b4c48f803fde7b8baf7b104f3fb172c0fe",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-defold-native-collision",
+      "type": "test",
+      "label": "Defold native 3D collision exact-head gate",
+      "status": "current",
+      "uri": "github-actions:32370456450",
+      "revision": "78049ca4baadc91c1460e0823d1d7503da35b7d7",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-jmonkeyengine-current-jbullet",
+      "type": "test",
+      "label": "jMonkeyEngine current-parent jBullet exact-head gate",
+      "status": "current",
+      "uri": "github-actions:32367817894",
+      "revision": "57c233cb5e0cb09f6dc74cd52f6ee00439104844",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-jmonkeyengine-minie",
+      "type": "test",
+      "label": "jMonkeyEngine modern Minie exact-head gate",
+      "status": "current",
+      "uri": "github-actions:32367817909",
+      "revision": "57c233cb5e0cb09f6dc74cd52f6ee00439104844",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-stride-bepu",
+      "type": "test",
+      "label": "Stride parent-head Bepu backend feasibility gate",
+      "status": "current",
+      "uri": "github-actions:32336127035",
+      "revision": "67f86e861a7cb350c6925de90ba732af1cdaf80f",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-stride-current-bepu-failed",
+      "type": "test",
+      "label": "Stride stacked-head Bepu regression gate",
+      "status": "failed",
+      "uri": "github-actions:32374324138",
+      "revision": "ae16670c92e66c599817a6efdeba61faab25bca3",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-stride-character-followup-failed",
+      "type": "test",
+      "label": "Stride CharacterComponent exact-head gate",
+      "status": "failed",
+      "uri": "github-actions:32374324255",
+      "revision": "ae16670c92e66c599817a6efdeba61faab25bca3",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-libgdx-bullet",
+      "type": "test",
+      "label": "libGDX native Bullet exact-head feasibility gate",
+      "status": "current",
+      "uri": "github-actions:32339169289",
+      "revision": "45b57a680e5f9f750663fea276d9fbd73869cee2",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-lovr-physics",
+      "type": "test",
+      "label": "LÖVR parent-head native Jolt feasibility gate",
+      "status": "current",
+      "uri": "github-actions:32348227013",
+      "revision": "944a72804c83cf5b610bf9a3caab4b73c15a1dd6",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-lovr-current-physics",
+      "type": "test",
+      "label": "LÖVR stacked-head native Jolt regression gate",
+      "status": "current",
+      "uri": "github-actions:32376604479",
+      "revision": "f05ecffe2981bdcec37aeae1396d8aa92d0dfc16",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-lovr-render-input-failed",
+      "type": "test",
+      "label": "LÖVR rendered normal-input exact-head gate",
+      "status": "failed",
+      "uri": "github-actions:32376604460",
+      "revision": "f05ecffe2981bdcec37aeae1396d8aa92d0dfc16",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-ezengine-gate-failed",
+      "type": "test",
+      "label": "ezEngine Jolt exact-head configuration gate",
+      "status": "failed",
+      "uri": "github-actions:32353430080",
+      "revision": "ef46b91ff5d048fd394383e8d52474c6172377c9",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-wicked-engine-gate-failed",
+      "type": "test",
+      "label": "Wicked Engine native Jolt character exact-head gate",
+      "status": "failed",
+      "uri": "github-actions:32365718795",
+      "revision": "46bc04639c6c856250a3c53248d80b1e713efb70",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-playcanvas-integrated-ammo-failed",
+      "type": "test",
+      "label": "PlayCanvas integrated native Ammo same-revision push run",
+      "status": "failed",
+      "uri": "github-actions:32368663875",
+      "revision": "013d0ff122bc44318a4a22ab2a6c477a7c9937c2",
+      "capturedAt": null
+    },
+    {
+      "id": "ev-defold-current-tracer",
+      "type": "test",
+      "label": "Defold current stacked-head runtime tracer",
+      "status": "current",
+      "uri": "github-actions:32370456371",
+      "revision": "78049ca4baadc91c1460e0823d1d7503da35b7d7",
+      "capturedAt": null
+    }
+  ],
+  "builds": []
 }
