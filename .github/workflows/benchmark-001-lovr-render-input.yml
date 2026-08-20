@@ -80,12 +80,13 @@ jobs:
           ARTIFACTS=artifacts/render-input-gate
           Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp > "$ARTIFACTS/xvfb.log" 2>&1 &
           XVFB_PID=$!
-          trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT
+          trap 'xdotool keyup d 2>/dev/null || true; kill "$XVFB_PID" 2>/dev/null || true' EXIT
           sleep 1
 
           LOVR_BIN="$(cat "$ARTIFACTS/lovr-binary-path.txt")"
           "$LOVR_BIN" . > "$ARTIFACTS/runtime.log" 2>&1 &
           LOVR_PID=$!
+          echo "$LOVR_PID" | tee "$ARTIFACTS/lovr-pid.txt"
 
           READY=0
           for _ in $(seq 1 120); do
@@ -97,18 +98,26 @@ jobs:
 
           WINDOW_ID=''
           for _ in $(seq 1 120); do
-            WINDOW_ID="$(xdotool search --name 'BYJTT LÖVR Render Input Gate' 2>/dev/null | head -n 1 || true)"
+            WINDOW_ID="$(xdotool search --pid "$LOVR_PID" 2>/dev/null | head -n 1 || true)"
+            if [ -z "$WINDOW_ID" ]; then
+              WINDOW_ID="$(xdotool search --name 'BYJTT LÖVR Render Input Gate' 2>/dev/null | head -n 1 || true)"
+            fi
             if [ -n "$WINDOW_ID" ]; then break; fi
             if ! kill -0 "$LOVR_PID" 2>/dev/null; then cat "$ARTIFACTS/runtime.log"; exit 1; fi
             sleep .1
           done
-          test -n "$WINDOW_ID"
+          if [ -z "$WINDOW_ID" ]; then
+            xdotool search --name '.*' 2>/dev/null | tee "$ARTIFACTS/all-window-ids.txt" || true
+            cat "$ARTIFACTS/runtime.log"
+            exit 1
+          fi
           echo "$WINDOW_ID" | tee "$ARTIFACTS/window-id.txt"
+          xdotool getwindowname "$WINDOW_ID" | tee "$ARTIFACTS/window-name.txt"
           xdotool windowfocus --sync "$WINDOW_ID"
-          xdotool keydown --window "$WINDOW_ID" d
+          xdotool keydown d
           sleep 5
           import -display "$DISPLAY" -window "$WINDOW_ID" "$ARTIFACTS/rendered-window.png"
-          xdotool keyup --window "$WINDOW_ID" d
+          xdotool keyup d
 
           set +e
           wait "$LOVR_PID"
