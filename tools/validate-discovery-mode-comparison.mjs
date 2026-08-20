@@ -1,17 +1,28 @@
 import { readFile } from 'node:fs/promises';
 
 const comparisonPath = process.argv[2] ?? 'examples/creator-mode/discovery-comparison-001.json';
+const schemaPath = 'schemas/discovery-mode-comparison.schema.json';
 const allowPersistedOrPendingWorker = process.argv.includes('--allow-pending-worker');
 const workerFlagIndex = process.argv.indexOf('--worker-result');
 const workerPath = workerFlagIndex >= 0 ? process.argv[workerFlagIndex + 1] : null;
 
 const comparison = JSON.parse(await readFile(comparisonPath, 'utf8'));
+const schema = JSON.parse(await readFile(schemaPath, 'utf8'));
 const errors = [];
 const SHA40 = /^[0-9a-f]{40}$/;
 const ZERO_SHA = /^0{40}$/;
+const modeSchemaKeys = new Set(Object.keys(schema.$defs?.modeResult?.properties ?? {}));
+const candidateSchemaKeys = new Set(Object.keys(schema.$defs?.candidate?.properties ?? {}));
 
 function assert(condition, message) {
   if (!condition) errors.push(message);
+}
+
+function assertOnlySchemaKeys(value, allowed, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  for (const key of Object.keys(value)) {
+    assert(allowed.has(key), `${label} field ${key} is emitted but absent from JSON Schema`);
+  }
 }
 
 function looksLikeGenericIndex(repository) {
@@ -28,6 +39,7 @@ function looksLikeGenericIndex(repository) {
 function validateCandidate(candidate, owner) {
   assert(candidate && typeof candidate === 'object', `${owner} candidate must be an object`);
   if (!candidate || typeof candidate !== 'object') return;
+  assertOnlySchemaKeys(candidate, candidateSchemaKeys, `${owner} candidate ${candidate.candidate_id ?? '<unknown>'}`);
   assert(typeof candidate.candidate_id === 'string' && candidate.candidate_id.length > 0, `${owner} candidate_id is required`);
   assert(typeof candidate.repository === 'string' && candidate.repository.includes('/'), `${owner} ${candidate.candidate_id} repository must be owner/name`);
   assert(typeof candidate.revision === 'string' && SHA40.test(candidate.revision), `${owner} ${candidate.candidate_id} revision must be an exact 40-character Git SHA`);
@@ -65,6 +77,8 @@ function recompute(mode) {
   };
 }
 
+assert(modeSchemaKeys.size > 0, 'modeResult schema properties must exist');
+assert(candidateSchemaKeys.size > 0, 'candidate schema properties must exist');
 assert(comparison.schema_version === '1.0.0', 'schema_version must remain 1.0.0');
 assert(comparison.comparison_id === 'DISCOVERY-COMPARISON-001', 'comparison_id must remain DISCOVERY-COMPARISON-001');
 assert(comparison.brief?.title === 'Mobile co-op survival-builder', 'comparison brief must remain frozen to Mobile co-op survival-builder');
@@ -72,6 +86,7 @@ assert(Array.isArray(comparison.capabilities) && comparison.capabilities.length 
 assert(new Set(comparison.capabilities ?? []).size === 12, 'comparison capabilities must be unique');
 
 const baseline = comparison.interactive_baseline;
+assertOnlySchemaKeys(baseline, modeSchemaKeys, 'interactive_baseline');
 assert(baseline?.mode === 'interactive_manual_agent', 'interactive baseline mode must be interactive_manual_agent');
 assert(baseline?.measurement_status === 'action_counts_only', 'interactive baseline must remain action_counts_only');
 assert(baseline?.search_actions === 17, 'interactive baseline search_actions must remain frozen at 17');
@@ -85,6 +100,7 @@ assert(baseline.capability_candidate_coverage_pct === baselineMetrics.coveragePc
 assert(baseline.fully_cleared_capability_coverage_pct === baselineMetrics.clearedCoveragePct, `interactive baseline fully_cleared_capability_coverage_pct must equal recomputed ${baselineMetrics.clearedCoveragePct}`);
 
 function validateWorker(worker, label, requireRuntimeTelemetry = false) {
+  assertOnlySchemaKeys(worker, modeSchemaKeys, label);
   assert(worker?.mode === 'bounded_discovery_worker', `${label} mode must be bounded_discovery_worker`);
   assert(worker?.measurement_status === 'instrumented', `${label} must be instrumented`);
   assert(Number.isInteger(worker?.search_actions) && worker.search_actions === 12, `${label} must execute exactly 12 capability searches`);
@@ -93,8 +109,13 @@ function validateWorker(worker, label, requireRuntimeTelemetry = false) {
   assert(worker?.unsafe_promotions === 0, `${label} must report zero unsafe promotions`);
   assert(typeof worker?.elapsed_minutes === 'number' && worker.elapsed_minutes >= 0, `${label} elapsed_minutes must be instrumented`);
   if (requireRuntimeTelemetry) {
+    assert(typeof worker.started_at === 'string' && worker.started_at.length > 0, `${label} must report started_at`);
+    assert(typeof worker.ended_at === 'string' && worker.ended_at.length > 0, `${label} must report ended_at`);
     assert(Number.isInteger(worker.search_hits_seen) && worker.search_hits_seen >= worker.candidate_count, `${label} must report search_hits_seen`);
     assert(Number.isInteger(worker.rejected_search_hits) && worker.rejected_search_hits >= 0, `${label} must report rejected_search_hits`);
+    assert(Number.isInteger(worker.duplicate_selections_filtered) && worker.duplicate_selections_filtered >= 0, `${label} must report duplicate_selections_filtered`);
+    assert(Array.isArray(worker.query_log) && worker.query_log.length === 12, `${label} must report exactly 12 query_log entries`);
+    assert(worker.per_capability && typeof worker.per_capability === 'object' && !Array.isArray(worker.per_capability), `${label} must report per_capability mapping`);
   }
   for (const candidate of worker?.queue ?? []) validateCandidate(candidate, label);
   const metrics = recompute(worker ?? {});
@@ -115,6 +136,7 @@ const persistedWorker = comparison.bounded_worker;
 assert(persistedWorker?.mode === 'bounded_discovery_worker', 'bounded worker mode must be bounded_discovery_worker');
 if (allowPersistedOrPendingWorker) {
   if (persistedWorker.measurement_status === 'pending') {
+    assertOnlySchemaKeys(persistedWorker, modeSchemaKeys, 'bounded_worker_pending');
     assert((persistedWorker.queue ?? []).length === 0, 'pending bounded worker queue must be empty');
   } else {
     validateWorker(persistedWorker, 'bounded_worker_persisted', false);
@@ -136,4 +158,4 @@ if (errors.length) {
 }
 
 const persistedState = persistedWorker?.measurement_status ?? 'missing';
-console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; persisted_worker=${persistedState}; fresh_worker=${workerPath ? 'validated against >=25% efficiency + coverage parity gates' : 'not requested'}; continuous/public deployment gates remain closed.`);
+console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; persisted_worker=${persistedState}; fresh_worker=${workerPath ? 'validated against schema-key + >=25% efficiency + coverage parity gates' : 'not requested'}; continuous/public deployment gates remain closed.`);
