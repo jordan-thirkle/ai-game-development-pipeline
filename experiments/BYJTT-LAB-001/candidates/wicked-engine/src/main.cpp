@@ -19,8 +19,9 @@ constexpr int kDrivenSteps = 300;
 constexpr int kReleasedSteps = 60;
 constexpr float kPlayerRadius = 0.4f;
 constexpr float kPlayerCylinderHalfHeight = 0.5f;
-constexpr float kWallThickness = 0.5f;
 constexpr float kExpectedEastCeiling = kArenaWidth * 0.5f - kPlayerRadius;
+constexpr float kCharacterMass = 80.0f;
+constexpr float kCharacterFriction = 0.2f;
 
 struct Observation {
   float x;
@@ -84,8 +85,10 @@ int main(int argc, char** argv) {
 
   auto& player = scene.rigidbodies.Create(player_entity);
   player.shape = wi::scene::RigidBodyPhysicsComponent::CAPSULE;
-  player.mass = 1.0f;
-  player.friction = 0.0f;
+  // Match Jolt CharacterSettings' production defaults rather than creating a
+  // 1 kg frictionless character that is atypical for the solved controller.
+  player.mass = kCharacterMass;
+  player.friction = kCharacterFriction;
   player.restitution = 0.0f;
   player.capsule.radius = kPlayerRadius;
   player.capsule.height = kPlayerCylinderHalfHeight;
@@ -100,10 +103,6 @@ int main(int argc, char** argv) {
   float max_x = start.x;
 
   for (int i = 0; i < kDrivenSteps; ++i) {
-    // Keep horizontal control enabled through transient non-supported character
-    // states (for example, while pressing against a wall). Wicked Engine's
-    // native controller exposes this as its normal MoveCharacter option; this
-    // avoids leaving a stale velocity active when ground support changes.
     wi::physics::MoveCharacter(
         player,
         XMFLOAT3(1.0f, 0.0f, 0.0f),
@@ -159,6 +158,8 @@ int main(int argc, char** argv) {
   out << "  \"arena_width_m\": " << kArenaWidth << ",\n";
   out << "  \"arena_depth_m\": " << kArenaDepth << ",\n";
   out << "  \"walk_speed_mps\": " << kWalkSpeed << ",\n";
+  out << "  \"character_mass_kg\": " << kCharacterMass << ",\n";
+  out << "  \"character_friction\": " << kCharacterFriction << ",\n";
   out << "  \"fixed_dt_s\": " << kFixedDt << ",\n";
   out << "  \"driven_steps\": " << kDrivenSteps << ",\n";
   out << "  \"released_steps\": " << kReleasedSteps << ",\n";
