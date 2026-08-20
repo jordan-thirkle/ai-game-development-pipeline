@@ -11,51 +11,32 @@ const allowedAdoption = new Set(['drop_in_candidate', 'component_candidate', 'as
 const allowedLicenceClasses = new Set(['permissive', 'copyleft', 'public_domain', 'mixed', 'unknown']);
 const allowedCommercial = new Set(['allowed_with_conditions', 'blocked_for_drop_in', 'per_item_review_required']);
 const allowedBoundary = new Set(['single_code_licence_reviewed', 'single_asset_licence_reviewed', 'code_and_assets_separated', 'mixed_requires_per_item_review']);
+const allowedClearance = new Set(['cleared', 'requires_review', 'not_applicable']);
 const allowedMaintenance = new Set(['active', 'stable', 'static_mature', 'stale', 'unknown']);
 const allowedEffort = new Set(['low', 'medium', 'high', 'reference_only']);
 const allowedRisk = new Set(['low', 'medium', 'high', 'unknown']);
 const requiredWeights = ['task_fit', 'maintenance', 'licence_provenance', 'integration_cost', 'docs_tests', 'platform_fit', 'popularity'];
 
-function nonEmpty(value) {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
+function nonEmpty(value) { return typeof value === 'string' && value.trim().length > 0; }
 function validTimestamp(value) {
   if (!nonEmpty(value)) return false;
   const m = value.match(timestampPattern);
   if (!m) return false;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  const hour = Number(m[4]);
-  const minute = Number(m[5]);
-  const second = Number(m[6]);
+  const year = Number(m[1]); const month = Number(m[2]); const day = Number(m[3]);
+  const hour = Number(m[4]); const minute = Number(m[5]); const second = Number(m[6]);
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const dim = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return month >= 1 && month <= 12 && day >= 1 && day <= dim[month - 1] && hour <= 23 && minute <= 59 && second <= 59 && !Number.isNaN(Date.parse(value));
 }
-
 function validTimezone(value) {
   if (!nonEmpty(value)) return false;
-  try {
-    new Intl.DateTimeFormat('en-GB', { timeZone: value }).format(new Date(0));
-    return true;
-  } catch {
-    return false;
-  }
+  try { new Intl.DateTimeFormat('en-GB', { timeZone: value }).format(new Date(0)); return true; } catch { return false; }
 }
-
-function requireEnum(value, allowed, label) {
-  if (!allowed.has(value)) failures.push(`${label} has unsupported value: ${String(value)}`);
-}
+function requireEnum(value, allowed, label) { if (!allowed.has(value)) failures.push(`${label} has unsupported value: ${String(value)}`); }
 
 let registry;
-try {
-  registry = JSON.parse(await readFile(path, 'utf8'));
-} catch (error) {
-  console.error(`Unable to read reuse registry ${path}: ${error.message}`);
-  process.exit(1);
-}
+try { registry = JSON.parse(await readFile(path, 'utf8')); }
+catch (error) { console.error(`Unable to read reuse registry ${path}: ${error.message}`); process.exit(1); }
 
 if (registry?.schema_version !== '1.0.0') failures.push('schema_version must be 1.0.0');
 if (!validTimestamp(registry?.last_verified_at)) failures.push('last_verified_at must be a calendar-valid offset-aware RFC3339 timestamp');
@@ -66,34 +47,25 @@ if (registry?.policy?.code_and_asset_licences_are_separate !== true) failures.pu
 if (!Number.isInteger(registry?.policy?.rechallenge_days) || registry.policy.rechallenge_days < 1 || registry.policy.rechallenge_days > 365) failures.push('policy.rechallenge_days must be an integer from 1 to 365');
 
 const weights = registry?.policy?.ranking_weights;
-if (!weights || typeof weights !== 'object' || Array.isArray(weights)) {
-  failures.push('policy.ranking_weights must be an object');
-} else {
-  for (const key of requiredWeights) {
-    if (!Number.isInteger(weights[key]) || weights[key] < 0 || weights[key] > 100) failures.push(`policy.ranking_weights.${key} must be an integer from 0 to 100`);
-  }
+if (!weights || typeof weights !== 'object' || Array.isArray(weights)) failures.push('policy.ranking_weights must be an object');
+else {
+  for (const key of requiredWeights) if (!Number.isInteger(weights[key]) || weights[key] < 0 || weights[key] > 100) failures.push(`policy.ranking_weights.${key} must be an integer from 0 to 100`);
   if (requiredWeights.every((key) => Number.isInteger(weights[key])) && requiredWeights.reduce((sum, key) => sum + weights[key], 0) !== 100) failures.push('policy.ranking_weights must total 100');
   if (Number.isInteger(weights.popularity) && weights.popularity > 10) failures.push('policy.ranking_weights.popularity must be <= 10 because popularity is only a soft discovery signal');
 }
 
 if (!Array.isArray(registry?.entries) || registry.entries.length < 6) failures.push('entries must contain at least six seed records');
-
 const ids = new Set();
 for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
-  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-    failures.push('entry records must be objects');
-    continue;
-  }
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { failures.push('entry records must be objects'); continue; }
   const id = entry.entry_id ?? '<missing>';
-  for (const field of ['entry_id', 'name', 'canonical_url', 'source_type', 'source_revision_status', 'version_or_revision', 'last_verified_at', 'evidence_status', 'adoption_status', 'notes']) {
-    if (!nonEmpty(entry[field])) failures.push(`${id} requires non-empty ${field}`);
-  }
-  if (ids.has(entry.entry_id)) failures.push(`duplicate entry_id: ${entry.entry_id}`);
-  ids.add(entry.entry_id);
+  for (const field of ['entry_id','name','canonical_url','source_type','source_revision_status','version_or_revision','last_verified_at','evidence_status','adoption_status','dependency_clearance_status','notes']) if (!nonEmpty(entry[field])) failures.push(`${id} requires non-empty ${field}`);
+  if (ids.has(entry.entry_id)) failures.push(`duplicate entry_id: ${entry.entry_id}`); ids.add(entry.entry_id);
   requireEnum(entry.category, allowedCategories, `${id}.category`);
   requireEnum(entry.source_type, allowedSourceTypes, `${id}.source_type`);
   requireEnum(entry.source_revision_status, allowedRevisionStates, `${id}.source_revision_status`);
   requireEnum(entry.adoption_status, allowedAdoption, `${id}.adoption_status`);
+  requireEnum(entry.dependency_clearance_status, allowedClearance, `${id}.dependency_clearance_status`);
   if (entry.evidence_status !== 'SOURCE-VERIFIED') failures.push(`${id}.evidence_status must remain SOURCE-VERIFIED until separate execution evidence exists`);
   if (!validTimestamp(entry.last_verified_at)) failures.push(`${id}.last_verified_at must be calendar-valid RFC3339`);
 
@@ -104,21 +76,19 @@ for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
   }
 
   const licensing = entry.licensing;
-  if (!licensing || typeof licensing !== 'object' || Array.isArray(licensing)) {
-    failures.push(`${id}.licensing must be an object`);
-  } else {
-    for (const field of ['code_license', 'asset_license', 'license_class', 'boundary_status', 'commercial_use_status']) {
-      if (!nonEmpty(licensing[field])) failures.push(`${id}.licensing.${field} is required`);
-    }
+  if (!licensing || typeof licensing !== 'object' || Array.isArray(licensing)) failures.push(`${id}.licensing must be an object`);
+  else {
+    for (const field of ['code_license','asset_license','license_class','boundary_status','commercial_use_status','code_clearance_status','asset_clearance_status']) if (!nonEmpty(licensing[field])) failures.push(`${id}.licensing.${field} is required`);
     requireEnum(licensing.license_class, allowedLicenceClasses, `${id}.licensing.license_class`);
     requireEnum(licensing.boundary_status, allowedBoundary, `${id}.licensing.boundary_status`);
     requireEnum(licensing.commercial_use_status, allowedCommercial, `${id}.licensing.commercial_use_status`);
+    requireEnum(licensing.code_clearance_status, allowedClearance, `${id}.licensing.code_clearance_status`);
+    requireEnum(licensing.asset_clearance_status, allowedClearance, `${id}.licensing.asset_clearance_status`);
   }
 
   const fit = entry.fit;
-  if (!fit || typeof fit !== 'object' || Array.isArray(fit)) {
-    failures.push(`${id}.fit must be an object`);
-  } else {
+  if (!fit || typeof fit !== 'object' || Array.isArray(fit)) failures.push(`${id}.fit must be an object`);
+  else {
     if (!nonEmpty(fit.engine_or_stack)) failures.push(`${id}.fit.engine_or_stack is required`);
     if (!Array.isArray(fit.platforms) || fit.platforms.length === 0 || fit.platforms.some((p) => !nonEmpty(p))) failures.push(`${id}.fit.platforms requires non-empty strings`);
     requireEnum(fit.maintenance_signal, allowedMaintenance, `${id}.fit.maintenance_signal`);
@@ -126,54 +96,42 @@ for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
   }
 
   const risk = entry.risk;
-  if (!risk || typeof risk !== 'object' || Array.isArray(risk)) {
-    failures.push(`${id}.risk must be an object`);
-  } else {
-    requireEnum(risk.dependency_burden, allowedRisk, `${id}.risk.dependency_burden`);
-    requireEnum(risk.supply_chain, allowedRisk, `${id}.risk.supply_chain`);
-    requireEnum(risk.licence, allowedRisk, `${id}.risk.licence`);
-  }
+  if (!risk || typeof risk !== 'object' || Array.isArray(risk)) failures.push(`${id}.risk must be an object`);
+  else { requireEnum(risk.dependency_burden, allowedRisk, `${id}.risk.dependency_burden`); requireEnum(risk.supply_chain, allowedRisk, `${id}.risk.supply_chain`); requireEnum(risk.licence, allowedRisk, `${id}.risk.licence`); }
 
   const popularity = entry.popularity_snapshot;
-  if (!popularity || typeof popularity !== 'object' || Array.isArray(popularity)) {
-    failures.push(`${id}.popularity_snapshot must be an object`);
-  } else {
-    for (const field of ['stars', 'forks']) {
-      if (popularity[field] !== null && (!Number.isInteger(popularity[field]) || popularity[field] < 0)) failures.push(`${id}.popularity_snapshot.${field} must be null or a non-negative integer`);
-    }
+  if (!popularity || typeof popularity !== 'object' || Array.isArray(popularity)) failures.push(`${id}.popularity_snapshot must be an object`);
+  else {
+    for (const field of ['stars','forks']) if (popularity[field] !== null && (!Number.isInteger(popularity[field]) || popularity[field] < 0)) failures.push(`${id}.popularity_snapshot.${field} must be null or a non-negative integer`);
     if (!validTimestamp(popularity.observed_at)) failures.push(`${id}.popularity_snapshot.observed_at must be calendar-valid RFC3339`);
   }
 
   if (entry.adoption_status === 'drop_in_candidate') {
     if (licensing?.commercial_use_status !== 'allowed_with_conditions') failures.push(`${id} drop_in_candidate requires commercial_use_status=allowed_with_conditions`);
-    if (!['permissive', 'public_domain'].includes(licensing?.license_class)) failures.push(`${id} drop_in_candidate requires permissive or public_domain licence class`);
+    if (!['permissive','public_domain'].includes(licensing?.license_class)) failures.push(`${id} drop_in_candidate requires permissive or public_domain licence class`);
     if (licensing?.boundary_status === 'mixed_requires_per_item_review') failures.push(`${id} drop_in_candidate cannot have unresolved mixed licence boundaries`);
+    if (licensing?.code_clearance_status !== 'cleared') failures.push(`${id} drop_in_candidate requires cleared code licence`);
+    if (!['cleared','not_applicable'].includes(licensing?.asset_clearance_status)) failures.push(`${id} drop_in_candidate requires cleared or not_applicable asset licence`);
+    if (!['cleared','not_applicable'].includes(entry.dependency_clearance_status)) failures.push(`${id} drop_in_candidate requires cleared or not_applicable dependency licences`);
   }
 
   if (entry.adoption_status === 'component_candidate') {
     if (licensing?.commercial_use_status === 'blocked_for_drop_in') failures.push(`${id} component_candidate cannot be commercially blocked`);
-    if (licensing?.license_class === 'copyleft') failures.push(`${id} component_candidate cannot silently carry strong copyleft`);
+    if (!['permissive','public_domain'].includes(licensing?.license_class)) failures.push(`${id} component_candidate requires permissive or public_domain code licence class`);
+    if (licensing?.code_clearance_status !== 'cleared') failures.push(`${id} component_candidate requires cleared code licence`);
   }
 
   if (entry.adoption_status === 'asset_source_candidate') {
-    if (!['public_domain', 'permissive'].includes(licensing?.license_class)) failures.push(`${id} asset_source_candidate requires public_domain or permissive licence class`);
+    if (!['public_domain','permissive'].includes(licensing?.license_class)) failures.push(`${id} asset_source_candidate requires public_domain or permissive licence class`);
     if (licensing?.commercial_use_status !== 'allowed_with_conditions') failures.push(`${id} asset_source_candidate requires reviewed commercial-use status`);
+    if (licensing?.asset_clearance_status !== 'cleared') failures.push(`${id} asset_source_candidate requires cleared asset licence`);
   }
-
   if (entry.adoption_status === 'asset_discovery_candidate' && entry.category !== 'asset_discovery') failures.push(`${id} asset_discovery_candidate must use category asset_discovery`);
   if (entry.adoption_status === 'discovery_source' && entry.category !== 'discovery_index') failures.push(`${id} discovery_source must use category discovery_index`);
-  if (['copyleft', 'mixed', 'unknown'].includes(licensing?.license_class) && entry.adoption_status === 'drop_in_candidate') failures.push(`${id} copyleft/mixed/unknown licence cannot be silently promoted to drop_in_candidate`);
 }
 
 const categories = new Set((registry?.entries ?? []).map((entry) => entry?.category));
-for (const required of ['official_template_collection', 'starter_kit', 'whole_game_reference', 'mechanic_framework', 'asset_library', 'asset_discovery', 'discovery_index']) {
-  if (!categories.has(required)) failures.push(`seed registry must cover category: ${required}`);
-}
+for (const required of ['official_template_collection','starter_kit','whole_game_reference','mechanic_framework','asset_library','asset_discovery','discovery_index']) if (!categories.has(required)) failures.push(`seed registry must cover category: ${required}`);
 
-if (failures.length > 0) {
-  console.error('External open-source/game-reuse registry validation failed:\n');
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
-
+if (failures.length > 0) { console.error('External open-source/game-reuse registry validation failed:\n'); for (const failure of failures) console.error(`- ${failure}`); process.exit(1); }
 console.log(`External reuse registry valid: ${registry.entries.length} entries across ${categories.size} categories; popularity weight=${weights.popularity}%.`);
