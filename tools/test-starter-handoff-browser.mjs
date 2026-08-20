@@ -40,6 +40,7 @@ try {
   await cp(resolve(repositoryRoot, 'examples/sample-game'), projectDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
   await mkdir(extractedDir, { recursive: true });
+  const manifest = JSON.parse(await readFile(resolve(projectDir, 'project.manifest.json'), 'utf8'));
 
   const build = await execFile(process.execPath, ['build.mjs'], { cwd: projectDir });
   assert.match(build.stdout, /built /);
@@ -47,7 +48,7 @@ try {
   assert.match(qa.stdout, /QA passed/);
   await writeFile(resolve(outputDir, 'release-candidate.json'), JSON.stringify({ dryRunOnly: true, dogfood: 'starter-handoff-browser' }, null, 2) + '\n');
 
-  const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'harbour-run' });
+  const bundle = await createStudioBundle({ projectDir, outputDir, projectId: manifest.projectId });
   const entries = readTarEntries(bundle.bytes);
   for (const name of ['START_HERE.html', 'starter/dist/index.html']) {
     const body = entries.get(name);
@@ -73,7 +74,7 @@ try {
   await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/starter/dist/index.html'));
   await page.waitForSelector('#game');
   assert.equal(await page.locator('#game').isVisible(), true, 'verified starter canvas did not become visible');
-  assert.match(await page.locator('.hud').textContent(), /Harbour Run/);
+  assert.match(await page.locator('.hud').textContent(), new RegExp(manifest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(await page.locator('#status').textContent(), /Ready to play/);
   assert.deepEqual(externalRequests, [], `offline handoff attempted network access: ${externalRequests.join(', ')}`);
   assert.deepEqual(consoleErrors, [], `offline handoff emitted browser errors: ${consoleErrors.join('; ')}`);
@@ -85,6 +86,8 @@ try {
   const evidence = {
     status: 'pass',
     sample: 'examples/sample-game',
+    projectId: manifest.projectId,
+    projectName: manifest.name,
     startEntry: 'START_HERE.html',
     verifiedPlayableEntry: 'starter/dist/index.html',
     browser: 'chrome',
