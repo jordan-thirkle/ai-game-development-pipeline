@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { resolve } from 'node:path';
-import { createStudioServer, executeSampleRun } from './studio-server.mjs';
+import { createStudioServer, disposeSampleRun, executeSampleRun } from './studio-server.mjs';
 
 async function withServer(options, callback) {
   const server = createStudioServer(options);
@@ -60,19 +60,36 @@ test('capabilities disclose the fail-closed publishing boundary', async () => {
 
 test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt', async () => {
   const result = await executeSampleRun();
-  assert.equal(result.status, 'pass');
-  assert.equal(result.evidence.intake.validation.status, 'pass');
-  assert.equal(result.evidence.registry.entries.length > 0, true);
-  assert.equal(result.evidence.build.executed, true);
-  assert.equal(result.evidence.build.status, 'pass');
-  assert.equal(result.evidence.qa.executed, true);
-  assert.equal(result.evidence.qa.status, 'pass');
-  assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
-  assert.deepEqual(result.safety, {
-    dryRun: true,
-    publicationExecuted: false,
-    secretsUsed: false,
-    destination: { kind: 'local', target: 'local://planned/sample-game' }
+  try {
+    assert.equal(result.status, 'pass');
+    assert.equal(result.evidence.intake.validation.status, 'pass');
+    assert.equal(result.evidence.registry.entries.length > 0, true);
+    assert.equal(result.evidence.build.executed, true);
+    assert.equal(result.evidence.build.status, 'pass');
+    assert.equal(result.evidence.qa.executed, true);
+    assert.equal(result.evidence.qa.status, 'pass');
+    assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
+    assert.deepEqual(result.playable, { launchUrl: '/play/sample/', artifactSha256: result.evidence.build.artifactSha256 });
+    assert.deepEqual(result.safety, {
+      dryRun: true,
+      publicationExecuted: false,
+      secretsUsed: false,
+      destination: { kind: 'local', target: 'local://planned/sample-game' }
+    });
+  } finally { await disposeSampleRun(result); }
+});
+
+test('a passing run exposes its exact playable artifact only through the local play route', async () => {
+  await withServer({}, async (base) => {
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+    const run = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(run.status, 201);
+    const result = await run.json();
+    assert.equal(result.playable.launchUrl, '/play/sample/');
+    const playable = await fetch(`${base}${result.playable.launchUrl}`);
+    assert.equal(playable.status, 200);
+    assert.match(await playable.text(), /<canvas id="game">/);
+    assert.equal((await fetch(`${base}/play/sample/../../../../etc/passwd`)).status, 404);
   });
 });
 

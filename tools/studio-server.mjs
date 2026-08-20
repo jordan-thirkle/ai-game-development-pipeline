@@ -9,6 +9,8 @@ import { runPipeline, scaffoldSampleProject } from './run-pipeline.mjs';
 
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOOPBACK_HOST = '127.0.0.1';
+const PLAYABLE_ROUTE = '/play/sample/';
+const RUNTIME = Symbol('studio-runtime');
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -42,13 +44,14 @@ async function readEvidence(outputDir) {
 
 export async function executeSampleRun({ run = runPipeline, scaffold = scaffoldSampleProject } = {}) {
   const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-studio-'));
+  let preserveWorkspace = false;
   try {
     const projectDir = resolve(workspace, 'sample-game');
     const outputDir = resolve(workspace, 'evidence');
     await scaffold(projectDir);
     const result = await run({ projectDir, outputDir, dryRun: true });
     const evidence = await readEvidence(outputDir);
-    return {
+    const response = {
       status: result.status,
       error: result.status === 'pass' ? null : result.record?.summary || 'Pipeline evidence did not pass.',
       safety: evidence.publishing ? {
@@ -57,11 +60,33 @@ export async function executeSampleRun({ run = runPipeline, scaffold = scaffoldS
         secretsUsed: evidence.publishing.secretsUsed,
         destination: evidence.publishing.destination
       } : null,
-      evidence
+      evidence,
+      playable: result.status === 'pass' ? { launchUrl: PLAYABLE_ROUTE, artifactSha256: evidence.build?.artifactSha256 } : null
     };
+    if (result.status === 'pass') {
+      preserveWorkspace = true;
+      Object.defineProperty(response, RUNTIME, { value: { playableDir: resolve(projectDir, 'dist'), cleanup: () => rm(workspace, { recursive: true, force: true }) } });
+    }
+    return response;
   } finally {
-    await rm(workspace, { recursive: true, force: true });
+    if (!preserveWorkspace) await rm(workspace, { recursive: true, force: true });
   }
+}
+
+export async function disposeSampleRun(result) {
+  await result?.[RUNTIME]?.cleanup?.();
+}
+
+async function playableFileFor(url, playableDir) {
+  if (!playableDir) return null;
+  const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
+  if (!pathname.startsWith(PLAYABLE_ROUTE)) return null;
+  const relative = pathname.slice(PLAYABLE_ROUTE.length) || 'index.html';
+  const root = await realpath(playableDir);
+  let file;
+  try { file = await realpath(resolve(root, relative)); } catch { return null; }
+  if (file !== root && !file.startsWith(`${root}${sep}`)) return null;
+  return file;
 }
 
 async function staticFileFor(url) {
@@ -83,7 +108,8 @@ async function staticFileFor(url) {
 
 export function createStudioServer({ execute = executeSampleRun } = {}) {
   let running = false;
-  return createServer(async (request, response) => {
+  let latestRuntime = null;
+  const server = createServer(async (request, response) => {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
@@ -101,13 +127,17 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         running = true;
         try {
           const result = await execute();
+          if (result.status === 'pass' && result[RUNTIME]) {
+            await latestRuntime?.cleanup?.();
+            latestRuntime = result[RUNTIME];
+          }
           return sendJson(response, result.status === 'pass' ? 201 : 422, result);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
         finally { running = false; }
       }
       if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
-      const file = await staticFileFor(request.url);
+      const file = await playableFileFor(request.url, latestRuntime?.playableDir) || await staticFileFor(request.url);
       if (!file) return sendJson(response, 404, { error: 'Not found' });
       const body = await readFile(file);
       response.writeHead(200, { 'content-type': MIME.get(extname(file)) || 'application/octet-stream', 'cache-control': 'no-store' });
@@ -116,6 +146,8 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
       sendJson(response, 500, { error: error?.message || 'Studio service failed.' });
     }
   });
+  server.once('close', () => { void latestRuntime?.cleanup?.(); });
+  return server;
 }
 
 export async function startStudioServer({ port = 4173 } = {}) {
