@@ -44,6 +44,9 @@ AddWall(simulation, new Vector3(0f, 2f, -16.25f), new Vector3(ArenaWidth + 0.5f,
 var capsule = new Capsule(PlayerRadius, PlayerCylinderLength);
 var capsuleShape = simulation.Shapes.Add(capsule);
 var inertia = capsule.ComputeInertia(1f);
+// A character capsule must remain upright. Bepu documents zero inverse angular inertia
+// as the supported way to lock rotation while retaining nonzero inverse mass.
+inertia.InverseInertiaTensor = default;
 var bodyHandle = simulation.Bodies.Add(BodyDescription.CreateDynamic(
     new Vector3(0f, PlayerRadius + PlayerCylinderLength / 2f, 10f),
     inertia,
@@ -61,10 +64,15 @@ for (var step = 0; step < Steps; step++)
 
 var finalPosition = body.Pose.Position;
 var finalVelocity = body.Velocity.Linear;
+var finalOrientation = body.Pose.Orientation;
 var nativeWallStopObserved =
     finalPosition.X >= ExpectedCenterCeiling - 0.12f &&
     maxX <= ExpectedCenterCeiling + Tolerance &&
     MathF.Abs(finalVelocity.X) <= 0.1f;
+var rotationStayedLocked = MathF.Abs(finalOrientation.X) < 0.0001f &&
+    MathF.Abs(finalOrientation.Y) < 0.0001f &&
+    MathF.Abs(finalOrientation.Z) < 0.0001f &&
+    MathF.Abs(finalOrientation.W - 1f) < 0.0001f;
 
 var authoritativeX = finalPosition.X;
 var observation = new Dictionary<string, object>
@@ -78,7 +86,7 @@ var observationCopyIsolated = MathF.Abs(body.Pose.Position.X - authoritativeX) <
 
 var strideAssembly = typeof(StrideCharacterComponent).Assembly.GetName();
 var backendAssembly = typeof(BepuSimulation).Assembly.GetName();
-var passed = nativeWallStopObserved && observationCopyIsolated;
+var passed = nativeWallStopObserved && rotationStayedLocked && observationCopyIsolated;
 
 var result = new
 {
@@ -100,6 +108,7 @@ var result = new
     max_x_m = maxX,
     final_x_m = finalPosition.X,
     final_velocity_x_mps = finalVelocity.X,
+    rotation_locked = rotationStayedLocked,
     native_wall_stop_observed = nativeWallStopObserved,
     post_physics_arena_clamp = false,
     observation_copy_isolated = observationCopyIsolated,
