@@ -49,8 +49,8 @@ jobs:
           };
           byId('reuse.dialogic').entry_id = 'reuse.godot-demo-projects';
           byId('reuse.openttd').adoption_status = 'drop_in_candidate';
-          const index = byId('reuse.awesome-gamedev');
-          index.adoption_status = 'drop_in_candidate';
+          byId('reuse.awesome-gamedev').adoption_status = 'drop_in_candidate';
+          byId('reuse.kenney-starter-3d-platformer').dependency_clearance_status = 'requires_review';
           r.policy.ranking_weights.popularity = 25;
           r.policy.ranking_weights.task_fit = 10;
           fs.writeFileSync(path, JSON.stringify(r, null, 2));
@@ -64,4 +64,5 @@ jobs:
           grep -F 'duplicate entry_id: reuse.godot-demo-projects' /tmp/reuse-negative.log
           grep -F 'reuse.openttd drop_in_candidate requires permissive or public_domain licence class' /tmp/reuse-negative.log
           grep -F 'reuse.awesome-gamedev drop_in_candidate requires permissive or public_domain licence class' /tmp/reuse-negative.log
+          grep -F 'reuse.kenney-starter-3d-platformer drop_in_candidate requires cleared or not_applicable dependency licences' /tmp/reuse-negative.log
           grep -F 'policy.ranking_weights.popularity must be <= 10 because popularity is only a soft discovery signal' /tmp/reuse-negative.log
