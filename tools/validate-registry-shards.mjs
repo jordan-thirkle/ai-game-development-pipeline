@@ -61,8 +61,8 @@ async function readJson(path) {
   }
 }
 
-async function validateExecutedMediaEntry(meta, entry, id) {
-  if (meta.namespace !== 'media' || entry.execution_status !== 'EXECUTED') return;
+async function validateExecutedShardEntry(meta, entry, id) {
+  if (meta.namespace === 'core' || entry.execution_status !== 'EXECUTED') return;
   const record = entry.execution_record;
   if (!isPlainObject(record)) {
     failures.push(`${meta.path} entry ${id} marked EXECUTED requires execution_record`);
@@ -105,11 +105,13 @@ if (!nonEmptyString(index.schema_version) || !/^\d+\.\d+\.\d+$/.test(index.schem
 if (!isValidOffsetTimestamp(index.last_verified_at)) failures.push(`${indexPath} requires a calendar-valid offset-aware RFC3339 last_verified_at`);
 if (!isValidIanaTimezone(index.verification_timezone)) failures.push(`${indexPath} requires a valid IANA verification_timezone`);
 if (!nonEmptyString(index.policy_shard)) failures.push(`${indexPath} requires policy_shard`);
-if (!Array.isArray(index.shards) || index.shards.length < 2) failures.push(`${indexPath} requires at least core and media shards`);
+if (!Array.isArray(index.shards) || index.shards.length < 2) failures.push(`${indexPath} requires core plus at least one non-core shard`);
 
 const shardIds = new Set();
 const shardPaths = new Set();
+const shardNamespaces = new Set();
 let policyMeta = null;
+let nonCoreShardCount = 0;
 for (const shard of index.shards ?? []) {
   if (!isPlainObject(shard)) {
     failures.push(`${indexPath} shard records must be objects`);
@@ -126,13 +128,19 @@ for (const shard of index.shards ?? []) {
     if (shardPaths.has(shard.path)) failures.push(`Duplicate registry shard path: ${shard.path}`);
     shardPaths.add(shard.path);
   }
+  if (nonEmptyString(shard.namespace)) {
+    if (shardNamespaces.has(shard.namespace)) failures.push(`Duplicate registry shard namespace: ${shard.namespace}`);
+    shardNamespaces.add(shard.namespace);
+    if (shard.namespace !== 'core') nonCoreShardCount += 1;
+  }
   if (shard.path === index.policy_shard) policyMeta = shard;
   if (shard.required !== true) failures.push(`Registry shard ${shard.shard_id ?? '<missing>'} must currently be required`);
 }
 if (!shardPaths.has(index.policy_shard)) failures.push(`${indexPath} policy_shard must be listed in shards`);
 if (policyMeta && policyMeta.namespace !== 'core') failures.push(`${indexPath} policy_shard must use namespace=core`);
+if (nonCoreShardCount < 1) failures.push(`${indexPath} requires at least one non-core shard`);
 // These flags document invariants that this validator enforces unconditionally; they are not runtime feature switches.
-for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cross_shard_benchmark_joins_allowed','policy_enums_inherited_from_policy_shard','repository_commit_is_the_atomic_registry_revision']) {
+for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cross_shard_benchmark_joins_allowed','policy_enums_inherited_from_policy_shard','repository_commit_is_the_atomic_registry_revision','executed_non_core_entries_require_completed_evidence']) {
   if (index.rules?.[rule] !== true) failures.push(`${indexPath} must declare ${rule}=true`);
 }
 
@@ -220,7 +228,7 @@ for (const { meta, data } of loadedShards) {
         if (entry.source_revisions.code_commit !== entry.version_or_revision) failures.push(`${meta.path} entry ${id} version_or_revision must equal source_revisions.code_commit`);
       }
     }
-    await validateExecutedMediaEntry(meta, entry, id);
+    await validateExecutedShardEntry(meta, entry, id);
   }
 }
 
