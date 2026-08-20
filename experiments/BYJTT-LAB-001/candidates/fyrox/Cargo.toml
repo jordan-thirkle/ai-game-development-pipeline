@@ -1,0 +1,12 @@
+[package]
+name = "byjtt-lab-001-fyrox"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+publish = false
+
+[dependencies]
+fyrox = "=1.0.0"
+
+[profile.release]
+strip = "symbols"
