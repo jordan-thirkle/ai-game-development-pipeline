@@ -1,0 +1,20 @@
+{
+  "name": "ByJtt.Benchmark.Unity.PlayModeTests",
+  "rootNamespace": "ByJtt.Benchmark.Unity.Tests",
+  "references": [
+    "ByJtt.Benchmark.Unity",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
