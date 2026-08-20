@@ -4,11 +4,18 @@ on:
   pull_request:
     paths:
       - 'schemas/discovery-mode-comparison.schema.json'
+      - 'schemas/external-discovery-brief.schema.json'
+      - 'schemas/external-discovery-queue.schema.json'
       - 'research/DISCOVERY-MODE-COMPARISON-001.md'
       - 'examples/creator-mode/discovery-comparison-001.json'
+      - 'examples/creator-mode/external-discovery-brief-001.json'
+      - 'tools/lib/external-discovery.mjs'
       - 'tools/validate-discovery-mode-comparison.mjs'
       - 'tools/bounded-external-discovery.mjs'
+      - 'tools/external-reuse-discover.mjs'
+      - 'tools/test-external-discovery.mjs'
       - '.github/workflows/validate-discovery-mode-comparison.yml'
+      - '.github/workflows/validate-on-demand-external-discovery.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,6 +30,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
       - name: Validate frozen comparison input
         run: node tools/validate-discovery-mode-comparison.mjs examples/creator-mode/discovery-comparison-001.json --allow-pending-worker
       - name: Run bounded discovery worker
