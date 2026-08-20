@@ -91,28 +91,7 @@ Queues are bounded by both event count and encoded bytes. On overflow, low-prior
 
 Provider adapters may impose stricter limits but may not silently widen the canonical privacy/cardinality contract. A rejected/trimmed property produces a bounded diagnostic counter rather than blocking gameplay.
 
-High-value domain events use stable semantic names such as:
-
-```text
-session_started
-session_ended
-onboarding_step_completed
-level_started
-level_completed
-level_failed
-reward_granted
-currency_earned
-currency_spent
-purchase_started
-purchase_completed
-ad_impression
-ad_reward_granted
-match_started
-match_completed
-progression_changed
-feature_exposed
-error_recovered
-```
+High-value domain events use stable semantic names such as `session_started`, `session_ended`, `onboarding_step_completed`, `level_started`, `level_completed`, `level_failed`, `reward_granted`, `currency_earned`, `currency_spent`, `purchase_started`, `purchase_completed`, `ad_impression`, `ad_reward_granted`, `match_started`, `match_completed`, `progression_changed`, `feature_exposed`, and `error_recovered`.
 
 Provider adapters translate these to provider-native forms; game/domain code never emits provider-specific names directly.
 
@@ -137,7 +116,7 @@ Provider-managed crash SDKs require separate treatment. Current Firebase Crashly
 
 No email, phone, real name, raw IP-derived identity, voice transcript, child identifier or other direct PII belongs in the default telemetry contract. Crash breadcrumbs/custom context receive the same privacy review. Remote config is never a secret, entitlement or anti-cheat authority store.
 
-Frozen consent tests include: fresh install unknown state, unknown→denied, unknown→granted, denied→granted, granted→revoked, revoked→granted, offline transitions, app restart in each state, queued project events, provider-managed cached crash reports, identifier rotation, and deletion/export workflows.
+Frozen consent tests include fresh install unknown state, unknown→denied, unknown→granted, denied→granted, granted→revoked, revoked→granted, offline transitions, app restart in each state, queued project events, provider-managed cached crash reports, identifier rotation, and deletion/export workflows.
 
 ---
 
@@ -164,7 +143,7 @@ Current Unity SDK release in official release notes: **13.14.0 — 2026-07-17**
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **INCUMBENT MOBILE/UNITY CRASH BENCHMARK + FIREBASE-SUITE BENCHMARK**
 
-Current Unity docs cover managed/native crash reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires generated symbol upload; Apple symbol handling follows the Unity/Xcode path.
+Current Unity docs cover managed/native crash reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires symbols to be **generated and uploaded** for the exact build; Apple symbol handling follows the Unity/Xcode path.
 
 Crashlytics collection is automatic by default but supports disabling automatic collection/runtime opt-in. Current docs explicitly state local crash information may be retained while disabled and sent after later enablement. This cached-report path is a required privacy benchmark.
 
@@ -200,7 +179,9 @@ Disposition: **CROSS-PRODUCT + UNITY ANALYTICS/FLAGS/ERROR BENCHMARK**
 
 PostHog now has a first-party Unity SDK. Current Unity docs describe asynchronous queueing/batching, analytics capture, feature flags/experiments and error tracking. This earns direct Unity benchmarking, not default status.
 
-Benchmark install/update/removal, canonical event mapping and ID preservation, queue overflow/offline behavior, consent/restart behavior, funnels/cohorts, flags/assignments/exposure, error tracking versus dedicated crash incumbents, WebGL storage/CORS constraints, Unity Session Replay availability, export portability, API/MCP operability, cost and privacy/security requirements. Platform/feature claims must be frozen from the exact official Unity docs in the run manifest rather than assumed from another PostHog SDK.
+Current Unity docs scope Session Replay by target: it is supported on **Windows/macOS/Linux, iOS and Android**, unsupported on **WebGL**, and this research has not established console support, so consoles remain **untested/unknown** rather than “unavailable.” WebGL storage/CORS constraints are also recorded separately.
+
+Benchmark install/update/removal, canonical event mapping and ID preservation, queue overflow/offline behavior, consent/restart behavior, funnels/cohorts, flags/assignments/exposure, error tracking versus dedicated crash incumbents, WebGL storage/CORS constraints, Session Replay on supported desktop/mobile targets plus the WebGL rejection path, export portability, API/MCP operability, cost and privacy/security requirements. Platform/feature claims must be frozen from the exact official Unity docs in the run manifest rather than assumed from another PostHog SDK.
 
 ---
 
@@ -215,16 +196,7 @@ Firebase Remote Config supports Unity with source-code in-app defaults, explicit
 
 Real-time mode opens a foreground HTTP connection. Listener registrations share that connection; removing the final listener closes it, and the SDK stops listening in background and restarts in foreground. Current Firebase limits projects to **20,000,000 concurrent open real-time connections**. Above the limit, incremental real-time connection requests can be rejected and the client SDK falls back to standard fetch. A newly published template receives a temporary propagation exception to that connection ceiling as documented by Firebase.
 
-Therefore every Firebase realtime benchmark manifest records:
-
-- exact Firebase Unity SDK version;
-- Realtime API enabled/disabled state;
-- listener registration/removal lifecycle;
-- foreground/background transition behavior;
-- concurrent-connection quota assumptions;
-- standard-fetch fallback path;
-- fetch/activate timing policy;
-- setup failures separately from provider capability failures.
+Every Firebase realtime benchmark manifest records the exact Firebase Unity SDK version, Realtime API enabled/disabled state, listener registration/removal lifecycle, foreground/background behavior, connection quota assumptions, standard-fetch fallback, fetch/activate policy, and setup failures separately from provider capability failures.
 
 The safety property remains typed source-controlled defaults plus explicit validation/fetch/activation. Remote values are overrides, never the only definition of a gameplay-critical value.
 
@@ -270,15 +242,15 @@ AnalyticsSink.flush(deadline_ms) -> FlushResult
 CrashSink.captureException(error, CrashContext) -> CaptureResult
 CrashSink.setRelease(build_id)
 ConfigProvider.getSnapshot<T>(schema: ConfigSchema<T>, defaults: T) -> ConfigSnapshot<T>
-ExperimentProvider.getAssignments(context) -> ExperimentSnapshot
+ExperimentProvider.getAssignments(context: ExperimentContext) -> ExperimentSnapshot
 ServerTelemetry.startSpan(name, BoundedAttributes) -> SpanHandle
 ServerTelemetry.recordMetric(name, value, BoundedAttributes)
 ```
 
 ```text
 CaptureResult
-  accepted | dropped | disabled
-  drop_reason_optional
+  status = accepted | dropped | disabled
+  drop_reason_required_when_dropped = queue_full | payload_invalid | payload_too_large | consent_not_granted | retention_expired | retry_budget_exhausted | provider_rejected | adapter_disabled | sampled_out | other_bounded
   queue_depth
 
 FlushResult
@@ -298,6 +270,17 @@ ConfigSnapshot<T>
   fallback_reason_optional
   value: T
 
+ExperimentContext
+  consent_state
+  install_id_pseudonymous_optional
+  player_id_pseudonymous_optional
+  session_id_pseudonymous_optional
+  locale_optional
+  platform
+  release_channel
+  game_mode_optional
+  approved_cohort_attributes{}
+
 ExperimentAssignment
   experiment_id
   experiment_version
@@ -312,13 +295,18 @@ ExperimentSnapshot
   assignments[]
   provider_optional
   generated_at_utc
+  context_available
 ```
+
+`ExperimentContext` is an allowlisted, privacy-bounded value object, not an arbitrary properties map. Direct PII is forbidden; `approved_cohort_attributes` uses the same scalar/type discipline as telemetry, is capped at **16 attributes**, and each value is at most **128 UTF-8 bytes**. High-cardinality free-form identifiers are not allowed as cohort attributes. If consent/policy does not permit provider evaluation, or a usable context cannot be formed, `getAssignments` returns an empty/non-provider assignment snapshot (or locally deterministic privacy-approved assignments where the frozen experiment contract explicitly permits them) and gameplay falls back safely; it never invents identity fields or blocks boot.
+
+For `CaptureResult`, `drop_reason` is **mandatory exactly when `status=dropped`** and omitted for `accepted`/`disabled`. `other_bounded` requires a project-owned bounded diagnostic subcode and may not become free-form text.
 
 Gameplay systems receive domain events, typed configuration snapshots or immutable experiment assignments. They do not import provider SDKs directly.
 
 ## Failure semantics
 
-- `capture()` is non-blocking with respect to gameplay; it either accepts to a bounded queue, drops with explicit reason, or reports disabled collection.
+- `capture()` is non-blocking with respect to gameplay; it either accepts to a bounded queue, drops with a mandatory bounded reason, or reports disabled collection.
 - `flush()` accepts a deadline and never blocks shutdown indefinitely.
 - queues have frozen count/byte bounds and deterministic overflow policy;
 - retries use capped exponential backoff with jitter and a maximum retention age;
@@ -348,7 +336,7 @@ Use the same release build and controlled managed/native failure matrix. Score c
 
 ## Benchmark C — remote config and experiment safety
 
-Use one typed config schema with source-controlled defaults. Exercise online/offline cold start, fetch timeout, invalid response, old-client/new-config mismatch, stale cache, rollout progression, emergency rollback, assignment persistence, exposure de-duplication, consent transitions, client tampering and server-authoritative boundaries. For Firebase realtime runs, also exercise API-disabled setup, foreground/background listener lifecycle and the documented standard-fetch fallback path.
+Use one typed config schema with source-controlled defaults. Exercise online/offline cold start, fetch timeout, invalid response, old-client/new-config mismatch, stale cache, rollout progression, emergency rollback, assignment persistence, exposure de-duplication, missing/denied `ExperimentContext`, consent transitions, client tampering and server-authoritative boundaries. For Firebase realtime runs, also exercise API-disabled setup, foreground/background listener lifecycle and the documented standard-fetch fallback path.
 
 A provider fails conformance if its absence can make the game unbootable, remove local defaults, silently change entitlement/security authority, or make assignment/config provenance unknowable.
 
@@ -381,11 +369,11 @@ No candidate becomes `EXECUTED`, `preferred` or a default template until a compl
 - primary-source evidence IDs and mutable-doc retrieval date;
 - platform/build/runtime manifest;
 - consent state-machine configuration and transition evidence;
-- canonical event/config schema revision;
+- canonical event/config/experiment-context schema revision;
 - queue/retry/drop/idempotency configuration;
 - provider prerequisites (including Firebase Realtime API/listener mode where applicable);
 - synthetic/real workload definition;
-- raw evidence including duplicate/loss/drop counts;
+- raw evidence including duplicate/loss/drop counts and bounded drop reasons;
 - provider cache/deletion/export behavior;
 - cost snapshot;
 - limitations/failures;
