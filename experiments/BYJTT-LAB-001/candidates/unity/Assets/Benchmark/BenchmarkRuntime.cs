@@ -95,6 +95,7 @@ namespace ByJtt.Benchmark.Unity
             var visualCollider = visual.GetComponent<CapsuleCollider>();
             if (visualCollider != null)
             {
+                visualCollider.enabled = false;
                 Destroy(visualCollider);
             }
         }
