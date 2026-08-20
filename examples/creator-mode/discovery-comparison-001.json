@@ -24,7 +24,7 @@
     "mode": "interactive_manual_agent",
     "measurement_status": "action_counts_only",
     "search_actions": 17,
-    "source_fetches": 20,
+    "source_fetches": 21,
     "distinct_sources_inspected": 11,
     "candidate_count": 11,
     "reviewable_candidate_count": 1,
@@ -181,7 +181,7 @@
         "candidate_id": "github.expressobits-inventory",
         "capabilities": ["inventory-economy"],
         "repository": "expressobits/inventory-system",
-        "revision": "0000000000000000000000000000000000000000",
+        "revision": "f716e2c1d762988ca37bdc92a2fdc4df29a7835c",
         "stars": 726,
         "forks": 60,
         "license_spdx": "MIT",
@@ -189,10 +189,10 @@
         "screening_status": "needs_deeper_review",
         "asset_boundary": "not_applicable",
         "dependency_boundary": "requires_review",
-        "reason": "Second strong inventory candidate with multiplayer-oriented design. Exact revision was not pinned during the fixed manual baseline, so the zero revision deliberately marks incomplete provenance and prevents promotion."
+        "reason": "Second strong inventory candidate with multiplayer-oriented design. Exact revision was pinned in the final provenance-correction fetch; dependency and runtime boundaries remain review-required."
       }
     ],
-    "notes": "Action-count instrumentation is reliable: 17 explicit searches and 20 verification fetches. Wall-clock timing and monetary cost were not reliably instrumented, so they remain unknown. The baseline deliberately preserves blocked/stale/no-licence candidates instead of inflating eligible coverage."
+    "notes": "Action-count instrumentation is reliable: 17 explicit searches and 21 verification fetches, including the final provenance-correction fetch for expressobits/inventory-system. Wall-clock timing and monetary cost were not reliably instrumented, so they remain unknown. The baseline deliberately preserves blocked/stale/no-licence candidates instead of inflating eligible coverage."
   },
   "bounded_worker": {
     "mode": "bounded_discovery_worker",
