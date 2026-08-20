@@ -79,7 +79,14 @@ function lovr.load()
   add_static_box(world, 0, 1.5, -ARENA_DEPTH / 2 - WALL_THICKNESS / 2, ARENA_WIDTH, 3, WALL_THICKNESS)
   add_static_box(world, 0, 1.5, ARENA_DEPTH / 2 + WALL_THICKNESS / 2, ARENA_WIDTH, 3, WALL_THICKNESS)
 
-  local player = world:newBoxCollider(0, PLAYER_HALF_HEIGHT, 10, PLAYER_HALF_WIDTH * 2, PLAYER_HALF_HEIGHT * 2, PLAYER_HALF_WIDTH * 2)
+  local player = world:newBoxCollider(
+    0,
+    PLAYER_HALF_HEIGHT,
+    10,
+    PLAYER_HALF_WIDTH * 2,
+    PLAYER_HALF_HEIGHT * 2,
+    PLAYER_HALF_WIDTH * 2
+  )
   player:setFriction(0.0)
   player:setRestitution(0.0)
   player:setContinuous(true)
