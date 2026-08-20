@@ -3,13 +3,18 @@ import path from 'node:path';
 import process from 'node:process';
 
 const registryDir = process.env.REUSE_REGISTRY_DIR ?? 'registry/reuse';
-const now = new Date();
+const now = new Date(process.env.REUSE_FRESHNESS_NOW ?? Date.now());
 const defaultMaxAgeDays = Number.parseInt(process.env.REUSE_REGISTRY_MAX_AGE_DAYS ?? '90', 10);
 const promotedMaxAgeDays = Number.parseInt(process.env.REUSE_PROMOTED_MAX_AGE_DAYS ?? '45', 10);
 const protectedStates = new Set(['qualified', 'benchmarking', 'promoted']);
 
-if (!Number.isFinite(defaultMaxAgeDays) || !Number.isFinite(promotedMaxAgeDays)) {
-  console.error('Freshness thresholds must be finite integers');
+if (Number.isNaN(now.getTime())) {
+  console.error(`Invalid REUSE_FRESHNESS_NOW '${process.env.REUSE_FRESHNESS_NOW}'`);
+  process.exit(2);
+}
+
+if (!Number.isFinite(defaultMaxAgeDays) || !Number.isFinite(promotedMaxAgeDays) || defaultMaxAgeDays < 0 || promotedMaxAgeDays < 0) {
+  console.error('Freshness thresholds must be non-negative finite integers');
   process.exit(2);
 }
 
