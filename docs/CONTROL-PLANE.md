@@ -49,4 +49,6 @@ Green status is claim-specific evidence, not confidence. Repository/schema CI ca
 
 ## Current milestone
 
-The current Studio slice is intentionally read-mostly. It consumes a deterministic `BYJTT-LAB-001` fixture, projects stages/workstreams/agents/decisions/evidence/builds, and prevents human approval while the gate is blocked. Persistence, live GitHub projection and playable-build execution are subsequent slices only after this contract is verified.
+The Studio keeps its canonical benchmark projection read-mostly: it consumes the deterministic `BYJTT-LAB-001` fixture, projects stages/workstreams/agents/decisions/evidence/builds, and prevents human approval while the gate is blocked.
+
+It also exposes one bounded command surface for local user testing. The **Run Pipeline** view creates a fresh copy of the repository sample, executes intake, registry selection, build and QA, then displays its release candidate and publishing receipt. The local service binds only to `127.0.0.1`; the publishing boundary remains dry-run only, local-only, secret-free, and non-executing. It does not write verdicts to the canonical fixture or provide any store/provider operation.

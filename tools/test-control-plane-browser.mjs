@@ -38,12 +38,28 @@ await record('desktop page load and console',async()=>{
 
 await record('all navigation surfaces',async()=>{
   const {page}=await open({width:1280,height:800});
-  for(const view of ['workstreams','agents','evidence','decisions','playtest','overview']){
+  for(const view of ['local-run','workstreams','agents','evidence','decisions','playtest','overview']){
     await page.locator(`[data-view="${view}"]`).click();
     const panel=page.locator(`#${view}`);
     await panel.waitFor({state:'visible'});
     assert.equal(await panel.evaluate(el=>el.classList.contains('hidden')),false,`${view} stayed hidden`);
   }
+  await page.close();
+});
+
+await record('visual sample pipeline completes with safe publishing evidence',async()=>{
+  const {page,consoleErrors}=await open({width:1440,height:900});
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Release candidate ready'),null,{timeout:30000});
+  assert.equal(await page.locator('[data-run-step].pass').count(),6,'not every visual stage passed');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(),true,'run evidence stayed hidden');
+  const evidence=await page.locator('#run-evidence').textContent();
+  assert.match(evidence,/Publication executed: false/);
+  assert.match(evidence,/Secrets used: false/);
+  assert.match(evidence,/Dry-run only: true/);
+  assert.deepEqual(consoleErrors,[]);
+  await page.screenshot({path:`${artifacts}/desktop-local-run.png`,fullPage:true});
   await page.close();
 });
 

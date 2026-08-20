@@ -1,5 +1,19 @@
 # Local pipeline quickstart
 
+## Visual Studio (recommended)
+
+Start the local visual interface from the repository root:
+
+```sh
+npm run studio
+```
+
+Open `http://127.0.0.1:4173/apps/studio/`, choose **Run Pipeline**, then select **Run sample pipeline**. Studio creates a fresh sample copy in a temporary workspace and shows intake/scaffold, registry selection, build, QA, release-candidate, and publishing-plan evidence as a visual journey.
+
+This interface is local and user-safe: it listens only on the loopback address, never requests secrets, accepts no store destination, performs no upload, and displays the final receipt proving `executed: false` and `secretsUsed: false`.
+
+## Command-line alternative
+
 The repository includes a dependency-free sample project. Run the complete local pipeline from the repository root:
 
 ```sh
