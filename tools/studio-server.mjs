@@ -6,9 +6,11 @@ import { mkdtemp } from 'node:fs/promises';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { runPipeline, scaffoldSampleProject } from './run-pipeline.mjs';
+import { applyStudioBrief, BriefError, normalizeStudioBrief } from './studio-brief.mjs';
 
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOOPBACK_HOST = '127.0.0.1';
+const MAX_BRIEF_BYTES = 4096;
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -40,17 +42,39 @@ async function readEvidence(outputDir) {
   return Object.fromEntries(entries.filter(Boolean));
 }
 
-export async function executeSampleRun({ run = runPipeline, scaffold = scaffoldSampleProject } = {}) {
+async function readBriefBody(request) {
+  if (request.headers['transfer-encoding']) throw new BriefError('Chunked brief requests are not accepted');
+  const contentType = String(request.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json') throw new BriefError('Brief requests must use application/json');
+  const contentLength = Number(request.headers['content-length']);
+  if (!Number.isInteger(contentLength) || contentLength < 2 || contentLength > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be between 2 and ${MAX_BRIEF_BYTES} bytes`);
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    bytes += chunk.length;
+    if (bytes > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be ${MAX_BRIEF_BYTES} bytes or fewer`);
+    chunks.push(chunk);
+  }
+  if (bytes !== contentLength) throw new BriefError('Brief body length did not match Content-Length');
+  let parsed;
+  try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+  catch { throw new BriefError('Brief body must contain valid JSON'); }
+  return normalizeStudioBrief(parsed);
+}
+
+export async function executeSampleRun({ brief, run = runPipeline, scaffold = scaffoldSampleProject, applyBrief = applyStudioBrief } = {}) {
   const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-studio-'));
   try {
     const projectDir = resolve(workspace, 'sample-game');
     const outputDir = resolve(workspace, 'evidence');
     await scaffold(projectDir);
+    const normalizedBrief = brief ? await applyBrief(projectDir, brief) : null;
     const result = await run({ projectDir, outputDir, dryRun: true });
     const evidence = await readEvidence(outputDir);
     return {
       status: result.status,
       error: result.status === 'pass' ? null : result.record?.summary || 'Pipeline evidence did not pass.',
+      brief: normalizedBrief,
       safety: evidence.publishing ? {
         dryRun: evidence.publishing.dryRun,
         publicationExecuted: evidence.publishing.executed,
@@ -81,26 +105,45 @@ async function staticFileFor(url) {
   return file;
 }
 
+function validLocalRequest(request) {
+  const origin = request.headers.origin;
+  const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
+  const expectedOrigin = `http://${expectedHost}`;
+  return request.headers.host === expectedHost && (!origin || origin === expectedOrigin);
+}
+
 export function createStudioServer({ execute = executeSampleRun } = {}) {
   let running = false;
   return createServer(async (request, response) => {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false });
+        return sendJson(response, 200, { mode: 'local-briefed-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, briefInputSupported: true, allowedTargets: ['web', 'desktop', 'mobile'] });
       }
       if (request.url === '/api/pipeline/runs') {
         if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
-        const origin = request.headers.origin;
-        const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
-        const expectedOrigin = `http://${expectedHost}`;
-        if (request.headers.host !== expectedHost || (origin && origin !== expectedOrigin)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
         const contentLength = request.headers['content-length'];
         if (request.headers['transfer-encoding'] || (contentLength !== undefined && contentLength !== '0')) return sendJson(response, 400, { error: 'The sample run accepts no request body.' });
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
         try {
           const result = await execute();
+          return sendJson(response, result.status === 'pass' ? 201 : 422, result);
+        }
+        catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
+        finally { running = false; }
+      }
+      if (request.url === '/api/pipeline/brief-runs') {
+        if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
+        if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
+        let brief;
+        try { brief = await readBriefBody(request); }
+        catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
+        running = true;
+        try {
+          const result = await execute({ brief });
           return sendJson(response, result.status === 'pass' ? 201 : 422, result);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
