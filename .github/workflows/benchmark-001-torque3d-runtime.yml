@@ -18,6 +18,7 @@ jobs:
       CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/torque3d/runtime-gate
       EVIDENCE_DIR: artifacts/torque3d-runtime
       RELEASE_API: https://api.github.com/repos/TorqueGameEngines/Torque3D/releases/tags/v4.0.3
+      OFFICIAL_LINUX_ASSET: Torque3D_403_LinBinaries.zip
     steps:
       - name: Checkout exact candidate head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -37,7 +38,7 @@ jobs:
           uname -a > "$EVIDENCE_DIR/uname.txt"
           cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
 
-      - name: Strict workflow shell syntax check
+      - name: Strict workflow contract check
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -45,7 +46,7 @@ jobs:
           from pathlib import Path
           p = Path('.github/workflows/benchmark-001-torque3d-runtime.yml')
           text = p.read_text(encoding='utf-8')
-          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json']
+          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip']
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit(f'missing fail-closed workflow markers: {missing}')
@@ -67,9 +68,9 @@ jobs:
             "$RELEASE_API" \
             -o "$EVIDENCE_DIR/release.json"
 
-          jq -e '
-            [.assets[] | select((.name | ascii_downcase | contains("linux")))]
-            | if length == 1 then .[0] else error("expected exactly one Linux release asset, found \(length)") end
+          jq -e --arg name "$OFFICIAL_LINUX_ASSET" '
+            [.assets[] | select(.name == $name)]
+            | if length == 1 then .[0] else error("expected exactly one official Linux release asset named \($name), found \(length)") end
           ' "$EVIDENCE_DIR/release.json" > "$EVIDENCE_DIR/linux-asset.json"
 
           asset_name="$(jq -r '.name' "$EVIDENCE_DIR/linux-asset.json")"
@@ -189,10 +190,8 @@ jobs:
           binary_dir="$(dirname "$binary_abs")"
           binary_name="$(basename "$binary_abs")"
           cd "$binary_dir"
-          set +e
           timeout 18s "./$binary_name" > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
           runtime_pid=$!
-          set -e
 
           window_seen=false
           survived_five_seconds=false
