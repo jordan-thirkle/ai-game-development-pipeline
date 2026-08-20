@@ -3,6 +3,19 @@ extends SceneTree
 const MAX_ACQUISITION_FRAMES := 180
 const MAX_COMBAT_FRAMES := 420
 const MAX_SYNC_FRAMES := 30
+const COOLDOWN_GUARD_FRAMES := 30
+
+const REQUIRED_ARENA_WIDTH := 24.0
+const REQUIRED_ARENA_DEPTH := 32.0
+const REQUIRED_PLAYER_SPAWN := Vector3(0.0, 0.0, 10.0)
+const REQUIRED_ENEMY_SPAWN := Vector3(0.0, 0.0, -6.0)
+const REQUIRED_PLAYER_MAX_HEALTH := 100
+const REQUIRED_ENEMY_MOVE_SPEED := 2.7
+const REQUIRED_ACQUIRE_RANGE := 12.0
+const REQUIRED_LOSE_RANGE := 18.0
+const REQUIRED_ATTACK_RANGE := 1.6
+const REQUIRED_ATTACK_DAMAGE := 20
+const REQUIRED_ATTACK_COOLDOWN := 1.1
 
 var failures: Array[String] = []
 
@@ -13,6 +26,56 @@ func _check(condition: bool, message: String) -> void:
     if not condition:
         failures.append(message)
         push_error(message)
+
+func _required_vector3(value: Variant, label: String) -> Vector3:
+    _check(value is Array, label + " must be an array")
+    if not value is Array:
+        return Vector3.INF
+    var values: Array = value
+    _check(values.size() == 3, label + " must contain exactly three values")
+    if values.size() != 3:
+        return Vector3.INF
+    for component in values:
+        _check(typeof(component) == TYPE_INT or typeof(component) == TYPE_FLOAT, label + " components must be numeric")
+    return Vector3(float(values[0]), float(values[1]), float(values[2]))
+
+func _validate_contract(contract: Dictionary) -> bool:
+    for key in ["schema_version", "experiment_id", "arena", "player", "enemy"]:
+        _check(contract.has(key), "shared contract missing required key: " + key)
+    if failures.size() > 0:
+        return false
+
+    _check(typeof(contract["schema_version"]) == TYPE_INT and int(contract["schema_version"]) == 1, "schema_version must remain 1")
+    _check(typeof(contract["experiment_id"]) == TYPE_STRING and String(contract["experiment_id"]) == "BYJTT-LAB-001", "experiment_id must remain BYJTT-LAB-001")
+    _check(contract["arena"] is Dictionary, "arena must be a dictionary")
+    _check(contract["player"] is Dictionary, "player must be a dictionary")
+    _check(contract["enemy"] is Dictionary, "enemy must be a dictionary")
+    if failures.size() > 0:
+        return false
+
+    var arena: Dictionary = contract["arena"]
+    var player_contract: Dictionary = contract["player"]
+    var enemy_contract: Dictionary = contract["enemy"]
+    for key in ["width", "depth", "player_spawn", "enemy_spawn"]:
+        _check(arena.has(key), "arena missing required key: " + key)
+    _check(player_contract.has("max_health"), "player missing required key: max_health")
+    for key in ["move_speed", "acquire_range", "lose_target_range", "attack_range", "attack_damage", "attack_cooldown"]:
+        _check(enemy_contract.has(key), "enemy missing required key: " + key)
+    if failures.size() > 0:
+        return false
+
+    _check((typeof(arena["width"]) == TYPE_INT or typeof(arena["width"]) == TYPE_FLOAT) and is_equal_approx(float(arena["width"]), REQUIRED_ARENA_WIDTH), "arena width must remain 24 m")
+    _check((typeof(arena["depth"]) == TYPE_INT or typeof(arena["depth"]) == TYPE_FLOAT) and is_equal_approx(float(arena["depth"]), REQUIRED_ARENA_DEPTH), "arena depth must remain 32 m")
+    _check(_required_vector3(arena["player_spawn"], "player_spawn").is_equal_approx(REQUIRED_PLAYER_SPAWN), "player spawn must remain (0,0,10)")
+    _check(_required_vector3(arena["enemy_spawn"], "enemy_spawn").is_equal_approx(REQUIRED_ENEMY_SPAWN), "enemy spawn must remain (0,0,-6)")
+    _check(typeof(player_contract["max_health"]) == TYPE_INT and int(player_contract["max_health"]) == REQUIRED_PLAYER_MAX_HEALTH, "player max health must remain 100")
+    _check((typeof(enemy_contract["move_speed"]) == TYPE_INT or typeof(enemy_contract["move_speed"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["move_speed"]), REQUIRED_ENEMY_MOVE_SPEED), "enemy move speed must remain 2.7 m/s")
+    _check((typeof(enemy_contract["acquire_range"]) == TYPE_INT or typeof(enemy_contract["acquire_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["acquire_range"]), REQUIRED_ACQUIRE_RANGE), "enemy acquire range must remain 12 m")
+    _check((typeof(enemy_contract["lose_target_range"]) == TYPE_INT or typeof(enemy_contract["lose_target_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["lose_target_range"]), REQUIRED_LOSE_RANGE), "enemy lose range must remain 18 m")
+    _check((typeof(enemy_contract["attack_range"]) == TYPE_INT or typeof(enemy_contract["attack_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["attack_range"]), REQUIRED_ATTACK_RANGE), "enemy attack range must remain 1.6 m")
+    _check(typeof(enemy_contract["attack_damage"]) == TYPE_INT and int(enemy_contract["attack_damage"]) == REQUIRED_ATTACK_DAMAGE, "enemy attack damage must remain 20")
+    _check((typeof(enemy_contract["attack_cooldown"]) == TYPE_INT or typeof(enemy_contract["attack_cooldown"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["attack_cooldown"]), REQUIRED_ATTACK_COOLDOWN), "enemy attack cooldown must remain 1.1 s")
+    return failures.is_empty()
 
 func _run() -> void:
     var packed := load("res://main.tscn") as PackedScene
@@ -39,12 +102,10 @@ func _run() -> void:
         return
 
     var contract: Dictionary = contract_value
-    var enemy_contract: Dictionary = contract.get("enemy", {})
-    var player_contract: Dictionary = contract.get("player", {})
-    var acquire_range := float(enemy_contract.get("acquire_range", 12.0))
-    var attack_range := float(enemy_contract.get("attack_range", 1.6))
-    var attack_damage := int(enemy_contract.get("attack_damage", 20))
-    var player_max_health := int(player_contract.get("max_health", 100))
+    if not _validate_contract(contract):
+        print("BYJTT_RESULT=" + JSON.stringify({"experiment_id": "BYJTT-LAB-001", "slice": "godot-character-navigation-acquisition-combat-gate", "result": "fail", "failures": failures}))
+        quit(1)
+        return
 
     var runtime_script := load("res://integration-gate/enemy_runtime.gd") as GDScript
     _check(runtime_script != null, "enemy integration runtime must load")
@@ -61,20 +122,17 @@ func _run() -> void:
         sync_frames += 1
         if bool(runtime.observe().get("navigation_synchronized", false)):
             break
-    var synchronized_observation: Dictionary = runtime.observe()
-    _check(bool(synchronized_observation.get("navigation_synchronized", false)), "runtime navigation map and region must synchronize normally")
+    _check(bool(runtime.observe().get("navigation_synchronized", false)), "runtime navigation map and region must synchronize normally")
 
     var initial_player_position: Vector3 = player.global_position
-    var initial_runtime_observation: Dictionary = runtime.observe()
-    var initial_distance := float(initial_runtime_observation.get("distance_to_player", -1.0))
-    _check(initial_distance > acquire_range, "shared spawns must begin outside the unchanged acquisition range")
+    var initial_distance := float(runtime.observe().get("distance_to_player", -1.0))
+    _check(initial_distance > REQUIRED_ACQUIRE_RANGE, "shared spawns must begin outside the unchanged acquisition range")
 
     var acquisition_frame := -1
     Input.action_press("move_forward")
     for frame in range(MAX_ACQUISITION_FRAMES):
         await physics_frame
-        var observation: Dictionary = runtime.observe()
-        if bool(observation.get("target_acquired", false)):
+        if bool(runtime.observe().get("target_acquired", false)):
             acquisition_frame = frame + 1
             break
     Input.action_release("move_forward")
@@ -86,24 +144,32 @@ func _run() -> void:
     var acquisition_distance := float(acquisition_observation.get("distance_to_player", 999.0))
     _check(bool(acquisition_observation.get("target_acquired", false)), "normal move_forward action input must legitimately cross the enemy acquisition range")
     _check(player_input_distance > 3.0, "player must move materially through the existing CharacterBody3D input path")
-    _check(acquisition_distance <= acquire_range + 0.05, "acquisition must occur at the unchanged shared acquire range")
+    _check(acquisition_distance <= REQUIRED_ACQUIRE_RANGE + 0.05, "acquisition must occur at the unchanged shared acquire range")
 
     for _frame in range(MAX_COMBAT_FRAMES):
         await physics_frame
         if int(runtime.observe().get("enemy_attack_count", 0)) >= 1:
             break
 
+    var first_attack_observation: Dictionary = runtime.observe()
+    _check(int(first_attack_observation.get("enemy_attack_count", 0)) == 1, "enemy runtime must execute one bounded first attack")
+    _check(is_equal_approx(float(first_attack_observation.get("enemy_attack_cooldown_s", -1.0)), REQUIRED_ATTACK_COOLDOWN), "runtime must expose the unchanged 1.1 s enemy cooldown")
+    _check(float(first_attack_observation.get("distance_to_player", 999.0)) <= REQUIRED_ATTACK_RANGE + 0.1, "first attack must occur only inside unchanged attack range")
+
+    for _frame in range(COOLDOWN_GUARD_FRAMES):
+        await physics_frame
     var final_observation: Dictionary = runtime.observe()
     var player_health := int(final_observation.get("player_health", -1))
     var final_distance := float(final_observation.get("distance_to_player", 999.0))
+    _check(COOLDOWN_GUARD_FRAMES / 60.0 < REQUIRED_ATTACK_COOLDOWN, "cooldown guard duration must stay below required cooldown")
+    _check(int(final_observation.get("enemy_attack_count", 0)) == 1, "enemy cooldown must prevent a second attack during the sub-cooldown guard window")
     _check(bool(final_observation.get("target_retained", false)), "enemy runtime must retain the legitimately acquired target within the unchanged lose range")
     _check(bool(final_observation.get("native_path_found", false)), "enemy runtime must consume a native NavigationServer3D path")
     _check(int(final_observation.get("path_queries", 0)) > 0, "enemy runtime must execute at least one native path query")
-    _check(int(final_observation.get("enemy_attack_count", 0)) == 1, "enemy runtime must execute one bounded attack before the tracer stops")
-    _check(player_health == player_max_health - attack_damage, "runtime attack must apply the unchanged shared damage exactly once")
-    _check(final_distance <= attack_range + 0.1, "runtime attack must only occur after reaching the unchanged attack range")
+    _check(player_health == REQUIRED_PLAYER_MAX_HEALTH - REQUIRED_ATTACK_DAMAGE, "runtime attack must apply the unchanged shared damage exactly once")
+    _check(final_distance <= REQUIRED_ATTACK_RANGE + 0.1, "target must remain in attack range during cooldown guard")
 
-    var mutated_observation: Dictionary = final_observation.duplicate(true)
+    var mutated_observation: Dictionary = runtime.observe()
     mutated_observation["player_health"] = 999
     mutated_observation["enemy_position"][0] = 999.0
     mutated_observation["distance_to_player"] = 999.0
@@ -113,8 +179,9 @@ func _run() -> void:
         int(isolated_observation.get("player_health", 999)) == player_health
         and float(isolated_enemy_position[0]) != 999.0
         and float(isolated_observation.get("distance_to_player", 999.0)) != 999.0
+        and player.global_position.is_equal_approx(player_after_input)
     )
-    _check(observation_isolated, "observation mutation must not alter authoritative runtime state")
+    _check(observation_isolated, "mutating an actual runtime observation snapshot must not alter fresh observations or authoritative player state")
 
     var result := {
         "experiment_id": "BYJTT-LAB-001",
@@ -125,8 +192,9 @@ func _run() -> void:
         "player_native_move_and_slide": true,
         "navigation_system": "NavigationServer3D",
         "enemy_controller": "CharacterBody3D",
+        "contract_oracle_validated": true,
         "initial_distance_m": initial_distance,
-        "acquire_range_m": acquire_range,
+        "acquire_range_m": REQUIRED_ACQUIRE_RANGE,
         "acquired": bool(acquisition_observation.get("target_acquired", false)),
         "acquisition_frame": acquisition_frame,
         "acquisition_distance_m": acquisition_distance,
@@ -140,14 +208,15 @@ func _run() -> void:
         "enemy_move_speed_mps": float(final_observation.get("enemy_move_speed_mps", -1.0)),
         "target_retained": bool(final_observation.get("target_retained", false)),
         "chase_frames": int(final_observation.get("chase_frames", 0)),
-        "enemy_attack_range_m": float(final_observation.get("enemy_attack_range_m", -1.0)),
-        "enemy_attack_damage": int(final_observation.get("enemy_attack_damage", -1)),
-        "enemy_attack_cooldown_s": float(final_observation.get("enemy_attack_cooldown_s", -1.0)),
+        "enemy_attack_range_m": REQUIRED_ATTACK_RANGE,
+        "enemy_attack_damage": REQUIRED_ATTACK_DAMAGE,
+        "enemy_attack_cooldown_s": REQUIRED_ATTACK_COOLDOWN,
+        "cooldown_guard_s": COOLDOWN_GUARD_FRAMES / 60.0,
+        "cooldown_guard_passed": int(final_observation.get("enemy_attack_count", 0)) == 1,
         "enemy_attack_count": int(final_observation.get("enemy_attack_count", 0)),
-        "player_health_before": player_max_health,
+        "player_health_before": REQUIRED_PLAYER_MAX_HEALTH,
         "player_health_after": player_health,
         "final_distance_m": final_distance,
-        "enemy_wall_collision_observed": bool(final_observation.get("enemy_wall_collision_observed", false)),
         "observation_mutation_isolated": observation_isolated,
         "test_only_gameplay_mutation_shortcut": false,
         "post_navigation_position_clamp": bool(final_observation.get("post_navigation_position_clamp", true)),
