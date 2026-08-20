@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { request } from 'node:http';
 import { test } from 'node:test';
 import { createStudioServer, executeSampleRun } from './studio-server.mjs';
 import { BriefError, normalizeStudioBrief } from './studio-brief.mjs';
 
-async function withServer(callback) {
-  const server = createStudioServer();
+async function withServer(callback, options = {}) {
+  const server = createStudioServer(options);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -86,6 +87,37 @@ test('brief endpoint returns a same-origin download with revision-bearing eviden
     const crossOrigin = await fetch(`${base}${result.download.url}`, { headers: { origin: 'https://example.com' } });
     assert.equal(crossOrigin.status, 403);
   });
+});
+
+test('brief run slot is reserved before body parsing so concurrent requests fail closed', async () => {
+  await withServer(async (base) => {
+    const body = JSON.stringify(goodBrief);
+    const target = new URL(`${base}/api/pipeline/brief-runs`);
+    let firstRequest;
+    const firstResponse = new Promise((resolveResponse, reject) => {
+      firstRequest = request({
+        hostname: target.hostname,
+        port: target.port,
+        path: target.pathname,
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+      }, (response) => {
+        response.resume();
+        response.once('end', () => resolveResponse(response.statusCode));
+      });
+      firstRequest.once('error', reject);
+      firstRequest.write(body.slice(0, 8));
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const concurrent = await fetch(`${base}/api/pipeline/brief-runs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body
+    });
+    assert.equal(concurrent.status, 409);
+
+    firstRequest.end(body.slice(8));
+    assert.equal(await firstResponse, 201);
+  }, { execute: async () => ({ status: 'pass' }) });
 });
 
 test('a newer successful run invalidates the previous in-memory download token', async () => {
