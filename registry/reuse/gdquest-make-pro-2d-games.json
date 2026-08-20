@@ -1,0 +1,78 @@
+{
+  "id": "gdquest-make-pro-2d-games",
+  "name": "GDQuest Make Pro 2D Games A-RPG",
+  "description": "Complete open A-RPG reference project with interlocking gameplay, inventory, shop, UI, save/load and boss systems. Valuable as architecture/system reference; built for an older Godot generation.",
+  "kind": "whole-game",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://github.com/gdquest-demos/godot-make-pro-2d-games/tree/7290681309ffcd700c2c08a8e59a57bfbec14d5e",
+    "provider": "GDQuest",
+    "repositoryUrl": "https://github.com/gdquest-demos/godot-make-pro-2d-games",
+    "commit": "7290681309ffcd700c2c08a8e59a57bfbec14d5e"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT",
+    "evidenceUrl": "https://github.com/gdquest-demos/godot-make-pro-2d-games/blob/7290681309ffcd700c2c08a8e59a57bfbec14d5e/LICENSE",
+    "attributionRequired": true,
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notice": "Repository contains an MIT licence and describes the project as MIT-licensed. Preserve the MIT notice. Exact art/audio/content provenance should still be audited before copying bundled production content rather than using the project as code/architecture reference."
+  },
+  "commercialUse": "conditional",
+  "provenance": {
+    "confidence": "medium",
+    "notes": "Official GDQuest demo repository with MIT licence. Treat source code/architecture as the strongest reuse case; bundled visual/audio content still deserves exact-item provenance review before commercial adoption."
+  },
+  "maintenance": {
+    "status": "stable-static",
+    "evidence": "Repository remains public but latest code commit is from the Godot 3.x era; it is a stable historical reference rather than a current production starter.",
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notes": "Do not adopt wholesale into a current Godot 4.x project without migration-cost evidence."
+  },
+  "compatibility": {
+    "engines": ["Godot 3"],
+    "platforms": ["desktop", "web", "mobile"],
+    "notes": "Current pipeline projects using Godot 4.x should mine system/architecture patterns selectively and measure migration cost."
+  },
+  "risk": {
+    "supplyChain": "low",
+    "dependencyBurden": "low",
+    "legalNotes": "MIT repository licence is clear; bundled art/audio/content should be audited independently before commercial copying. Course branding/content should not be represented as By JTT work.",
+    "securityNotes": "Old-engine reference code can contain outdated APIs/patterns; port selectively and review saves/file I/O and current platform requirements."
+  },
+  "assessment": {
+    "integrationEffort": "high",
+    "lifecycleRisk": "medium",
+    "scores": {
+      "referenceArchitectureValue": 5,
+      "licenceCommercialCompatibility": 4,
+      "provenanceConfidence": 4,
+      "currentEngineCompatibility": 2,
+      "systemCoverage": 5,
+      "integrationEffort": 1.5
+    },
+    "recommendation": "benchmark",
+    "notes": "Strong whole-game/reference source for inventories, shops, menus, saves and gameplay composition; unlikely to win as a wholesale modern starter due to Godot-version age."
+  },
+  "evidence": [
+    {
+      "type": "official-repository",
+      "url": "https://github.com/gdquest-demos/godot-make-pro-2d-games/tree/7290681309ffcd700c2c08a8e59a57bfbec14d5e",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Official GDQuest A-RPG demo repository; README describes multiple interlocking game systems and MIT source availability."
+    },
+    {
+      "type": "official-licence",
+      "url": "https://github.com/gdquest-demos/godot-make-pro-2d-games/blob/7290681309ffcd700c2c08a8e59a57bfbec14d5e/LICENSE",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Pinned MIT licence."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "gdquest-make-pro-2d-games",
+    "notes": "Publish primarily as a whole-game architecture/reference source with explicit Godot 3 age and asset-provenance caveats."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T03:40:00Z"
+}
