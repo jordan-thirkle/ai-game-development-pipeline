@@ -121,12 +121,15 @@ export async function loadLiveState({ repository, prNumber, token, apiBase = 'ht
     peers
       .filter((peer) => peer.number !== prNumber)
       .map(async (peer) => {
-        const changed = await requestAll(`${repoUrl}/pulls/${peer.number}/files?per_page=100`, token);
+        const [{ data: peerDetail }, changed] = await Promise.all([
+          requestJson(`${repoUrl}/pulls/${peer.number}`, token),
+          requestAll(`${repoUrl}/pulls/${peer.number}/files?per_page=100`, token)
+        ]);
         return {
           number: peer.number,
           title: peer.title,
           files: changed.map((file) => file.filename),
-          ...summarizeFileInventory(peer, changed)
+          ...summarizeFileInventory(peerDetail, changed)
         };
       })
   );
