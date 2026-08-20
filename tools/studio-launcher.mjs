@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { startStudioServer } from './studio-server.mjs';
 
 const MIN_NODE_MAJOR = 26;
+const READINESS_TIMEOUT_MS = 10_000;
 
 export function assertSupportedNode(version = process.versions.node) {
   const major = Number.parseInt(String(version).split('.')[0], 10);
@@ -26,10 +27,11 @@ export function openBrowser(url, { platform = process.platform, spawnImpl = spaw
   return child;
 }
 
-export async function verifyStudioReady(url, fetchImpl = globalThis.fetch) {
+export async function verifyStudioReady(url, fetchImpl = globalThis.fetch, timeoutMs = READINESS_TIMEOUT_MS) {
+  const signal = AbortSignal.timeout(timeoutMs);
   const [page, capabilities] = await Promise.all([
-    fetchImpl(url, { redirect: 'error' }),
-    fetchImpl(new URL('/api/pipeline/capabilities', url), { redirect: 'error' })
+    fetchImpl(url, { redirect: 'error', signal }),
+    fetchImpl(new URL('/api/pipeline/capabilities', url), { redirect: 'error', signal })
   ]);
   if (!page.ok) throw new Error(`Studio page readiness failed with HTTP ${page.status}.`);
   if (!capabilities.ok) throw new Error(`Studio capability readiness failed with HTTP ${capabilities.status}.`);
@@ -61,8 +63,12 @@ export async function launchStudio({
     await verifyStudioReady(url, fetchImpl);
     log(`Studio ready at ${url}`);
     if (shouldOpen) {
-      try { open(url); }
-      catch (error) { log(`Could not open the browser automatically: ${error?.message || error}`); }
+      try {
+        const opener = open(url);
+        opener?.once?.('error', (error) => log(`Could not open the browser automatically: ${error?.message || error}`));
+      } catch (error) {
+        log(`Could not open the browser automatically: ${error?.message || error}`);
+      }
     }
     if (!keepAlive) {
       await new Promise((done) => server.close(done));
