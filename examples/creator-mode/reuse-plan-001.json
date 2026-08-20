@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0.0",
+  "plan_id": "CREATOR-REUSE-001",
+  "created_at": "2026-08-20T03:48:00+01:00",
+  "brief": {
+    "title": "Mobile salvage extraction roguelite",
+    "platform_priority": ["iOS", "Android", "web-preview"],
+    "player_fantasy": "Explore compact ruined biomes, fight threats, salvage useful parts, extract safely and restore a persistent workshop.",
+    "core_loop": "Move and fight, break salvage, collect rewards, choose an upgrade, extract, improve the workshop, then run again."
+  },
+  "source_registry": {
+    "path": "registry/open-source-game-reuse.v1.json",
+    "revision": "cf98798b5d63ef434ad137e4016007883a3d10a6",
+    "dependency_pr": 110
+  },
+  "discovery": {
+    "whole_starter_search_completed": true,
+    "mechanic_search_completed": true,
+    "free_asset_search_completed": true,
+    "internal_incumbent_checked_after_external": true
+  },
+  "capabilities": [
+    {
+      "capability_id": "player-controller-camera",
+      "requirement": "Responsive third-person mobile-capable locomotion and camera foundation.",
+      "kind": "code",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.godot-demo-projects", "reuse.kenney-starter-3d-platformer"],
+      "decision": "adapt",
+      "selected_entry_id": "reuse.kenney-starter-3d-platformer",
+      "clearance_snapshot": {"evidence_status": "SOURCE-VERIFIED", "code": "cleared", "assets": "cleared", "dependencies": "cleared"},
+      "rationale": "The starter already supplies a working character controller, camera controls and gamepad path; adaptation should remove more generic work than rebuilding those systems independently.",
+      "remaining_evidence": ["execute on chosen stable Godot version", "replace/extend desktop input with target touch controls", "device latency and feel test"],
+      "estimated_generic_work_avoided": "high"
+    },
+    {
+      "capability_id": "salvage-collectibles",
+      "requirement": "Breakable/collectible world rewards that feed the run loop.",
+      "kind": "code",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.kenney-starter-3d-platformer", "reuse.godot-demo-projects"],
+      "decision": "adapt",
+      "selected_entry_id": "reuse.kenney-starter-3d-platformer",
+      "clearance_snapshot": {"evidence_status": "SOURCE-VERIFIED", "code": "cleared", "assets": "cleared", "dependencies": "cleared"},
+      "rationale": "The starter includes collectibles and reusable scene/gameplay patterns; adapt those into salvage nodes rather than recreate pickup plumbing from scratch.",
+      "remaining_evidence": ["runtime integration with combat/destruction", "save-state ownership review"],
+      "estimated_generic_work_avoided": "medium"
+    },
+    {
+      "capability_id": "enemy-ai",
+      "requirement": "Enemy state/behavior architecture that can grow beyond the first simple greybox enemy.",
+      "kind": "system",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.limboai", "reuse.godot-demo-projects"],
+      "decision": "blocked_review",
+      "selected_entry_id": "reuse.limboai",
+      "clearance_snapshot": {"evidence_status": "SOURCE-VERIFIED", "code": "cleared", "assets": "requires_review", "dependencies": "requires_review"},
+      "rationale": "LimboAI could remove behavior-tree/state-machine framework work, but unresolved dependency/demo-asset boundaries and framework overhead prevent automatic adoption.",
+      "remaining_evidence": ["dependency licence review", "target Godot version execution", "compare complexity against native state logic"],
+      "estimated_generic_work_avoided": "medium"
+    },
+    {
+      "capability_id": "inventory-run-loot",
+      "requirement": "Inventory/loot data model suitable for run rewards and persistent workshop resources.",
+      "kind": "system",
+      "external_search_completed": true,
+      "candidates_considered": [],
+      "decision": "discovery_gap",
+      "selected_entry_id": null,
+      "clearance_snapshot": {"evidence_status": "UNKNOWN", "code": "unknown", "assets": "not_applicable", "dependencies": "unknown"},
+      "rationale": "Current cleared registry does not yet contain an eligible inventory system; Creator Mode must extend external discovery instead of generating one immediately.",
+      "remaining_evidence": ["evaluate current Godot inventory repositories", "licence/dependency screening", "multiplayer and persistence fit if required"],
+      "estimated_generic_work_avoided": "none",
+      "gap_reason": "External search found no currently registered and clearance-screened inventory candidate."
+    },
+    {
+      "capability_id": "save-meta-progression",
+      "requirement": "Versioned local save and persistent workshop/meta-progression data with recovery behavior.",
+      "kind": "system",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.godot-demo-projects"],
+      "decision": "discovery_gap",
+      "selected_entry_id": null,
+      "clearance_snapshot": {"evidence_status": "UNKNOWN", "code": "unknown", "assets": "not_applicable", "dependencies": "unknown"},
+      "rationale": "Official demos may contain useful persistence patterns, but the collection-level asset/dependency clearance is unresolved and no dedicated save candidate is screened yet.",
+      "remaining_evidence": ["identify exact official save demo/pattern", "search maintained save/versioning libraries", "migration/recovery test"],
+      "estimated_generic_work_avoided": "none",
+      "gap_reason": "No dedicated source-verified save/meta-progression component has passed the external reuse gate."
+    },
+    {
+      "capability_id": "touch-haptics",
+      "requirement": "One-thumb/mobile touch controls, input remapping and platform haptic feedback.",
+      "kind": "code",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.kenney-starter-3d-platformer", "reuse.godot-demo-projects"],
+      "decision": "discovery_gap",
+      "selected_entry_id": null,
+      "clearance_snapshot": {"evidence_status": "UNKNOWN", "code": "unknown", "assets": "not_applicable", "dependencies": "unknown"},
+      "rationale": "The starter gives controller/gamepad foundations but does not establish the required mobile touch/haptics path; do not pretend desktop input reuse solves mobile feel.",
+      "remaining_evidence": ["search current Godot touch-control implementations", "engine-native haptic capability research", "real-device validation"],
+      "estimated_generic_work_avoided": "none",
+      "gap_reason": "Existing screened starter does not cover the mobile-specific interaction requirement."
+    },
+    {
+      "capability_id": "environment-art",
+      "requirement": "Commercial-safe low-poly prototype environment and prop art before bespoke style production.",
+      "kind": "asset",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.kenney", "reuse.cc0-asset-index", "reuse.kenney-starter-3d-platformer"],
+      "decision": "adapt",
+      "selected_entry_id": "reuse.kenney",
+      "clearance_snapshot": {"evidence_status": "SOURCE-VERIFIED", "code": "not_applicable", "assets": "cleared", "dependencies": "not_applicable"},
+      "rationale": "Use a directly sourced CC0 Kenney pack for prototype/world composition before generating generic props; freeze the exact pack/files when selected.",
+      "remaining_evidence": ["select exact pack", "record pack/file provenance", "mobile geometry/material budget check", "style-cohesion review"],
+      "estimated_generic_work_avoided": "high"
+    },
+    {
+      "capability_id": "prototype-sfx",
+      "requirement": "Commercial-safe interaction/combat/UI sound effects for prototype feedback.",
+      "kind": "audio",
+      "external_search_completed": true,
+      "candidates_considered": ["reuse.kenney", "reuse.cc0-asset-index", "reuse.kenney-starter-3d-platformer"],
+      "decision": "adapt",
+      "selected_entry_id": "reuse.kenney",
+      "clearance_snapshot": {"evidence_status": "SOURCE-VERIFIED", "code": "not_applicable", "assets": "cleared", "dependencies": "not_applicable"},
+      "rationale": "Use existing CC0 SFX for the prototype feedback layer before spending generation budget on commodity sounds; later style/audio direction can replace them deliberately.",
+      "remaining_evidence": ["select exact sound pack/files", "loudness/format normalization", "human audio-taste review"],
+      "estimated_generic_work_avoided": "medium"
+    }
+  ],
+  "metrics": {
+    "generic_capabilities": 8,
+    "planned_reuse_or_adapt": 4,
+    "blocked_review": 1,
+    "discovery_gaps": 3,
+    "generation_decisions": 0,
+    "bespoke_decisions": 0,
+    "whole_starters_considered": 1,
+    "realized_time_savings_claimed": false
+  },
+  "evidence_boundary": "This is a source-verified planning experiment stacked on PR #110. It estimates generic work that may be avoided but claims no realized development-time, quality, performance or production-readiness improvement until the selected reuse plan is executed and measured."
+}
