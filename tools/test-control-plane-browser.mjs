@@ -70,7 +70,7 @@ await record('visual sample failure stays explicit and retryable without inventi
   await page.locator('#run-sample').click();
   await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Deliberate test failure'));
   assert.equal(await page.locator('[data-run-step].fail').count(),0,'generic service failure was misattributed to pipeline stages');
-  assert.equal(await page.locator('[data-run-step].planned').count(),6,'unknown stage execution was not preserved as unexecuted');
+  assert.equal(await page.locator('[data-run-step].blocked').count(),6,'unverified stages reverted to an idle-looking state');
   assert.equal(await page.locator('#run-sample').isEnabled(),true,'retry stayed disabled');
   assert.equal(await page.locator('#run-evidence-panel').isVisible(),false,'stale success evidence became visible');
   assert(consoleErrors.every(message=>/Failed to load resource.*500/.test(message)),`unexpected console errors: ${consoleErrors.join('; ')}`);
@@ -88,8 +88,8 @@ await record('visual partial evidence identifies a QA stop without failing later
   assert.equal(await page.locator('[data-run-step="registry"].pass').count(),1);
   assert.equal(await page.locator('[data-run-step="build"].pass').count(),1);
   assert.equal(await page.locator('[data-run-step="qa"].fail').count(),1);
-  assert.equal(await page.locator('[data-run-step="releaseCandidate"].planned').count(),1);
-  assert.equal(await page.locator('[data-run-step="publishing"].planned').count(),1);
+  assert.equal(await page.locator('[data-run-step="releaseCandidate"].blocked').count(),1);
+  assert.equal(await page.locator('[data-run-step="publishing"].blocked').count(),1);
   await page.close();
 });
 
