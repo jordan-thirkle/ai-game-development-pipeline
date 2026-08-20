@@ -28,6 +28,26 @@ Multiplayer complexity is earned, not assumed. A game should remain local/offlin
 - preserve a path to self-host/BYOC only when measured scale economics justify the extra operations burden;
 - never build a custom fleet manager, matchmaking service or generic realtime transport before evaluating the mature systems below.
 
+## Universal multiplayer run-manifest rule
+
+Every comparison below is bound to one immutable run manifest before execution. In addition to the universal evaluation fields, multiplayer manifests record:
+
+- exact server/client/backend SDK package versions and immutable source revisions where available;
+- exact transport package/version separately from the framework when independently released;
+- engine/runtime and headless-server build revision;
+- authoritative tick/snapshot/send rates and prediction/rollback settings;
+- topology and trust boundary;
+- regions, hardware/container resources and warm-capacity policy;
+- simulated RTT/jitter/loss profile and the network-emulation method;
+- player/bot count and deterministic workload seed;
+- reconnect/session-expiry policy;
+- provider pricing/plan/region snapshot where a managed service is involved;
+- managed provider's actual embedded/runtime compatibility version separately from the latest upstream open-source release;
+- credential scopes, data residency/export path and operational ownership;
+- attempt/retry policy, acceptance thresholds and provenance/evidence destinations.
+
+Changing a material field creates a new run-manifest ID. A managed service cannot inherit compatibility or capability claims solely because it is based on a newer upstream open-source project.
+
 ---
 
 # 1. Meta-game/backend and matchmaking
@@ -50,11 +70,14 @@ Nakama is the strongest current open-source baseline for the **meta/backend laye
 
 This separation is useful to ByJTT: Nakama can be the backend without forcing every game simulation to run inside Nakama.
 
+Current session-based documentation also exposes a `FleetManager` interface and documents out-of-the-box integrations for Amazon GameLift and Edgegap. Therefore the benchmark must compare those mature fleet bridges before implementing a custom Nakama-to-host allocator. A new hosting adapter is justified only when the selected host lacks an adequate maintained integration or the existing integration fails the frozen benchmark.
+
 ### Important limits
 
 - Custom authoritative gameplay still requires server runtime logic; there is no generic automatic game simulation.
 - For physics-heavy/high-frequency games, benchmark a headless dedicated game server rather than assuming the Nakama match loop is the correct physics runtime.
 - Open-source single-node capability, clustered/enterprise capability and Heroic Cloud commercial services are different operational/licensing records.
+- Fleet-management integration does not prove a hosting provider's availability, cost, SLA, region coverage or compatibility; those remain provider-specific evidence.
 
 ### Required benchmark
 
@@ -70,6 +93,7 @@ Against identical game/domain contracts:
 - deployment/recovery burden;
 - CPU/RAM/network use per active match;
 - client SDK coverage for Unity, web and other target runtimes;
+- session-based FleetManager integration effort where dedicated servers are required;
 - self-hosted monthly baseline cost versus managed alternatives.
 
 ---
@@ -81,9 +105,9 @@ Current REST surface observed at research time: Matchmaking API version `260703`
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **ENTERPRISE/MICROSOFT ECOSYSTEM BENCHMARK, NOT DEFAULT**
 
-PlayFab provides rule-based matchmaking with queues, tickets, team/skill/region constraints and integration with Multiplayer Servers. It is a serious vendor benchmark when Xbox/Microsoft ecosystem integration or managed enterprise backend services matter.
+PlayFab provides rule-based matchmaking with queues, tickets, team/skill/region constraints, timed rule relaxation/expansion, backfill and direct integration with Multiplayer Servers. It is a serious vendor benchmark when Xbox/Microsoft ecosystem integration or managed enterprise backend services matter.
 
-It is not the default portable core because the API/data/service model is vendor-governed. Any benchmark records exact API/SDK versions, title configuration, pricing region and export/migration path.
+It is not the default portable core because the API/data/service model is vendor-governed. Any benchmark records exact API/SDK versions, title configuration, pricing region, queue rules/relaxation, data-residency constraints and export/migration path.
 
 ---
 
@@ -139,7 +163,7 @@ Fusion supports materially different topologies:
 - **Host Mode** — a player-hosted client/server topology with server authority;
 - **Shared Mode** — cloud-room/shared authority, simpler and particularly relevant to mobile/web but with a different trust/cheat profile.
 
-Host/Server mode support prediction, reconciliation/rollback-style resimulation. Fusion's 2.1 physics addon can provide predicted rigidbody interactions but explicitly warns that physics resimulation is CPU expensive.
+Host/Server mode support prediction and resimulation/reconciliation patterns. Fusion's 2.1 physics addon can provide client-side-predicted rigidbody interactions in Host/Dedicated Server topologies; its documentation warns that physics resimulation is CPU expensive and that the heaviest resimulation cost is borne by clients as network lag increases. Benchmarking therefore measures worst-supported-client cost rather than only dedicated-server CPU.
 
 Dedicated Server mode still requires a separate game-server host/orchestrator. Photon Cloud participates in the topology but does not remove the dedicated headless-hosting problem. Current Photon documentation explicitly recommends choosing topology early because the programming model changes materially.
 
@@ -153,7 +177,8 @@ Use the same small action arena as open-source alternatives and measure:
 
 - input responsiveness under latency/loss;
 - correction magnitude/frequency;
-- predicted physics quality and CPU cost;
+- predicted physics quality and client CPU cost at the maximum supported lag profile;
+- server CPU separately from client resimulation cost;
 - bandwidth;
 - host migration/failure behavior where applicable;
 - mobile/WebGL constraints;
@@ -201,7 +226,9 @@ Official product: https://gamefabric.com/
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **PRIMARY MANAGED DEDICATED-SERVER ORCHESTRATION BENCHMARK**
 
-GameFabric currently presents an Agones-based orchestration platform across bare metal and cloud/BYOC, with API and Terraform control. Its documentation exposes allocation, fleet/lifecycle concepts and Agones integration, making it especially useful as a managed comparison against raw Agones.
+GameFabric currently presents an Agones-based orchestration platform across bare metal and cloud/BYOC, with API and Terraform/OpenTofu control. Its documentation exposes allocation, fleet/lifecycle concepts and Agones integration, making it especially useful as a managed comparison against raw Agones.
+
+**Compatibility boundary:** GameFabric's current public integration documentation states that its managed runtime is on **Agones 1.57.0**, while the upstream open-source benchmark above is pinned to Agones **1.59.0**. Those are separate facts. A GameFabric run must pin the provider runtime/integration version actually offered at execution time and may not assume availability of upstream 1.59 features or SDK behavior. Compatibility is tested against the provider's documented/runtime version, not inferred from upstream latest.
 
 It is also the migration partner named by Hathora when Hathora exited gaming infrastructure in 2026, which makes it materially more current than copying old Hathora recommendations.
 
@@ -215,9 +242,9 @@ Official docs: https://docs.edgegap.com/
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **MANAGED EDGE-ORCHESTRATION BENCHMARK**
 
-Current docs describe container game-server deployment/orchestration, matchmaking/server-browser integration and a large multi-provider location footprint with pay-per-use positioning. It is a serious low-operations benchmark for session-based games.
+Current docs describe container game-server deployment/orchestration, matchmaking/server-browser integration and a large multi-provider location footprint with pay-per-use positioning. Nakama's current session-based documentation and Edgegap's integration guide also document a Nakama FleetManager path, so that maintained integration is benchmarked before bespoke fleet glue.
 
-Do not accept location-count, latency or cost superiority as measured ByJTT evidence until an identical server image and player-location manifest is executed across managed candidates.
+Do not accept location-count, latency, “optimal location”, savings or cost superiority as measured ByJTT evidence until an identical server image, player-location manifest, pricing snapshot and allocation workload is executed across managed candidates.
 
 ---
 
@@ -233,13 +260,13 @@ Hathora announced its acquisition by Fireworks AI and stated that gaming-custome
 
 ## Unity Multiplay direct Game Server Hosting — reject for new hosting allocations
 
-Current Unity docs state direct Multiplay Hosting support concluded **2026-03-31**. Unity Matchmaker continues and now documents external hosting-provider integration through Cloud Code modules.  
+Current Unity docs state direct Multiplay Hosting support concluded **2026-03-31**. Unity Matchmaker continues and documents external hosting-provider integration through Cloud Code modules; Unity's current documentation also describes Relay/Distributed Authority continuation separately.  
 Current Matchmaker docs: https://docs.unity.com/en-us/matchmaker  
 Migration docs: https://docs.unity.com/en-us/matchmaker/multiplay-hosting-migration  
 Evidence: **SOURCE-VERIFIED vendor docs**  
 Disposition: **DIRECT HOSTING SUPERSEDED; KEEP MATCHMAKER AS SEPARATE BENCHMARK CANDIDATE**
 
-Do not conflate Unity Matchmaker with the deprecated direct Multiplay Hosting service.
+Do not conflate Unity Matchmaker with the concluded direct Unity Multiplay Game Server Hosting support path. Legacy/backward-compatibility documentation is migration evidence, not proof that direct hosting is a new-project default.
 
 ---
 
@@ -313,13 +340,14 @@ One tiny 4–16 player action arena with a frozen deterministic ruleset:
 - match timer + score;
 - reconnect.
 
-Run fixed scenarios under normal network, 50/100/200 ms RTT and controlled loss/jitter. Measure server tick stability, correction behavior, bandwidth, CPU/RAM, cheat-invalid input rejection, reconnect correctness, client feel and implementation complexity.
+Run fixed scenarios under normal network, 50/100/200 ms RTT and controlled loss/jitter. Measure server tick stability, correction behavior, bandwidth, CPU/RAM, cheat-invalid input rejection, reconnect correctness, client feel and implementation complexity. Any netcode using client prediction also records client CPU/frame-time and correction behavior under the same worst-supported network profiles.
 
 ## Benchmark C — dedicated server allocation
 
 Use the **same containerized headless server image** across eligible providers. Freeze regions, hardware class, warm-capacity policy, session duration and load trace. Measure:
 
 - build-to-deploy time;
+- exact provider orchestration/runtime compatibility version and SDK compatibility;
 - cold and warm allocation latency;
 - geographic latency;
 - scale-up/down lag;
@@ -332,7 +360,7 @@ Use the **same containerized headless server image** across eligible providers. 
 - operator effort;
 - migration/BYOC portability.
 
-A provider cannot win from marketing location counts or list pricing alone.
+A provider cannot win from marketing location counts, upstream-project version numbers or list pricing alone.
 
 ---
 
