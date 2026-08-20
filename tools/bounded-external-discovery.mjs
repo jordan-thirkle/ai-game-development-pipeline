@@ -11,18 +11,18 @@ let searchActions = 0;
 let sourceFetches = 0;
 
 const capabilities = [
-  { id: 'whole-starter-architecture', query: 'godot survival starter game', keywords: ['survival', 'starter', 'game'] },
-  { id: 'controller-camera', query: 'godot 4 third person controller', keywords: ['third', 'person', 'controller'] },
-  { id: 'combat-interactions', query: 'godot 4 combat interaction system', keywords: ['combat', 'interaction', 'shooter'] },
-  { id: 'enemy-npc-ai', query: 'godot behavior tree state machine ai', keywords: ['behavior', 'tree', 'state', 'ai'] },
-  { id: 'building-placement', query: 'godot building placement system', keywords: ['building', 'placement', 'build'] },
-  { id: 'inventory-economy', query: 'godot inventory system', keywords: ['inventory', 'item'] },
-  { id: 'crafting-recipes', query: 'godot crafting system', keywords: ['craft', 'crafting', 'recipe'] },
-  { id: 'save-progression', query: 'godot save system plugin', keywords: ['save', 'savedata', 'persistence'] },
-  { id: 'ui-touch-accessibility', query: 'godot mobile joystick accessibility', keywords: ['mobile', 'joystick', 'accessibility', 'touch'] },
-  { id: 'environment-character-animation-assets', query: 'godot game assets low poly cc0', keywords: ['asset', 'low', 'poly', 'cc0'] },
-  { id: 'audio-music', query: 'godot game audio music sfx cc0', keywords: ['audio', 'music', 'sfx', 'sound'] },
-  { id: 'multiplayer-networking-social', query: 'godot multiplayer netcode addon', keywords: ['multiplayer', 'netcode', 'network'] },
+  { id: 'whole-starter-architecture', query: 'godot survival starter kit', requireGodot: true, requiredAny: ['survival'], secondaryAny: ['starter', 'template', 'kit', 'framework'] },
+  { id: 'controller-camera', query: 'godot third person controller', requireGodot: true, requiredAny: ['controller'], secondaryAny: ['third person', 'third-person', 'camera', 'character'] },
+  { id: 'combat-interactions', query: 'godot combat system', requireGodot: true, requiredAny: ['combat'], secondaryAny: ['system', 'interaction', 'melee', 'shooter', 'weapon'] },
+  { id: 'enemy-npc-ai', query: 'godot behavior tree ai', requireGodot: true, requiredAny: ['behavior tree', 'behaviour tree', 'ai', 'npc'], secondaryAny: ['state machine', 'enemy', 'behavior', 'behaviour'] },
+  { id: 'building-placement', query: 'godot building placement system', requireGodot: true, requiredAny: ['building', 'placement'], secondaryAny: ['system', 'build', 'snapping', 'construction'] },
+  { id: 'inventory-economy', query: 'godot inventory system', requireGodot: true, requiredAny: ['inventory'], secondaryAny: ['system', 'item', 'equipment'] },
+  { id: 'crafting-recipes', query: 'godot crafting system', requireGodot: true, requiredAny: ['crafting', 'craft'], secondaryAny: ['system', 'recipe'] },
+  { id: 'save-progression', query: 'godot save system', requireGodot: true, requiredAny: ['save', 'savedata', 'persistence'], secondaryAny: ['system', 'plugin', 'addon'] },
+  { id: 'ui-touch-accessibility', query: 'godot mobile joystick accessibility', requireGodot: true, requiredAny: ['joystick', 'mobile', 'touch', 'accessibility'], secondaryAny: ['virtual', 'input', 'ui', 'control'] },
+  { id: 'environment-character-animation-assets', query: 'godot low poly assets cc0', requireGodot: false, requiredAny: ['asset', 'model', 'low poly', 'low-poly', 'cc0'], secondaryAny: ['godot', '3d', 'character', 'environment'] },
+  { id: 'audio-music', query: 'godot audio sfx cc0', requireGodot: false, requiredAny: ['audio', 'sfx', 'sound', 'music'], secondaryAny: ['godot', 'cc0', 'game'] },
+  { id: 'multiplayer-networking-social', query: 'godot multiplayer netcode', requireGodot: true, requiredAny: ['multiplayer', 'netcode', 'network'], secondaryAny: ['addon', 'plugin', 'online', 'synchronization'] },
 ];
 
 const canonicalSeeds = {
@@ -36,7 +36,7 @@ function headers() {
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'byjtt-bounded-external-discovery/0.1',
+    'User-Agent': 'byjtt-bounded-external-discovery/0.2',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -75,19 +75,48 @@ function textFor(repo) {
   return `${repo.name ?? ''} ${repo.description ?? ''} ${(repo.topics ?? []).join(' ')}`.toLowerCase();
 }
 
-function taskFit(repo, keywords) {
-  const hay = textFor(repo);
-  return keywords.reduce((score, keyword) => score + (hay.includes(keyword.toLowerCase()) ? 1 : 0), 0);
+function containsAny(hay, needles) {
+  return needles.some((needle) => hay.includes(needle));
 }
 
-function score(repo, keywords) {
-  const fit = taskFit(repo, keywords);
+function isGenericIndex(repo) {
+  const name = (repo.name ?? '').toLowerCase();
+  const description = (repo.description ?? '').toLowerCase();
+  return (
+    name.startsWith('awesome') ||
+    name.includes('awesome-') ||
+    /(^|[-_])resources?($|[-_])/.test(name) ||
+    /curated list|awesome list|collection of (links|resources)|list of (links|resources|tools|libraries)/.test(description) ||
+    name.includes('mcp-server') ||
+    name.includes('agency-agents')
+  );
+}
+
+function taskEligibility(repo, capability) {
+  const hay = textFor(repo);
+  if (capability.requireGodot && !hay.includes('godot')) return { eligible: false, reason: 'missing_godot_signal' };
+  if (isGenericIndex(repo)) return { eligible: false, reason: 'generic_index_not_direct_component' };
+  if (!containsAny(hay, capability.requiredAny)) return { eligible: false, reason: 'missing_primary_task_signal' };
+  if (!containsAny(hay, capability.secondaryAny)) return { eligible: false, reason: 'missing_secondary_task_signal' };
+  return { eligible: true, reason: 'task_metadata_match' };
+}
+
+function taskFit(repo, capability) {
+  const hay = textFor(repo);
+  const primary = capability.requiredAny.reduce((score, keyword) => score + (hay.includes(keyword) ? 1 : 0), 0);
+  const secondary = capability.secondaryAny.reduce((score, keyword) => score + (hay.includes(keyword) ? 1 : 0), 0);
+  const godot = hay.includes('godot') ? 1 : 0;
+  return primary * 3 + secondary + godot;
+}
+
+function score(repo, capability) {
+  const fit = taskFit(repo, capability);
   const age = daysSince(repo.pushed_at);
   const maintenanceScore = age <= 180 ? 3 : age <= 730 ? 1 : -2;
   const licence = licenseClass(repo.license?.spdx_id);
   const licenceScore = licence === 'permissive' ? 3 : licence === 'file_or_weak_copyleft' ? 0 : licence === 'strong_copyleft' ? -5 : -1;
   const popularity = Math.min(2, Math.log10((repo.stargazers_count ?? 0) + 1) / 2);
-  return fit * 6 + maintenanceScore * 2 + licenceScore * 2 + popularity;
+  return fit * 8 + maintenanceScore * 2 + licenceScore * 2 + popularity;
 }
 
 function normalizeRepo(repo, capabilityId, revision) {
@@ -109,7 +138,7 @@ function normalizeRepo(repo, capabilityId, revision) {
     screening_status: screeningStatus,
     asset_boundary: 'requires_review',
     dependency_boundary: 'requires_review',
-    reason: `Selected deterministically for ${capabilityId}; repository metadata licence=${spdx ?? 'unknown'}, pushed=${repo.pushed_at ?? 'unknown'}. Source code/assets/dependencies remain review-required until canonical clearance.`,
+    reason: `Selected after direct-component metadata screening for ${capabilityId}; repository metadata licence=${spdx ?? 'unknown'}, pushed=${repo.pushed_at ?? 'unknown'}. Source code/assets/dependencies remain review-required until canonical clearance.`,
   };
 }
 
@@ -120,6 +149,8 @@ const perCapability = {};
 const queryLog = [];
 const revisionCache = new Map();
 let duplicateSelections = 0;
+let rejectedSearchHits = 0;
+let totalSearchHits = 0;
 
 async function exactRevision(repo) {
   const key = repo.full_name.toLowerCase();
@@ -131,15 +162,25 @@ async function exactRevision(repo) {
 }
 
 for (const capability of capabilities) {
-  const searchUrl = `/search/repositories?q=${encodeURIComponent(`${capability.query} in:name,description,readme`)}&sort=stars&order=desc&per_page=10`;
+  const searchUrl = `/search/repositories?q=${encodeURIComponent(`${capability.query} in:name,description`)}&sort=stars&order=desc&per_page=10`;
   searchActions += 1;
   const result = await github(searchUrl);
-  const candidates = (result.items ?? [])
-    .filter((repo) => !repo.archived && !repo.disabled)
-    .map((repo) => ({ repo, score: score(repo, capability.keywords) }))
+  const rawItems = (result.items ?? []).filter((repo) => !repo.archived && !repo.disabled);
+  totalSearchHits += rawItems.length;
+  const screened = rawItems.map((repo) => ({ repo, eligibility: taskEligibility(repo, capability) }));
+  rejectedSearchHits += screened.filter((entry) => !entry.eligibility.eligible).length;
+  const candidates = screened
+    .filter((entry) => entry.eligibility.eligible)
+    .map(({ repo }) => ({ repo, score: score(repo, capability) }))
     .sort((a, b) => b.score - a.score || (b.repo.stargazers_count ?? 0) - (a.repo.stargazers_count ?? 0));
 
-  queryLog.push({ capability_id: capability.id, query: capability.query, returned: result.items?.length ?? 0 });
+  queryLog.push({
+    capability_id: capability.id,
+    query: capability.query,
+    returned: result.items?.length ?? 0,
+    eligible_after_metadata_screen: candidates.length,
+    rejected_as_irrelevant_or_index: screened.length - candidates.length,
+  });
   const selected = candidates[0]?.repo ?? null;
   const selectedIds = [];
 
@@ -217,7 +258,10 @@ const output = {
   reviewable_candidate_count: reviewableCandidateCount,
   capability_candidate_coverage_pct: Math.round((candidateCoverage / capabilities.length) * 100),
   fully_cleared_capability_coverage_pct: Math.round((fullyClearedCoverage / capabilities.length) * 100),
-  irrelevant_or_duplicate_filtered: duplicateSelections,
+  irrelevant_or_duplicate_filtered: rejectedSearchHits + duplicateSelections,
+  search_hits_seen: totalSearchHits,
+  rejected_search_hits: rejectedSearchHits,
+  duplicate_selections_filtered: duplicateSelections,
   human_interventions: 0,
   unsafe_promotions: 0,
   elapsed_minutes: Number(elapsedMinutes.toFixed(3)),
@@ -226,7 +270,7 @@ const output = {
   queue,
   query_log: queryLog,
   per_capability: perCapability,
-  notes: 'Bounded on-demand prototype only. GitHub Search/API + local canonical external-reuse seeds; no repository execution, no scheduled operation, no production registry writes, and no automatic commercial clearance beyond inherited canonical evidence.',
+  notes: 'Bounded on-demand prototype only. GitHub Search/API + local canonical external-reuse seeds. Direct-component metadata screening rejects generic indexes/aggregators and requires task-specific signals before a search hit can count toward coverage. No repository execution, no scheduled operation, no production registry writes, and no automatic commercial clearance beyond inherited canonical evidence.',
 };
 
 await writeFile(outputPath, JSON.stringify(output, null, 2));
@@ -234,9 +278,11 @@ console.log(JSON.stringify({
   search_actions: output.search_actions,
   source_fetches: output.source_fetches,
   total_network_actions: output.search_actions + output.source_fetches,
+  search_hits_seen: output.search_hits_seen,
+  rejected_search_hits: output.rejected_search_hits,
   candidates: output.candidate_count,
   coverage_pct: output.capability_candidate_coverage_pct,
   fully_cleared_coverage_pct: output.fully_cleared_capability_coverage_pct,
-  duplicates_filtered: output.irrelevant_or_duplicate_filtered,
+  duplicates_filtered: output.duplicate_selections_filtered,
   elapsed_minutes: output.elapsed_minutes,
 }, null, 2));
