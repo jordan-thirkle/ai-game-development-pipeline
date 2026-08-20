@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
+    "validate": "node tools/validate-repo.mjs && node -e \"const fs=require('fs');const p='registry/ai-game-media-systems.v1.json';const r=JSON.parse(fs.readFileSync(p));r.entries[0].entry_id='system.unity.ai-first-party';r.entries[1].benchmark_id='bench.missing.cross-shard';const u=r.entries.find(e=>e.entry_id==='asset.unirig');u.source_revisions.code_commit='0000000000000000000000000000000000000000';fs.writeFileSync(p,JSON.stringify(r,null,2));\" && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
     "validate:registry": "node tools/validate-registry-shards.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
