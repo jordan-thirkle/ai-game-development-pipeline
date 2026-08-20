@@ -52,10 +52,21 @@ async function chunkedPost(url) {
 
 async function stalledBrief(url) {
   const target = new URL(url);
-  return new Promise((resolvePromise) => {
+  return new Promise((resolvePromise, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      callback(value);
+    };
     const outgoing = request({ hostname: target.hostname, port: target.port, path: target.pathname, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '128' } });
-    outgoing.on('response', (response) => { response.resume(); response.once('end', resolvePromise); });
-    outgoing.on('error', resolvePromise);
+    const deadline = setTimeout(() => {
+      finish(reject, new Error('stalled brief request exceeded its client deadline'));
+      outgoing.destroy();
+    }, 2500);
+    outgoing.on('response', (response) => { response.resume(); response.once('end', () => finish(resolvePromise)); });
+    outgoing.on('error', () => finish(resolvePromise));
     outgoing.write('{"name":"partial');
   });
 }
@@ -118,7 +129,6 @@ test('run endpoint rejects other methods and concurrent execution', async () => 
 test('stalled brief body releases the single-run slot after the intake deadline', async () => {
   await withServer({ execute: async () => ({ status: 'pass' }) }, async (base) => {
     const stalled = stalledBrief(`${base}/api/pipeline/brief-runs`);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
     await stalled;
     const next = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
     assert.equal(next.status, 201);
