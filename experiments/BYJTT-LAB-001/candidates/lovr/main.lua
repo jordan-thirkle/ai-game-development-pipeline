@@ -31,6 +31,9 @@ local function emit(result)
     .. '"fixed_dt":' .. number(FIXED_DT) .. ','
     .. '"drive_steps":300,'
     .. '"release_steps":60,'
+    .. '"mass_kg":' .. number(result.mass) .. ','
+    .. '"translation_dof":"' .. result.translation_dof .. '",'
+    .. '"rotation_dof":"' .. result.rotation_dof .. '",'
     .. '"expected_center_ceiling_x":' .. number(EXPECTED_CENTER_CEILING) .. ','
     .. '"max_x":' .. number(result.max_x) .. ','
     .. '"final_x":' .. number(result.final_x) .. ','
@@ -92,8 +95,9 @@ function lovr.load()
   player:setRestitution(0.0)
   player:setContinuous(true)
   player:setSleepingAllowed(false)
-  player:setDegreesOfFreedom(true, true, true, false, false, false)
+  player:setDegreesOfFreedom('xyz', '')
 
+  local translation_dof, rotation_dof = player:getDegreesOfFreedom()
   local mass = player:getMass()
   local max_x = -math.huge
 
@@ -128,6 +132,9 @@ function lovr.load()
     and final_x >= EXPECTED_CENTER_CEILING - 0.05
   local release_stable = release_drift <= 0.02 and math.abs(final_vx) <= 0.05
   local passed = version == '0.19.0'
+    and mass > 0
+    and translation_dof == 'xyz'
+    and rotation_dof == ''
     and native_wall_stop_observed
     and release_stable
     and observation_copy_isolated
@@ -137,6 +144,9 @@ function lovr.load()
   emit({
     passed = passed,
     lovr_version = version,
+    mass = mass,
+    translation_dof = translation_dof,
+    rotation_dof = rotation_dof,
     max_x = max_x,
     final_x = final_x,
     final_y = final_y,
