@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y lua5.4 luarocks xvfb xdotool imagemagick libvulkan1 mesa-vulkan-drivers vulkan-tools
+          sudo apt-get install -y lua5.4 luarocks xvfb openbox x11-utils xdotool imagemagick libvulkan1 mesa-vulkan-drivers vulkan-tools
           sudo luarocks install luacheck
           vulkaninfo --summary | tee "$GATE/artifacts/render-input-gate/vulkan-summary.txt"
       - name: Strict Lua syntax and lint
@@ -80,7 +80,10 @@ jobs:
           ARTIFACTS=artifacts/render-input-gate
           Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp > "$ARTIFACTS/xvfb.log" 2>&1 &
           XVFB_PID=$!
-          trap 'xdotool keyup d 2>/dev/null || true; kill "$XVFB_PID" 2>/dev/null || true' EXIT
+          sleep 1
+          openbox > "$ARTIFACTS/openbox.log" 2>&1 &
+          OPENBOX_PID=$!
+          trap 'xdotool keyup d 2>/dev/null || true; kill "$OPENBOX_PID" 2>/dev/null || true; kill "$XVFB_PID" 2>/dev/null || true' EXIT
           sleep 1
 
           LOVR_BIN="$(cat "$ARTIFACTS/lovr-binary-path.txt")"
@@ -107,13 +110,14 @@ jobs:
             sleep .1
           done
           if [ -z "$WINDOW_ID" ]; then
+            xwininfo -root -tree > "$ARTIFACTS/xwininfo-root-tree.txt" 2>&1 || true
             xdotool search --name '.*' 2>/dev/null | tee "$ARTIFACTS/all-window-ids.txt" || true
             cat "$ARTIFACTS/runtime.log"
             exit 1
           fi
           echo "$WINDOW_ID" | tee "$ARTIFACTS/window-id.txt"
           xdotool getwindowname "$WINDOW_ID" | tee "$ARTIFACTS/window-name.txt"
-          xdotool windowfocus --sync "$WINDOW_ID"
+          xdotool windowactivate --sync "$WINDOW_ID"
           xdotool keydown d
           sleep 5
           import -display "$DISPLAY" -window "$WINDOW_ID" "$ARTIFACTS/rendered-window.png"
@@ -131,7 +135,7 @@ jobs:
       - name: Assert machine-readable evidence boundary
         run: |
           set -euo pipefail
-          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.rendered_window_path_executed || !r.external_input_executed || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.render_frames<10 || r.max_draws_per_frame<6) process.exit(1);' "$GATE/artifacts/render-input-gate/result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.window_open || !r.window_visible || !r.rendered_window_path_executed || !r.external_input_executed || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.render_frames<10 || r.max_draws_per_frame<6) process.exit(1);' "$GATE/artifacts/render-input-gate/result.json"
           sha256sum \
             "$GATE/conf.lua" \
             "$GATE/main.lua" \
