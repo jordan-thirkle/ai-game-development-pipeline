@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 constexpr float kArenaWidth = 24.0f;
@@ -27,6 +28,15 @@ struct Observation {
   float x;
   float y;
   float z;
+};
+
+struct TelemetrySample {
+  const char* phase;
+  int step;
+  Observation position;
+  XMFLOAT3 velocity;
+  int ground_state;
+  bool supported;
 };
 
 wi::ecs::Entity AddStaticBox(
@@ -56,6 +66,19 @@ void Step(wi::scene::Scene& scene, float dt) {
 Observation Observe(wi::scene::RigidBodyPhysicsComponent& player) {
   const XMFLOAT3 p = wi::physics::GetPosition(player);
   return Observation{p.x, p.y, p.z};
+}
+
+TelemetrySample Capture(
+    wi::scene::RigidBodyPhysicsComponent& player,
+    const char* phase,
+    int step) {
+  return TelemetrySample{
+      phase,
+      step,
+      Observe(player),
+      wi::physics::GetVelocity(player),
+      static_cast<int>(wi::physics::GetCharacterGroundState(player)),
+      wi::physics::IsCharacterGroundSupported(player)};
 }
 }  // namespace
 
@@ -101,6 +124,9 @@ int main(int argc, char** argv) {
 
   const Observation start = Observe(player);
   float max_x = start.x;
+  std::vector<TelemetrySample> telemetry;
+  telemetry.reserve(32);
+  telemetry.push_back(Capture(player, "start", 0));
 
   for (int i = 0; i < kDrivenSteps; ++i) {
     wi::physics::MoveCharacter(
@@ -110,10 +136,15 @@ int main(int argc, char** argv) {
         0.0f,
         true);
     Step(scene, kFixedDt);
-    max_x = std::max(max_x, Observe(player).x);
+    const Observation observation = Observe(player);
+    max_x = std::max(max_x, observation.x);
+    if ((i + 1) % 15 == 0 || (observation.x >= 11.0f && telemetry.back().position.x < 11.0f)) {
+      telemetry.push_back(Capture(player, "driven", i + 1));
+    }
   }
 
   const Observation driven = Observe(player);
+  telemetry.push_back(Capture(player, "driven-final", kDrivenSteps));
   for (int i = 0; i < kReleasedSteps; ++i) {
     wi::physics::MoveCharacter(
         player,
@@ -123,9 +154,13 @@ int main(int argc, char** argv) {
         true);
     Step(scene, kFixedDt);
     max_x = std::max(max_x, Observe(player).x);
+    if ((i + 1) % 10 == 0) {
+      telemetry.push_back(Capture(player, "released", i + 1));
+    }
   }
   const Observation final_observation = Observe(player);
   const XMFLOAT3 final_velocity = wi::physics::GetVelocity(player);
+  telemetry.push_back(Capture(player, "final", kReleasedSteps));
 
   // Mutation-isolation probe: mutate only a copied observation, then re-read
   // engine-owned state. This is intentionally incapable of controlling play.
@@ -174,14 +209,26 @@ int main(int argc, char** argv) {
   out << "  \"observation_copy_isolated\": " << (observation_isolated ? "true" : "false") << ",\n";
   out << "  \"post_physics_arena_clamp\": false,\n";
   out << "  \"external_input_executed\": false,\n";
+  out << "  \"telemetry\": [\n";
+  for (size_t i = 0; i < telemetry.size(); ++i) {
+    const TelemetrySample& sample = telemetry[i];
+    out << "    {\"phase\": \"" << sample.phase << "\", \"step\": " << sample.step
+        << ", \"position\": [" << sample.position.x << ", " << sample.position.y << ", "
+        << sample.position.z << "], \"velocity\": [" << sample.velocity.x << ", "
+        << sample.velocity.y << ", " << sample.velocity.z << "], \"ground_state\": "
+        << sample.ground_state << ", \"supported\": " << (sample.supported ? "true" : "false")
+        << "}" << (i + 1 == telemetry.size() ? "\n" : ",\n");
+  }
+  out << "  ],\n";
   out << "  \"pass\": " << (pass ? "true" : "false") << "\n";
   out << "}\n";
   out.close();
 
   std::cout << "BYJTT Wicked Engine native-character gate: " << (pass ? "PASS" : "FAIL") << '\n';
   std::cout << "start=(" << start.x << ',' << start.y << ',' << start.z << ") max_x=" << max_x
-            << " driven_x=" << driven.x << " final_x=" << final_observation.x
-            << " vx=" << final_velocity.x << " release_drift=" << release_drift << '\n';
+            << " driven_x=" << driven.x << " final=(" << final_observation.x << ','
+            << final_observation.y << ',' << final_observation.z << ") vx=" << final_velocity.x
+            << " release_drift=" << release_drift << '\n';
 
   wi::jobsystem::ShutDown();
   return pass ? 0 : 1;
