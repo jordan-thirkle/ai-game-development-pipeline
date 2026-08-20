@@ -8,7 +8,9 @@ Start the local visual interface from the repository root:
 npm run studio
 ```
 
-Open `http://127.0.0.1:4173/apps/studio/`, choose **Run Pipeline**, then select **Run sample pipeline**. Studio creates a fresh playable sample in a temporary workspace, shows intake/scaffold, registry selection, build, QA, release-candidate, and publishing-plan evidence, then opens the exact verified browser artifact below the journey. Use WASD or the arrow keys to collect the green beacon. **Open in new tab** launches the same artifact in a larger view.
+Open `http://127.0.0.1:4173/apps/studio/`, choose **Run Pipeline**, enter a bounded brief, then select **Build playable starter**. Studio applies the project name, objective, and target to a fresh playable sample, shows intake/scaffold, registry selection, build, QA, release-candidate, and publishing-plan evidence, then opens the exact verified browser artifact below the journey. Web and desktop targets use WASD or the arrow keys; mobile targets add on-screen touch controls. **Open in new tab** launches the same artifact in a larger view.
+
+The brief customizes the identity, displayed objective, target metadata, and target-appropriate controls of the reviewed beacon-collection starter. It does not yet generate arbitrary mechanics, art, levels, or narrative from free-form prose; those require a later constrained generation and human-review stage.
 
 This interface is local and user-safe: it listens only on the loopback address, never requests secrets, accepts no store destination, performs no upload, and displays the final receipt proving `executed: false` and `secretsUsed: false`. Only the latest successful sample artifact is playable, and its temporary sandbox is removed when Studio stops or a newer successful run replaces it.
 
