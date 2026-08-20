@@ -38,12 +38,58 @@ await record('desktop page load and console',async()=>{
 
 await record('all navigation surfaces',async()=>{
   const {page}=await open({width:1280,height:800});
-  for(const view of ['workstreams','agents','evidence','decisions','playtest','overview']){
+  for(const view of ['local-run','workstreams','agents','evidence','decisions','playtest','overview']){
     await page.locator(`[data-view="${view}"]`).click();
     const panel=page.locator(`#${view}`);
     await panel.waitFor({state:'visible'});
     assert.equal(await panel.evaluate(el=>el.classList.contains('hidden')),false,`${view} stayed hidden`);
   }
+  await page.close();
+});
+
+await record('visual sample pipeline completes with safe publishing evidence',async()=>{
+  const {page,consoleErrors}=await open({width:1440,height:900});
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Release candidate ready'),null,{timeout:30000});
+  assert.equal(await page.locator('[data-run-step].pass').count(),6,'not every visual stage passed');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(),true,'run evidence stayed hidden');
+  const evidence=await page.locator('#run-evidence').textContent();
+  assert.match(evidence,/Publication executed: false/);
+  assert.match(evidence,/Secrets used: false/);
+  assert.match(evidence,/Dry-run only: true/);
+  assert.deepEqual(consoleErrors,[]);
+  await page.screenshot({path:`${artifacts}/desktop-local-run.png`,fullPage:true});
+  await page.close();
+});
+
+await record('visual sample failure stays explicit and retryable without inventing stage failures',async()=>{
+  const {page,consoleErrors}=await open({width:1280,height:800});
+  await page.route('**/api/pipeline/runs',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Deliberate test failure'})}));
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Deliberate test failure'));
+  assert.equal(await page.locator('[data-run-step].fail').count(),0,'generic service failure was misattributed to pipeline stages');
+  assert.equal(await page.locator('[data-run-step].blocked').count(),6,'unverified stages reverted to an idle-looking state');
+  assert.equal(await page.locator('#run-sample').isEnabled(),true,'retry stayed disabled');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(),false,'stale success evidence became visible');
+  assert(consoleErrors.every(message=>/Failed to load resource.*500/.test(message)),`unexpected console errors: ${consoleErrors.join('; ')}`);
+  await page.close();
+});
+
+await record('visual partial evidence identifies a QA stop without failing later unexecuted stages',async()=>{
+  const {page}=await open({width:1280,height:800});
+  const partial={status:'fail',error:'QA failed',evidence:{intake:{validation:{status:'pass'}},registry:{entries:[{}]},build:{executed:true,status:'pass'},qa:{executed:true,status:'fail'}}};
+  await page.route('**/api/pipeline/runs',route=>route.fulfill({status:422,contentType:'application/json',body:JSON.stringify(partial)}));
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('QA failed'));
+  assert.equal(await page.locator('[data-run-step="intake"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="registry"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="build"].pass').count(),1);
+  assert.equal(await page.locator('[data-run-step="qa"].fail').count(),1);
+  assert.equal(await page.locator('[data-run-step="releaseCandidate"].blocked').count(),1);
+  assert.equal(await page.locator('[data-run-step="publishing"].blocked').count(),1);
   await page.close();
 });
 
@@ -152,6 +198,8 @@ await record('mobile layout and navigation stay usable',async()=>{
   await page.locator('#workstreams').waitFor({state:'visible'});
   assert((await page.locator('#workstream-list .item').count())>0,'mobile Workstreams view did not render');
   await page.locator('[data-view="overview"]').click();
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.locator('#run-sample').isVisible(),true,'mobile sample runner is unreachable');
   await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
@@ -164,6 +212,11 @@ await record('keyboard basics',async()=>{
   const tag=await page.evaluate(()=>document.activeElement?.tagName);
   assert.equal(tag,'BUTTON','first keyboard focus is not actionable');
   await page.keyboard.press('Enter');
+  await page.locator('[data-view="local-run"]').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('[data-view="local-run"]').getAttribute('aria-current'),'page');
+  await page.locator('#run-sample').focus();
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'run-sample','sample run button is not keyboard focusable');
   await page.close();
 });
 

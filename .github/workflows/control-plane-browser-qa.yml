@@ -54,7 +54,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$range")"
           printf '%s\n' "$changed"
-          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/test-control-plane-browser\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/(studio-server|test-studio-server|test-control-plane-browser|run-pipeline|control-plane-freshness)\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
@@ -66,10 +66,10 @@ jobs:
       - name: Install pinned Playwright package
         if: steps.changes.outputs.run == 'true'
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
-      - name: Serve repository fixture and Studio
+      - name: Serve Studio and local dry-run pipeline
         if: steps.changes.outputs.run == 'true'
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/control-plane-server.log 2>&1 &
+          node tools/studio-server.mjs --port=4173 > /tmp/control-plane-server.log 2>&1 &
           echo $! > /tmp/control-plane-server.pid
           for attempt in {1..20}; do
             if curl --fail --silent http://127.0.0.1:4173/apps/studio/ >/dev/null; then exit 0; fi
