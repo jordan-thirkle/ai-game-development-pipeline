@@ -1,0 +1,153 @@
+name: Benchmark 001 Panda3D rendered input gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/panda3d/render-input-gate/**'
+      - '.github/workflows/benchmark-001-panda3d-render-input.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rendered-input-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/panda3d/render-input-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      DISPLAY: ':99'
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/panda3d/render-input-gate/requirements.txt
+
+      - name: Install bounded desktop proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb openbox xdotool imagemagick mesa-utils
+          python -m pip install --disable-pip-version-check -r "$GATE/requirements.txt"
+
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/artifacts/render-input"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "python=$(python --version 2>&1)"
+            echo "panda3d=$(python -c 'import panda3d; print(panda3d.__version__)')"
+            echo "pyright=$(pyright --version)"
+            echo "os=$(uname -a)"
+          } | tee "$GATE/artifacts/render-input/environment.txt"
+          python -m pip freeze | tee "$GATE/artifacts/render-input/pip-freeze.txt"
+
+      - name: Compile complete adapter and strictly type-check owned contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q "$GATE"
+          pyright --level error "$GATE/strict_contract.py" 2>&1 | tee "$GATE/artifacts/render-input/pyright-strict-contract.log"
+
+      - name: Execute rendered Panda3D engine with real OS keyboard input
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACTS="$GATE/artifacts/render-input"
+          RESULT="$ARTIFACTS/result.json"
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp >"$ARTIFACTS/xvfb.log" 2>&1 &
+          XVFB_PID=$!
+          sleep 1
+          openbox >"$ARTIFACTS/openbox.log" 2>&1 &
+          OPENBOX_PID=$!
+          cleanup() {
+            kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1 || true
+
+          timeout --signal=TERM 35s python "$GATE/render_input_gate.py" "$RESULT" >"$ARTIFACTS/runtime.log" 2>&1 &
+          APP_PID=$!
+
+          WINDOW_ID=""
+          for _ in $(seq 1 80); do
+            WINDOW_ID="$(xdotool search --onlyvisible --name '^BYJTT-LAB-001 Panda3D Bullet$' 2>/dev/null | head -n 1 || true)"
+            if [ -n "$WINDOW_ID" ]; then break; fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then break; fi
+            sleep 0.25
+          done
+
+          {
+            echo "window_id=$WINDOW_ID"
+            timeout 5s xdotool getactivewindow getwindowname 2>&1 || true
+          } | tee "$ARTIFACTS/window-diagnostics.txt"
+          test -n "$WINDOW_ID"
+          timeout 5s xdotool windowactivate --sync "$WINDOW_ID"
+          timeout 5s xdotool windowfocus --sync "$WINDOW_ID"
+          sleep 0.5
+          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/before-input.png"
+          timeout 5s xdotool keydown --window "$WINDOW_ID" d
+          sleep 5
+          timeout 5s xdotool keyup --window "$WINDOW_ID" d
+          sleep 0.4
+          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png" || true
+
+          set +e
+          wait "$APP_PID"
+          APP_STATUS=$?
+          set -e
+          echo "app_exit_status=$APP_STATUS" | tee -a "$ARTIFACTS/window-diagnostics.txt"
+          cat "$ARTIFACTS/runtime.log"
+          test "$APP_STATUS" -eq 0
+          test -s "$RESULT"
+          if grep -Eq 'Traceback \(most recent call last\)|Segmentation fault' "$ARTIFACTS/runtime.log"; then
+            echo 'Unexpected runtime failure marker found' >&2
+            exit 1
+          fi
+
+      - name: Assert machine-readable pass and hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$GATE/artifacts/render-input/result.json"
+          PYTHONPATH="$GATE" python - "$RESULT" <<'PY'
+          import json, sys
+          from strict_contract import evidence_passes
+          result = json.load(open(sys.argv[1], encoding='utf-8'))
+          if not evidence_passes(result):
+              raise SystemExit(f"rendered input gate failed: {result}")
+          PY
+          sha256sum \
+            "$GATE/requirements.txt" \
+            "$GATE/strict_contract.py" \
+            "$GATE/render_input_gate.py" \
+            "$GATE/README.md" \
+            "$GATE/artifacts/render-input/environment.txt" \
+            "$GATE/artifacts/render-input/pip-freeze.txt" \
+            "$RESULT" \
+            "$GATE/artifacts/render-input/before-input.png" \
+            > "$GATE/artifacts/render-input/SHA256SUMS.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-panda3d-render-input-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/panda3d/render-input-gate/artifacts/render-input/**
+          if-no-files-found: error
+          retention-days: 30
