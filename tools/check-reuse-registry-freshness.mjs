@@ -48,12 +48,11 @@ try {
       warnings.push(`${filePath}: record is ${Math.floor(age)} days old; consider revalidation`);
     }
 
-    if (record.maintenance?.checkedAt && ageDays(record.maintenance.checkedAt) > threshold) {
-      failures.push(`${filePath}: maintenance evidence exceeds ${threshold}-day freshness threshold`);
-    }
-
-    if (record.licence?.checkedAt && ageDays(record.licence.checkedAt) > threshold) {
-      failures.push(`${filePath}: licence evidence exceeds ${threshold}-day freshness threshold`);
+    const newestEvidenceAge = Math.min(...(record.evidence ?? []).map((item) => ageDays(item.checkedAt)));
+    if (['qualified', 'benchmarking', 'promoted'].includes(record.state) && !Number.isFinite(newestEvidenceAge)) {
+      failures.push(`${filePath}: protected state requires dated evidence`);
+    } else if (Number.isFinite(newestEvidenceAge) && newestEvidenceAge > threshold) {
+      failures.push(`${filePath}: newest evidence is ${Math.floor(newestEvidenceAge)} days old (max ${threshold})`);
     }
   }
 
