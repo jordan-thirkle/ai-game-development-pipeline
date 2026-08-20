@@ -22,8 +22,8 @@ const baseRecord = {
   provenance: { confidence: 'high', notes: 'Fixture provenance.' },
   maintenance: { status: 'active', evidence: 'Fixture maintenance evidence.', checkedAt, notes: 'Maintained.' },
   compatibility: { engines: ['Fixture Engine'], platforms: ['desktop'], notes: 'Fixture compatibility.' },
-  risk: { supplyChain: 'low', dependencyBurden: 'low', legalNotes: 'No known fixture issue.', securityNotes: 'No known fixture issue.' },
-  assessment: { integrationEffort: 'low', lifecycleRisk: 'low', scores: { projectFit: 4 }, recommendation: 'benchmark' },
+  risk: { supplyChain: 'low', dependencyBurden: 'low', legalNotes: 'INTERNAL LEGAL DETAIL', securityNotes: 'INTERNAL SECURITY DETAIL' },
+  assessment: { integrationEffort: 'low', lifecycleRisk: 'low', scores: { projectFit: 4 }, recommendation: 'benchmark', notes: 'INTERNAL ASSESSMENT DETAIL' },
   evidence: [{ type: 'official-repository', url: 'https://example.com/controller', checkedAt }],
   publication: { safe: false },
   usedIn: [],
@@ -125,7 +125,7 @@ test('freshness fails future-dated evidence', async () => {
   assert.match(result.stderr, /evidence\.checkedAt .* is in the future/);
 });
 
-test('public exporter includes safe qualified records and excludes rejected records even if misflagged safe', async () => {
+test('public exporter includes safe qualified records, excludes rejected records, and redacts internal detail', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'reuse-export-'));
   const output = path.join(dir, 'public.json');
   try {
@@ -150,9 +150,17 @@ test('public exporter includes safe qualified records and excludes rejected reco
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
     const exported = JSON.parse(await readFile(output, 'utf8'));
+    const serialized = JSON.stringify(exported);
     assert.equal(exported.count, 1);
     assert.deepEqual(exported.records.map((record) => record.id), ['safe-candidate']);
-    assert.equal(JSON.stringify(exported).includes('Rejected Candidate'), false);
+    assert.equal(serialized.includes('Rejected Candidate'), false);
+    assert.equal(serialized.includes('INTERNAL LEGAL DETAIL'), false);
+    assert.equal(serialized.includes('INTERNAL SECURITY DETAIL'), false);
+    assert.equal(serialized.includes('INTERNAL ASSESSMENT DETAIL'), false);
+    assert.equal(Object.hasOwn(exported.records[0], 'risk'), false);
+    assert.equal(Object.hasOwn(exported.records[0], 'provenance'), false);
+    assert.equal(exported.records[0].licence.checkedAt, checkedAt);
+    assert.equal(exported.records[0].maintenance.checkedAt, checkedAt);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
