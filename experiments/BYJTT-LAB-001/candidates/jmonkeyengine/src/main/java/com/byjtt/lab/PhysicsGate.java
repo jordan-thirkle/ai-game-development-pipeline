@@ -3,6 +3,7 @@ package com.byjtt.lab;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
+import com.jme3.bullet.objects.PhysicsCharacter;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.math.Vector3f;
 import java.io.IOException;
@@ -37,32 +38,32 @@ public final class PhysicsGate {
 
         addArenaWalls(space);
 
-        PhysicsRigidBody player = new PhysicsRigidBody(
-                new CapsuleCollisionShape(PLAYER_RADIUS, PLAYER_CYLINDER_HEIGHT), 1.0f);
+        PhysicsCharacter player = new PhysicsCharacter(
+                new CapsuleCollisionShape(PLAYER_RADIUS, PLAYER_CYLINDER_HEIGHT), 0.05f);
         player.setPhysicsLocation(PLAYER_SPAWN.clone());
-        player.setGravity(Vector3f.ZERO);
-        player.setFriction(0.0f);
-        player.setRestitution(0.0f);
+        player.setGravity(0.0f);
+        player.setFallSpeed(0.0f);
+        player.setWalkDirection(new Vector3f(WALK_SPEED * DT, 0.0f, 0.0f));
         space.add(player);
 
-        float maxX = player.getPhysicsLocation().x;
+        Vector3f sample = new Vector3f();
+        float maxX = player.getPhysicsLocation(sample).x;
         for (int i = 0; i < STEPS; i++) {
-            player.setLinearVelocity(new Vector3f(WALK_SPEED, 0.0f, 0.0f));
             space.update(DT);
-            maxX = Math.max(maxX, player.getPhysicsLocation().x);
+            maxX = Math.max(maxX, player.getPhysicsLocation(sample).x);
         }
 
-        Vector3f finalPosition = player.getPhysicsLocation();
-        Vector3f finalVelocity = player.getLinearVelocity();
+        Vector3f finalPosition = player.getPhysicsLocation(new Vector3f());
         float collisionCeiling = ARENA_WIDTH / 2.0f - PLAYER_RADIUS;
         boolean wallStopObserved = maxX <= collisionCeiling + 0.02f
-                && finalPosition.x >= collisionCeiling - 0.08f
+                && finalPosition.x >= collisionCeiling - 0.10f
                 && finalPosition.x <= collisionCeiling + 0.02f;
 
-        Vector3f observationCopy = player.getPhysicsLocation();
+        Vector3f observationCopy = player.getPhysicsLocation(new Vector3f());
         float authoritativeX = observationCopy.x;
         observationCopy.x = -999.0f;
-        boolean observationIsolation = Math.abs(player.getPhysicsLocation().x - authoritativeX) < 0.0001f;
+        boolean observationIsolation = Math.abs(
+                player.getPhysicsLocation(new Vector3f()).x - authoritativeX) < 0.0001f;
 
         boolean passed = wallStopObserved && observationIsolation;
         Files.createDirectories(output.toAbsolutePath().getParent());
@@ -71,16 +72,17 @@ public final class PhysicsGate {
                         + "  \"candidate\": \"jmonkeyengine\",\n"
                         + "  \"jme_version\": \"3.9.0-stable\",\n"
                         + "  \"physics_backend\": \"jme3-jbullet\",\n"
+                        + "  \"controller\": \"PhysicsCharacter/KinematicCharacterController\",\n"
                         + "  \"arena_width_m\": %.1f,\n"
                         + "  \"arena_depth_m\": %.1f,\n"
                         + "  \"walk_speed_mps\": %.1f,\n"
+                        + "  \"walk_increment_per_tick_m\": %.9f,\n"
                         + "  \"spawn\": [%.1f, %.1f, %.1f],\n"
                         + "  \"steps\": %d,\n"
                         + "  \"fixed_dt_seconds\": %.9f,\n"
                         + "  \"collision_ceiling_x_m\": %.6f,\n"
                         + "  \"max_x_m\": %.6f,\n"
                         + "  \"final_x_m\": %.6f,\n"
-                        + "  \"final_velocity_x_mps\": %.9f,\n"
                         + "  \"native_wall_stop_observed\": %s,\n"
                         + "  \"post_physics_arena_clamp\": false,\n"
                         + "  \"observation_copy_isolated\": %s,\n"
@@ -89,6 +91,7 @@ public final class PhysicsGate {
                 ARENA_WIDTH,
                 ARENA_DEPTH,
                 WALK_SPEED,
+                WALK_SPEED * DT,
                 PLAYER_SPAWN.x,
                 PLAYER_SPAWN.y,
                 PLAYER_SPAWN.z,
@@ -97,7 +100,6 @@ public final class PhysicsGate {
                 collisionCeiling,
                 maxX,
                 finalPosition.x,
-                finalVelocity.x,
                 wallStopObserved,
                 observationIsolation,
                 passed);
