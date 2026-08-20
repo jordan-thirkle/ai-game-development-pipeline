@@ -59,7 +59,8 @@ async function readBriefBody(request) {
   let parsed;
   try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw new BriefError('Brief body must contain valid JSON'); }
-  return normalizeStudioBrief(parsed);
+  normalizeStudioBrief(parsed);
+  return parsed;
 }
 
 export async function executeSampleRun({ brief, run = runPipeline, scaffold = scaffoldSampleProject, applyBrief = applyStudioBrief } = {}) {
@@ -118,7 +119,7 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        return sendJson(response, 200, { mode: 'local-briefed-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, briefInputSupported: true, allowedTargets: ['web', 'desktop', 'mobile'] });
+        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false });
       }
       if (request.url === '/api/pipeline/runs') {
         if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
