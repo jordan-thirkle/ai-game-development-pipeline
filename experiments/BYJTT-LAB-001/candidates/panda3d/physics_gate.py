@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from typing import Final, TypedDict
 
-from panda3d.bullet import BulletBoxShape, BulletCapsuleShape, BulletRigidBodyNode, BulletWorld
-from panda3d.core import NodePath, Vec3, ZUp
+from panda3d.bullet import BulletBoxShape, BulletCapsuleShape, BulletRigidBodyNode, BulletWorld, ZUp
+from panda3d.core import NodePath, Vec3
 
 ARENA_WIDTH: Final[float] = 24.0
 ARENA_DEPTH: Final[float] = 32.0
