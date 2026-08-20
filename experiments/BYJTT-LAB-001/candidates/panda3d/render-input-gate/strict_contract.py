@@ -11,7 +11,7 @@ PLAYER_CYLINDER_HEIGHT: Final[float] = 0.8
 SPAWN_CONTRACT: Final[tuple[float, float, float]] = (0.0, 0.0, 10.0)
 FIXED_DT: Final[float] = 1.0 / 60.0
 RELEASE_STABLE_STEPS: Final[int] = 60
-TIMEOUT_STEPS: Final[int] = 900
+WALL_CLOCK_TIMEOUT_SECONDS: Final[float] = 28.0
 WINDOW_TITLE: Final[str] = "BYJTT-LAB-001 Panda3D Bullet"
 
 

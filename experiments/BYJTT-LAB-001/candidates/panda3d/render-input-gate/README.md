@@ -16,7 +16,7 @@ The shared `(0,0,10)` spawn maps to Panda3D's Z-up coordinates `(0,10,0)`. With 
 
 ## Static-type boundary
 
-Panda3D 1.10.16's installed `direct.*`, Bullet, and core runtime modules do not provide enough type information for Pyright strict mode. The first attempted revision (`d3e5c012393dc7d9b62cf6ef0562cee410e668aa`, run `32398124641`) failed closed with 142 unknown/stub errors before runtime; artifact `9417428451` (SHA-256 `a4f7d6f709e72bc9e4370f42627e9144c35017b7bc999217c5f5d22ebf51a8e6`) preserves that evidence. Re-executing the parent Panda3D gate on the same revision also exposed 67 strict-Pyright unknown-type errors in the external Panda3D boundary.
+Panda3D 1.10.16's installed `direct.*`, Bullet, and core runtime modules do not provide enough type information for Pyright strict mode. The first attempted stacked revision (`d3e5c012393dc7d9b62cf6ef0562cee410e668aa`, run `32398124641`) failed closed with 142 unknown/stub errors before runtime; artifact `9417428451` (SHA-256 `a4f7d6f709e72bc9e4370f42627e9144c35017b7bc999217c5f5d22ebf51a8e6`) preserves that evidence. Re-executing the parent Panda3D gate on the same revision also exposed 67 strict-Pyright unknown-type errors in the external Panda3D boundary.
 
 The recovery does **not** suppress a failing full-adapter type check and call it strict. Instead:
 
@@ -25,6 +25,13 @@ The recovery does **not** suppress a failing full-adapter type check and call it
 - the dynamically typed Panda3D engine adapter is accepted or rejected by real rendered-engine execution, OS input delivery, native Bullet collision, machine-readable assertions, runtime failure scanning, and artifact hashes.
 
 This limitation is retained as lifecycle evidence for Panda3D rather than hidden.
+
+## Failure/recovery history
+
+- `d3e5c012393dc7d9b62cf6ef0562cee410e668aa` / run `32398124641`: failed closed at strict typing because upstream Panda3D runtime APIs are insufficiently typed. The stacked parent simultaneously re-exposed the same class of issue. Superseded PR #180 was closed unmerged.
+- `326b71df3e0b79bdd5d985724a76f51b7ea26b08` / run `32398564293`: strict owned-contract typing passed (`0 errors, 0 warnings`) and a real visible/focused Panda3D window was discovered. The adapter then reached its 900-frame timeout before the screenshot/key event because the hosted renderer advanced frames much faster than wall clock. The retained result also showed the capsule had been initialized overlapping an unnecessary floor while gravity was zero, producing an invalid Z displacement (`179.7984 m`). Artifact `9417596884`, SHA-256 `ef09b8f736128fa5eceedfd9ae821e73da4eb6d2e58bee5b351c9e8daba26d6a`, preserves that rejected run.
+
+Recovery removes only the unnecessary floor from this zero-gravity boundary proof and replaces the renderer-speed-dependent frame timeout with a bounded wall-clock timeout. Shared arena dimensions, spawn, walk speed, radius, native Bullet wall collision, real external input requirement, and pass tolerances are unchanged.
 
 ## Evidence boundary
 

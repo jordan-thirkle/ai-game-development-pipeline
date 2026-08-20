@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 from direct.showbase.ShowBase import ShowBase
@@ -17,8 +18,8 @@ from strict_contract import (
     PLAYER_RADIUS,
     RELEASE_STABLE_STEPS,
     SPAWN_CONTRACT,
-    TIMEOUT_STEPS,
     WALK_SPEED,
+    WALL_CLOCK_TIMEOUT_SECONDS,
     WINDOW_TITLE,
     Evidence,
     contract_to_panda,
@@ -28,8 +29,6 @@ from strict_contract import (
 loadPrcFileData("", f"window-title {WINDOW_TITLE}")
 loadPrcFileData("", "win-size 960 540")
 loadPrcFileData("", "sync-video false")
-loadPrcFileData("", "clock-mode limited")
-loadPrcFileData("", "clock-frame-rate 60")
 loadPrcFileData("", "show-frame-rate-meter false")
 
 
@@ -50,9 +49,9 @@ class RenderInputGate(ShowBase):
         self.max_x = 0.0
         self.release_x: float | None = None
         self.release_steps = 0
-        self.timed_out = False
         self.errors: list[str] = []
         self._finished = False
+        self.started_at = time.monotonic()
 
         self._build_world()
         self.accept("d", self._on_d_down)
@@ -76,7 +75,6 @@ class RenderInputGate(ShowBase):
         self._add_static_box("west-wall", Vec3(wall_half_thickness, ARENA_DEPTH / 2.0, wall_half_height), Vec3(-ARENA_WIDTH / 2.0 - wall_half_thickness, 0.0, 0.0))
         self._add_static_box("north-wall", Vec3(ARENA_WIDTH / 2.0, wall_half_thickness, wall_half_height), Vec3(0.0, ARENA_DEPTH / 2.0 + wall_half_thickness, 0.0))
         self._add_static_box("south-wall", Vec3(ARENA_WIDTH / 2.0, wall_half_thickness, wall_half_height), Vec3(0.0, -ARENA_DEPTH / 2.0 - wall_half_thickness, 0.0))
-        self._add_static_box("floor", Vec3(ARENA_WIDTH / 2.0, ARENA_DEPTH / 2.0, 0.1), Vec3(0.0, 0.0, -0.1))
 
         self.player.setMass(80.0)
         self.player.setFriction(0.0)
@@ -132,8 +130,8 @@ class RenderInputGate(ShowBase):
                 self._finish(False)
                 return Task.done
 
-        if self.rendered_frames >= TIMEOUT_STEPS:
-            self.errors.append("render/input proof timed out before stable release")
+        if time.monotonic() - self.started_at >= WALL_CLOCK_TIMEOUT_SECONDS:
+            self.errors.append("render/input proof exceeded wall-clock timeout before stable release")
             self._finish(True)
             return Task.done
         return Task.cont
@@ -142,7 +140,6 @@ class RenderInputGate(ShowBase):
         if self._finished:
             return
         self._finished = True
-        self.timed_out = timed_out
         final = (float(self.player_path.getX()), float(self.player_path.getY()), float(self.player_path.getZ()))
         observation = {"position": list(final)}
         observation["position"][0] = -9999.0
