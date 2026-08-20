@@ -4,7 +4,7 @@
   "candidate": "flax",
   "flax_version": "1.12.6912",
   "linux_package_url": "https://vps3.flaxengine.com/store/builds/Package_1_12_06912/FlaxEditorLinux.zip",
-  "linux_package_sha256": "BOOTSTRAP_REQUIRED",
+  "linux_package_sha256": "d7d6c835e0845e9b7de67ec2f79df62df67a82cb645b43be9e8c8c28d28dbb45",
   "shared_contract_path": "experiments/BYJTT-LAB-001/shared/contract.json",
   "expected_shared_constants": {
     "world_up": "+Y",
