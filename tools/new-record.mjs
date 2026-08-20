@@ -15,149 +15,41 @@ const date = iso.slice(0, 10);
 
 const templates = {
   'pipeline-run': {
-    schemaVersion: '1.0.0',
-    runId: id,
-    experimentId: null,
-    gameId: null,
-    startedAt: iso,
-    endedAt: null,
-    scope: {
-      taskType: 'other',
-      objective: 'Replace with the bounded objective before execution.',
-      candidate: null,
-      targetPlatforms: []
-    },
-    inputs: {
-      sourceCommit: 'unknown',
-      technologyVersions: {},
-      sharedAssetSet: null,
-      specVersion: null
-    },
+    schemaVersion: '1.0.0', runId: id, experimentId: null, gameId: null, startedAt: iso, endedAt: null,
+    scope: { taskType: 'other', objective: 'Replace with the bounded objective before execution.', candidate: null, targetPlatforms: [] },
+    inputs: { sourceCommit: 'unknown', technologyVersions: {}, sharedAssetSet: null, specVersion: null },
     execution: {
-      models: [],
-      toolCalls: 0,
-      failedToolCalls: 0,
-      humanInterventions: 0,
-      humanMinutes: null,
-      elapsedSeconds: null,
-      iterations: 0,
-      bespokeLinesChanged: 0,
-      reusedComponents: [],
-      estimatedReuseRatio: null,
-      externalServiceCostUsd: null
+      models: [], toolCalls: null, failedToolCalls: null, humanInterventions: null, humanMinutes: null,
+      elapsedSeconds: null, iterations: null, bespokeLinesChanged: null, reusedComponents: [],
+      estimatedReuseRatio: null, externalServiceCostUsd: null
     },
-    evidence: {
-      executionVerified: false,
-      artifacts: [],
-      screenshots: [],
-      videos: [],
-      logs: [],
-      profiles: [],
-      deviceResults: [],
-      automatedTestsPassed: null,
-      automatedTestsFailed: null
-    },
-    quality: {
-      functionalScore: null,
-      visualScore: null,
-      gameplayScore: null,
-      maintainabilityScore: null,
-      performanceScore: null
-    },
+    evidence: { executionVerified: false, artifacts: [], screenshots: [], videos: [], logs: [], profiles: [], deviceResults: [], automatedTestsPassed: null, automatedTestsFailed: null },
+    quality: { functionalScore: null, visualScore: null, gameplayScore: null, maintainabilityScore: null, performanceScore: null },
     outcome: {
       status: 'blocked',
-      summary: 'Scaffold only; execution evidence has not been collected.',
+      summary: 'Scaffold only; execution evidence and telemetry have not been collected.',
       failures: ['Record is not complete.'],
-      nextAction: 'Replace scaffold values and collect fresh execution evidence.',
+      nextAction: 'Replace scaffold values and collect fresh execution evidence and measured telemetry.',
       promotedComponentIds: []
     }
   },
   'game-graduation': {
-    schemaVersion: '1.0.0',
-    candidateId: id,
-    sourceExperimentIds: ['replace-me'],
-    decision: 'continue-research',
-    decisionDate: date,
-    evidence: {
-      playableBuild: false,
-      playerValue: 'Unknown; evidence required.',
-      technicalViability: 'Unknown; evidence required.',
-      references: [],
-      playtestSummary: null,
-      performanceSummary: null
-    },
-    product: {
-      playerFantasy: 'Unknown',
-      coreLoop: 'Unknown',
-      differentiation: 'Unknown',
-      targetPlatforms: ['unknown'],
-      releaseScope: 'Unknown',
-      returnReasons: []
-    },
-    technical: {
-      proposedRuntime: null,
-      runtimeDecisionEvidence: null,
-      reusableComponentIds: [],
-      knownMigrationNeeds: [],
-      performanceRisks: []
-    },
-    commercial: {
-      monetisationHypotheses: [],
-      distributionHypotheses: [],
-      costRisks: [],
-      revenueHypotheses: []
-    },
-    operations: {
-      telemetryRequired: true,
-      releaseAutomationRequired: true,
-      supportRequired: false,
-      maintenanceRisks: [],
-      backendRequirements: [],
-      complianceRequirements: []
-    },
-    risks: [],
-    killCriteria: [],
-    nextActions: ['Collect evidence before requesting graduation.']
+    schemaVersion: '1.0.0', candidateId: id, sourceExperimentIds: ['replace-me'], decision: 'continue-research', decisionDate: date,
+    evidence: { playableBuild: false, playerValue: 'Unknown; evidence required.', technicalViability: 'Unknown; evidence required.', references: [], playtestSummary: null, performanceSummary: null },
+    product: { playerFantasy: 'Unknown', coreLoop: 'Unknown', differentiation: 'Unknown', targetPlatforms: ['unknown'], releaseScope: 'Unknown', returnReasons: [] },
+    technical: { proposedRuntime: null, runtimeDecisionEvidence: null, reusableComponentIds: [], knownMigrationNeeds: [], performanceRisks: [] },
+    commercial: { monetisationHypotheses: [], distributionHypotheses: [], costRisks: [], revenueHypotheses: [] },
+    operations: { telemetryRequired: true, releaseAutomationRequired: true, supportRequired: false, maintenanceRisks: [], backendRequirements: [], complianceRequirements: [] },
+    risks: [], killCriteria: [], nextActions: ['Collect evidence before requesting graduation.']
   },
   'game-status': {
-    schemaVersion: '1.0.0',
-    gameId: id,
-    repository: null,
-    lifecycleStage: 'production',
-    runtime: {
-      name: 'unknown',
-      version: 'unknown',
-      decisionEvidence: null
-    },
-    releases: [],
-    health: {
-      telemetry: { status: 'unknown', evidence: null },
-      crashReporting: { status: 'unknown', evidence: null },
-      releasePipeline: { status: 'unknown', evidence: null },
-      commerce: { status: 'unknown', evidence: null },
-      support: { status: 'unknown', evidence: null }
-    },
-    monetisation: {
-      model: [],
-      state: 'none',
-      activeExperiment: null,
-      economicsEvidence: null
-    },
-    maintenance: {
-      policy: 'Define maintenance and upgrade policy before public release.',
-      lastDependencyReview: null,
-      lastPlatformReview: null,
-      risks: []
-    },
-    evidence: {
-      pipelineRuns: [],
-      releaseEvidence: [],
-      publicationSafe: []
-    },
-    nextReview: {
-      date: null,
-      action: 'Replace unknown scaffold state with evidence-backed status.'
-    }
+    schemaVersion: '1.0.0', gameId: id, repository: null, lifecycleStage: 'production',
+    runtime: { name: 'unknown', version: 'unknown', decisionEvidence: null }, releases: [],
+    health: { telemetry: { status: 'unknown', evidence: null }, crashReporting: { status: 'unknown', evidence: null }, releasePipeline: { status: 'unknown', evidence: null }, commerce: { status: 'unknown', evidence: null }, support: { status: 'unknown', evidence: null } },
+    monetisation: { model: [], state: 'none', activeExperiment: null, economicsEvidence: null },
+    maintenance: { policy: 'Define maintenance and upgrade policy before public release.', lastDependencyReview: null, lastPlatformReview: null, risks: [] },
+    evidence: { pipelineRuns: [], releaseEvidence: [], publicationSafe: [] },
+    nextReview: { date: null, action: 'Replace unknown scaffold state with evidence-backed status.' }
   }
 };
 
