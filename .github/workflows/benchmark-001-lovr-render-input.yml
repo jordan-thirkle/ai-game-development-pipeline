@@ -1,0 +1,140 @@
+name: Benchmark 001 LÖVR rendered input gate
+on:
+  push:
+    branches:
+      - benchmark/001-lovr-render-input
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/lovr/render-input-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-lovr-render-input.yml'
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/lovr/render-input-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-lovr-render-input.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render-input-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/lovr/render-input-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      LOVR_RELEASE_URL: https://github.com/bjornbytes/lovr/releases/download/v0.19.0/lovr-v0.19.0-x86_64.AppImage
+      LOVR_EXPECTED_SHA256: 09ce6f13c90f19c9aa3e40c00e1321ec4b27e00ed2f15e5bb336e349629b5c14
+      DISPLAY: ':99'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact execution environment
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/artifacts/render-input-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "os=$(uname -a)"
+          } | tee "$GATE/artifacts/render-input-gate/environment.txt"
+      - name: Install strict checks and desktop graphics harness
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks xvfb xdotool imagemagick libvulkan1 mesa-vulkan-drivers vulkan-tools
+          sudo luarocks install luacheck
+          vulkaninfo --summary | tee "$GATE/artifacts/render-input-gate/vulkan-summary.txt"
+      - name: Strict Lua syntax and lint
+        working-directory: ${{ env.GATE }}
+        run: |
+          set -euo pipefail
+          luac5.4 -p conf.lua main.lua
+          luacheck conf.lua main.lua | tee artifacts/render-input-gate/lint.log
+      - name: Acquire verified LÖVR 0.19 runtime
+        working-directory: ${{ env.GATE }}
+        run: |
+          set -euo pipefail
+          printf 'release_url=%s\nexpected_sha256=%s\n' "$LOVR_RELEASE_URL" "$LOVR_EXPECTED_SHA256" \
+            | tee artifacts/render-input-gate/lovr-runtime-provenance.txt
+          curl -fL --retry 3 "$LOVR_RELEASE_URL" -o lovr.AppImage
+          printf '%s  lovr.AppImage\n' "$LOVR_EXPECTED_SHA256" \
+            | tee artifacts/render-input-gate/lovr-appimage.expected.sha256
+          sha256sum -c artifacts/render-input-gate/lovr-appimage.expected.sha256 \
+            | tee artifacts/render-input-gate/lovr-appimage.verify.log
+          sha256sum lovr.AppImage | tee artifacts/render-input-gate/lovr-appimage.sha256
+          chmod +x lovr.AppImage
+          ./lovr.AppImage --appimage-extract > artifacts/render-input-gate/appimage-extract.log
+          LOVR_BIN="$(find squashfs-root -type f -name lovr -perm -111 | head -n 1)"
+          test -n "$LOVR_BIN"
+          echo "$LOVR_BIN" > artifacts/render-input-gate/lovr-binary-path.txt
+          "$LOVR_BIN" --version 2>&1 | tee artifacts/render-input-gate/lovr-version.txt
+          grep -q '0.19.0' artifacts/render-input-gate/lovr-version.txt
+      - name: Execute rendered window with real OS keyboard input
+        working-directory: ${{ env.GATE }}
+        run: |
+          set -euo pipefail
+          ARTIFACTS=artifacts/render-input-gate
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp > "$ARTIFACTS/xvfb.log" 2>&1 &
+          XVFB_PID=$!
+          trap 'kill "$XVFB_PID" 2>/dev/null || true' EXIT
+          sleep 1
+
+          LOVR_BIN="$(cat "$ARTIFACTS/lovr-binary-path.txt")"
+          "$LOVR_BIN" . > "$ARTIFACTS/runtime.log" 2>&1 &
+          LOVR_PID=$!
+
+          READY=0
+          for _ in $(seq 1 120); do
+            if grep -q '^BYJTT_READY=1' "$ARTIFACTS/runtime.log"; then READY=1; break; fi
+            if ! kill -0 "$LOVR_PID" 2>/dev/null; then cat "$ARTIFACTS/runtime.log"; exit 1; fi
+            sleep .1
+          done
+          test "$READY" = 1
+
+          WINDOW_ID=''
+          for _ in $(seq 1 120); do
+            WINDOW_ID="$(xdotool search --name 'BYJTT LÖVR Render Input Gate' 2>/dev/null | head -n 1 || true)"
+            if [ -n "$WINDOW_ID" ]; then break; fi
+            if ! kill -0 "$LOVR_PID" 2>/dev/null; then cat "$ARTIFACTS/runtime.log"; exit 1; fi
+            sleep .1
+          done
+          test -n "$WINDOW_ID"
+          echo "$WINDOW_ID" | tee "$ARTIFACTS/window-id.txt"
+          xdotool windowactivate --sync "$WINDOW_ID"
+          xdotool keydown --window "$WINDOW_ID" d
+          sleep 5
+          import -display "$DISPLAY" -window "$WINDOW_ID" "$ARTIFACTS/rendered-window.png"
+          xdotool keyup --window "$WINDOW_ID" d
+
+          set +e
+          wait "$LOVR_PID"
+          RC=$?
+          set -e
+          cat "$ARTIFACTS/runtime.log"
+          test "$RC" -eq 0
+          grep '^BYJTT_RESULT=' "$ARTIFACTS/runtime.log" | tail -n 1 | sed 's/^BYJTT_RESULT=//' > "$ARTIFACTS/result.json"
+          test -s "$ARTIFACTS/result.json"
+          test -s "$ARTIFACTS/rendered-window.png"
+      - name: Assert machine-readable evidence boundary
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.rendered_window_path_executed || !r.external_input_executed || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.render_frames<10 || r.max_draws_per_frame<6) process.exit(1);' "$GATE/artifacts/render-input-gate/result.json"
+          sha256sum \
+            "$GATE/conf.lua" \
+            "$GATE/main.lua" \
+            "$GATE/.luacheckrc" \
+            "$GATE/artifacts/render-input-gate/result.json" \
+            "$GATE/artifacts/render-input-gate/rendered-window.png" \
+            > "$GATE/artifacts/render-input-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: byjtt-lab-001-lovr-render-input-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/lovr/render-input-gate/artifacts/render-input-gate/**
+          if-no-files-found: error
+          retention-days: 30
