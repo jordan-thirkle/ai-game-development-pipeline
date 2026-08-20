@@ -6,6 +6,8 @@ The repository includes a dependency-free sample project. Run the complete local
 node tools/run-pipeline.mjs --project examples/sample-game --output /tmp/ai-game-pipeline-demo --dry-run
 ```
 
+Use a new or empty output directory for each run. The runner refuses to mix evidence with an existing run.
+
 The command is intentionally dry-run only. It builds `examples/sample-game/dist`, runs QA against that artifact, selects the requested source-verified registry entry, creates a release-candidate manifest, and writes the following files under `/tmp/ai-game-pipeline-demo/`:
 
 ```text

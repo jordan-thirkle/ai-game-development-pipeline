@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { runPipeline, selectRegistryEntries } from './run-pipeline.mjs';
 
-const repo = resolve(new URL('..', import.meta.url).pathname);
+const repo = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const runner = join(repo, 'tools', 'run-pipeline.mjs');
 
 function assertPipelineRunShape(record) {
@@ -52,8 +53,12 @@ test('happy path writes all phases and a schema-valid pipeline run', async () =>
       await readFile(join(output, file));
     }
     const record = await json(join(output, 'pipeline-run.json'));
+    const receipt = await json(join(output, 'publishing-receipt.json'));
     assert.equal(record.outcome.status, 'pass');
     assert.equal(record.evidence.executionVerified, true);
+    assert.equal(receipt.dryRun, true);
+    assert.equal(receipt.executed, false);
+    assert.equal(receipt.secretsUsed, false);
     assertPipelineRunShape(record);
   } finally { await rm(project, { recursive: true, force: true }); await rm(resolve(output, '..'), { recursive: true, force: true }); }
 });
@@ -105,4 +110,38 @@ test('CLI refuses to run without --dry-run', async () => {
     assert.match(`${result.stdout}\n${result.stderr}`, /dry-run/i);
     await assert.rejects(readFile(join(output, 'pipeline-run.json')));
   } finally { await rm(outputRoot, { recursive: true, force: true }); }
+});
+
+test('reruns refuse to mix evidence in a non-empty output directory', async () => {
+  const project = await makeProject({
+    buildCode: "import { mkdir, writeFile } from 'node:fs/promises'; await mkdir('dist', { recursive: true }); await writeFile('dist/game.txt', 'ok');",
+    qaCode: "process.exit(0);"
+  });
+  const outputRoot = await mkdtemp(join(tmpdir(), 'pipeline-output-'));
+  const output = join(outputRoot, 'run');
+  try {
+    await runPipeline({ projectDir: project, outputDir: output, dryRun: true });
+    await assert.rejects(() => runPipeline({ projectDir: project, outputDir: output, dryRun: true }), { code: 'OUTPUT_NOT_EMPTY' });
+  } finally { await rm(project, { recursive: true, force: true }); await rm(outputRoot, { recursive: true, force: true }); }
+});
+
+test('build timeout fails closed and records the timeout', async () => {
+  const project = await makeProject({
+    buildCode: "await new Promise((resolve) => setTimeout(resolve, 100000));",
+    qaCode: "process.exit(0);"
+  });
+  await writeFile(join(project, 'project.manifest.json'), JSON.stringify({
+    manifestVersion: '1.0.0', projectId: 'timeout-game', name: 'Timeout Game',
+    registry: { entryIds: ['system.gdevelop'] }, build: { argv: [process.execPath, 'build.mjs'], artifact: 'dist', timeoutMs: 100 },
+    qa: { argv: [process.execPath, 'qa.mjs', '{artifact}'] }, publish: { provider: 'local' }
+  }));
+  const outputRoot = await mkdtemp(join(tmpdir(), 'pipeline-output-'));
+  const output = join(outputRoot, 'run');
+  try {
+    const result = await runPipeline({ projectDir: project, outputDir: output, dryRun: true });
+    assert.equal(result.status, 'fail');
+    const build = await json(join(output, 'build-result.json'));
+    assert.equal(build.timedOut, true);
+    assert.match(build.error, /timed out/i);
+  } finally { await rm(project, { recursive: true, force: true }); await rm(outputRoot, { recursive: true, force: true }); }
 });

@@ -74,6 +74,15 @@ async function ensureDirectory(directory, label) {
   return realpath(directory);
 }
 
+async function ensureEmptyDirectory(directory, label) {
+  const output = await ensureDirectory(directory, label);
+  const names = await readdir(output);
+  if (names.length > 0) {
+    throw new PipelineError(`${label} must be new or empty; refusing to mix evidence with an existing run`, 'OUTPUT_NOT_EMPTY');
+  }
+  return output;
+}
+
 function jsonString(value) {
   return JSON.stringify(value, null, 2) + '\n';
 }
@@ -103,6 +112,14 @@ function validateArgv(value, label) {
     throw new PipelineError(`${label} must be a non-empty argv array of strings`, 'INVALID_MANIFEST');
   }
   return [...value];
+}
+
+function validateTimeout(value, label) {
+  const timeoutMs = value ?? 120000;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 900000) {
+    throw new PipelineError(`${label} must be an integer from 1 to 900000 milliseconds`, 'INVALID_MANIFEST');
+  }
+  return timeoutMs;
 }
 
 function validateRelativePath(value, label) {
@@ -153,6 +170,8 @@ export function validateProjectManifest(manifest) {
   if (!isPlainObject(qa)) throw new PipelineError('qa must be an object', 'INVALID_MANIFEST');
   const buildArgv = validateArgv(build.argv, 'build.argv');
   const qaArgv = validateArgv(qa.argv, 'qa.argv');
+  const buildTimeoutMs = validateTimeout(build.timeoutMs, 'build.timeoutMs');
+  const qaTimeoutMs = validateTimeout(qa.timeoutMs, 'qa.timeoutMs');
   const artifact = validateRelativePath(build.artifact, 'build.artifact');
 
   const registry = manifest.registry ?? {};
@@ -169,8 +188,8 @@ export function validateProjectManifest(manifest) {
   return {
     ...manifest,
     projectId,
-    build: { ...build, argv: buildArgv, artifact },
-    qa: { ...qa, argv: qaArgv },
+    build: { ...build, argv: buildArgv, artifact, timeoutMs: buildTimeoutMs },
+    qa: { ...qa, argv: qaArgv, timeoutMs: qaTimeoutMs },
     registry: { ...registry, entryIds: [...new Set(entryIds)] }
   };
 }
@@ -245,13 +264,29 @@ function expandArgv(argv, replacements) {
   return argv.map((arg) => replacements[arg] ?? arg);
 }
 
-async function runArgv(argv, { cwd, stdoutPath, stderrPath, replacements = {} }) {
+async function terminateProcessTree(child) {
+  if (!child?.pid) return;
+  if (process.platform === 'win32') {
+    try {
+      await execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+      return;
+    } catch {
+      child.kill('SIGKILL');
+      return;
+    }
+  }
+  try { process.kill(-child.pid, 'SIGTERM'); } catch { child.kill('SIGTERM'); }
+  await new Promise((resolveTimer) => setTimeout(resolveTimer, 100));
+  try { process.kill(-child.pid, 'SIGKILL'); } catch { /* The process already exited. */ }
+}
+
+async function runArgv(argv, { cwd, stdoutPath, stderrPath, replacements = {}, timeoutMs }) {
   const expanded = expandArgv(argv, replacements);
   const stdout = [];
   const stderr = [];
   let child;
   try {
-    child = spawn(expanded[0], expanded.slice(1), { cwd, shell: false, windowsHide: true });
+    child = spawn(expanded[0], expanded.slice(1), { cwd, shell: false, windowsHide: true, detached: process.platform !== 'win32' });
   } catch (error) {
     throw new PipelineError(`Unable to start ${expanded[0]}: ${error.message}`, 'COMMAND_ERROR');
   }
@@ -259,14 +294,26 @@ async function runArgv(argv, { cwd, stdoutPath, stderrPath, replacements = {} })
   child.stderr?.on('data', (chunk) => stderr.push(chunk));
   const result = await new Promise((resolveResult) => {
     let settled = false;
-    const finish = (value) => { if (!settled) { settled = true; resolveResult(value); } };
-    child.on('error', (error) => finish({ error }));
-    child.on('close', (status, signal) => finish({ status, signal }));
+    let timer;
+    let timeoutTriggered = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveResult(value);
+    };
+    child.on('error', (error) => finish({ error, timedOut: timeoutTriggered }));
+    child.on('close', (status, signal) => finish({ status, signal, timedOut: timeoutTriggered }));
+    timer = setTimeout(() => {
+      timeoutTriggered = true;
+      terminateProcessTree(child).finally(() => finish({ status: null, signal: 'SIGTERM', timedOut: true }));
+    }, timeoutMs);
   });
   await writeFile(stdoutPath, Buffer.concat(stdout));
   await writeFile(stderrPath, Buffer.concat(stderr));
-  if (result.error) return { argv: expanded, status: null, signal: null, error: result.error.message };
-  return { argv: expanded, status: result.status, signal: result.signal, error: null };
+  if (result.error) return { argv: expanded, status: null, signal: null, timedOut: false, error: result.error.message };
+  if (result.timedOut) return { argv: expanded, status: null, signal: result.signal, timedOut: true, error: `Command timed out after ${timeoutMs}ms` };
+  return { argv: expanded, status: result.status, signal: result.signal, timedOut: false, error: null };
 }
 
 async function getSourceRevision(projectDir, manifest, explicitRevision) {
@@ -374,7 +421,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   assertContained(project, manifestFile, 'project manifest');
   const manifest = validateProjectManifest(await readJson(manifestFile, 'project manifest'));
   const localDestination = validateLocalPublishingPolicy(manifest, destination);
-  const output = await ensureDirectory(resolve(outputDir || resolve(REPOSITORY_ROOT, 'artifacts', manifest.projectId)), 'output directory');
+  const output = await ensureEmptyDirectory(resolve(outputDir || resolve(REPOSITORY_ROOT, 'artifacts', manifest.projectId)), 'output directory');
   const declaredArtifactPath = resolveContained(project, manifest.build.artifact, 'build artifact');
   if (relative(declaredArtifactPath, output) === '' || !relative(declaredArtifactPath, output).startsWith(`..${sep}`)) {
     throw new PipelineError('output directory must not be inside the declared build artifact path', 'PATH_CONTAINMENT');
@@ -408,7 +455,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const buildStdout = resolveContained(output, 'build.stdout.log', 'build stdout log');
   const buildStderr = resolveContained(output, 'build.stderr.log', 'build stderr log');
   logs.push(buildStdout, buildStderr);
-  const buildResult = await runArgv(manifest.build.argv, { cwd: project, stdoutPath: buildStdout, stderrPath: buildStderr });
+  const buildResult = await runArgv(manifest.build.argv, { cwd: project, stdoutPath: buildStdout, stderrPath: buildStderr, timeoutMs: manifest.build.timeoutMs });
   let artifactPath;
   let artifactHash;
   try {
@@ -425,7 +472,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   await writeJson(buildPath, {
     schemaVersion: '1.0.0', type: 'build-result', projectId: manifest.projectId, executed: true,
     status: buildPassed ? 'pass' : 'fail', argv: buildResult.argv, exitStatus: buildResult.status,
-    signal: buildResult.signal, error: buildResult.error, artifactPath: artifactPath ? relative(project, artifactPath) : null,
+    signal: buildResult.signal, timedOut: buildResult.timedOut, error: buildResult.error, artifactPath: artifactPath ? relative(project, artifactPath) : null,
     artifactSha256: artifactHash || null, stdoutPath: relativeOutput(output, buildStdout), stderrPath: relativeOutput(output, buildStderr), completedAt: new Date().toISOString()
   });
   artifacts.push(buildPath);
@@ -442,14 +489,14 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const qaStderr = resolveContained(output, 'qa.stderr.log', 'QA stderr log');
   logs.push(qaStdout, qaStderr);
   const qaResult = await runArgv(manifest.qa.argv, {
-    cwd: project, stdoutPath: qaStdout, stderrPath: qaStderr,
+    cwd: project, stdoutPath: qaStdout, stderrPath: qaStderr, timeoutMs: manifest.qa.timeoutMs,
     replacements: { '{artifact}': artifactPath, '{artifact-dir}': artifactPath, '{project-dir}': project, '{output-dir}': output }
   });
   const qaPassed = qaResult.status === 0 && !qaResult.error;
   const qaPath = resolveContained(output, PHASE_FILES.qa, 'QA result');
   await writeJson(qaPath, {
     schemaVersion: '1.0.0', type: 'qa-result', projectId: manifest.projectId, status: qaPassed ? 'pass' : 'fail', passed: qaPassed,
-    executed: true, argv: qaResult.argv, exitStatus: qaResult.status, signal: qaResult.signal, error: qaResult.error,
+    executed: true, argv: qaResult.argv, exitStatus: qaResult.status, signal: qaResult.signal, timedOut: qaResult.timedOut, error: qaResult.error,
     artifactPath: relative(project, artifactPath), artifactSha256: artifactHash,
     evidencePaths: [relativeOutput(output, qaStdout), relativeOutput(output, qaStderr), relativeOutput(output, buildPath)], completedAt: new Date().toISOString()
   });
