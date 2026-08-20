@@ -9,7 +9,7 @@ const requiredFiles = [
   'examples/records/pipeline-run.valid.json','examples/records/game-graduation.valid.json','examples/records/game-status.valid.json',
   'experiments/BYJTT-LAB-001/spec.md','experiments/BYJTT-LAB-001/preflight-2026-08-19.md',
   'experiments/BYJTT-LAB-001/shared/contract.json','experiments/BYJTT-LAB-001/shared/assets.md','experiments/BYJTT-LAB-001/shared/provenance.json',
-  'registry/technologies.json'
+  'registry/technologies.json','registry/ai-game-dev-systems.v1.json'
 ];
 
 const failures = [];
@@ -65,9 +65,56 @@ try {
   }
 } catch (error) { failures.push(`Unable to validate technology registry: ${error.message}`); }
 
+try {
+  const registryPath = 'registry/ai-game-dev-systems.v1.json';
+  const registry = JSON.parse(await readFile(registryPath, 'utf8'));
+  const evidenceLabels = new Set(registry.evidence_labels ?? []);
+  const adoptionTokens = new Set(Object.values(registry.adoption_status_map ?? {}));
+
+  if (typeof registry.schema_version !== 'string' || !/^\d+\.\d+\.\d+$/.test(registry.schema_version)) failures.push(`${registryPath} requires a semantic-version schema_version`);
+  if (!registry.verification_timezone) failures.push(`${registryPath} requires verification_timezone`);
+  if (!registry.last_verified_at || Number.isNaN(Date.parse(registry.last_verified_at))) failures.push(`${registryPath} requires a parseable last_verified_at timestamp`);
+  if (evidenceLabels.size === 0) failures.push(`${registryPath} requires evidence_labels`);
+  if (adoptionTokens.size === 0) failures.push(`${registryPath} requires adoption_status_map values`);
+
+  const benchmarkIds = new Set();
+  if (!Array.isArray(registry.benchmarks) || registry.benchmarks.length === 0) {
+    failures.push(`${registryPath} requires at least one benchmark`);
+  } else {
+    for (const benchmark of registry.benchmarks) {
+      if (!benchmark.benchmark_id || !benchmark.name || !benchmark.category || !benchmark.canonical_url || !benchmark.revision) failures.push('Every AI game-dev benchmark requires benchmark_id, name, category, canonical_url, and revision');
+      if (benchmarkIds.has(benchmark.benchmark_id)) failures.push(`Duplicate AI game-dev benchmark id: ${benchmark.benchmark_id}`);
+      benchmarkIds.add(benchmark.benchmark_id);
+      if (/^pr-\d+$/i.test(String(benchmark.revision))) failures.push(`AI game-dev benchmark ${benchmark.benchmark_id} must not use mutable PR revision ${benchmark.revision}`);
+    }
+  }
+
+  const entryIds = new Set();
+  if (!Array.isArray(registry.entries) || registry.entries.length === 0) {
+    failures.push(`${registryPath} requires at least one entry`);
+  } else {
+    for (const entry of registry.entries) {
+      const id = entry.entry_id ?? '<missing-entry-id>';
+      for (const field of ['entry_id','name','category','canonical_url','source_type','source_revision_status','license','version_or_revision','last_verified_at','execution_status','benchmark_id','adoption_status','replacement_cost','lock_in_risk','license_review_status','redistribution_status']) {
+        if (entry[field] === undefined || entry[field] === null || entry[field] === '') failures.push(`AI game-dev entry ${id} requires ${field}`);
+      }
+      if (entryIds.has(entry.entry_id)) failures.push(`Duplicate AI game-dev entry id: ${entry.entry_id}`);
+      entryIds.add(entry.entry_id);
+      if (!evidenceLabels.has(entry.execution_status)) failures.push(`Invalid evidence status for ${id}: ${entry.execution_status}`);
+      if (!benchmarkIds.has(entry.benchmark_id)) failures.push(`Unknown benchmark_id for ${id}: ${entry.benchmark_id}`);
+      const adoptionParts = String(entry.adoption_status ?? '').split('+').filter(Boolean);
+      if (adoptionParts.length === 0 || adoptionParts.some((part) => !adoptionTokens.has(part))) failures.push(`Invalid adoption_status for ${id}: ${entry.adoption_status}`);
+      if (Number.isNaN(Date.parse(entry.last_verified_at))) failures.push(`Invalid last_verified_at for ${id}: ${entry.last_verified_at}`);
+      if (/^pr-\d+$/i.test(String(entry.version_or_revision))) failures.push(`AI game-dev entry ${id} must not use mutable PR revision ${entry.version_or_revision}`);
+      if (entry.source_revision_status === 'immutable_commit' && !/^[0-9a-f]{40}$/i.test(String(entry.version_or_revision))) failures.push(`AI game-dev entry ${id} declares immutable_commit but revision is not a 40-character Git SHA`);
+      if (entry.adoption_status === 'rejected' && (!entry.notes || !/(block|reject|restrict|licen|territor|incompat)/i.test(entry.notes))) failures.push(`Rejected AI game-dev entry ${id} requires an explanatory blocking reason in notes`);
+    }
+  }
+} catch (error) { failures.push(`Unable to validate AI game-development systems registry: ${error.message}`); }
+
 if (failures.length > 0) {
   console.error('Repository validation failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('Repository structure, lifecycle tooling, production-game contract, schemas, Benchmark 001 contract/provenance, and technology registry are valid.');
+console.log('Repository structure, lifecycle tooling, production-game contract, schemas, Benchmark 001 contract/provenance, technology registry, and AI game-development systems registry are valid.');
