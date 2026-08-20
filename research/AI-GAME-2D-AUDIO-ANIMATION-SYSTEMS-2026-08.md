@@ -1,15 +1,36 @@
 # AI Game 2D, Animation and Audio Systems — 2026-08
 
-Status: **living research companion; no provider is EXECUTED by ByJTT merely by appearing here**  
-Project time convention: `Europe/London`  
+Research date: **2026-08-20**  
+Last verified: **2026-08-20T02:51:00+01:00** (`Europe/London`)  
+Execution status: **NOT EXECUTED — source/terms research only**  
+Tested version/configuration status: **none of the candidate providers/models below has ByJTT benchmark output in this document**  
+Update/supersession status: **current living research snapshot; supersedes generic 2D/audio assumptions, but no registry promotion until reviewed and materialized**  
 Registry authority: `../registry/ai-game-dev-systems.v1.json`  
-Asset provenance authority: `../registry/PROVENANCE.md`
+Asset provenance authority: `../registry/PROVENANCE.md`  
+Evaluation protocol authority: `AI-GAME-DEV-EVALUATION-SYSTEMS-2026-08.md`
 
 ## Purpose
 
 Extend the solved-system-first registry beyond 3D generation into production-critical **2D/sprite consistency, rigging/animation, sound effects, music and voice**.
 
 The same rule applies throughout: open source code, downloadable weights, commercially usable outputs, reproducibility and game-ready production are separate properties. Every actual experiment requires a frozen benchmark/run manifest and complete provenance before accepted outputs can enter the pipeline.
+
+## Universal media-run manifest binding
+
+Every benchmark named in this document inherits the universal pre-execution rule in `AI-GAME-DEV-EVALUATION-SYSTEMS-2026-08.md`. Before the first provider call or local inference, commit an immutable run manifest with a stable `run_manifest_id` plus content hash. At minimum it records:
+
+- benchmark/system IDs and immutable source/model/component revisions;
+- input/reference asset IDs plus hashes and rights status;
+- exact provider/model/configuration and execution environment;
+- seeds or determinism controls where supported;
+- retry/attempt policy and hard maximum attempts;
+- selection policy and acceptance criteria fixed before outputs are inspected;
+- technical QA thresholds and human review criteria;
+- time/token/compute/spend ceilings and credential scopes;
+- required licence/privacy/consent decisions;
+- provenance record IDs for every input and accepted output.
+
+All providers in a comparison use the **same manifest-defined task/cue/asset set and acceptance criteria**. Any material manifest change invalidates the comparison and requires a new manifest/run ID; results from different manifest hashes are not pooled as one benchmark.
 
 ---
 
@@ -22,9 +43,15 @@ Canonical sources:
 - https://www.pixellab.ai/docs/faq
 
 Evidence: **VENDOR-CLAIM**  
-Disposition: **BENCHMARK NOW as commercial pixel/sprite Creator Mode baseline**
+Disposition: **BENCHMARK CANDIDATE — execution blocked until mutable terms are archived and plan/API context is frozen**  
+Terms retrieval: **2026-08-20T02:51:00+01:00**  
+Durable terms snapshot: **NOT YET CAPTURED**  
+API/plan context: **NOT YET SELECTED**  
+Per-experiment licence decision: **`blocked_pending_terms_snapshot_and_plan`**
 
 The current vendor terms state that users own their creations and permit commercial/non-commercial output use. They also restrict using generated images to train models without written permission and require programmatic use through PixelLab's official API; service-building/resale scenarios need separate discussion with PixelLab.
+
+These are mutable vendor terms. A PixelLab experiment MUST NOT execute until the run evidence includes either durable archived source content or a durable third-party archive reference, the SHA-256 of the exact captured terms bytes, retrieval timestamp, applicable API endpoint/product and plan/account context, plus the human-readable decision for the intended use. The archived content/reference must be retained alongside the hash; a hash alone is not reconstructable evidence.
 
 ### Why it matters
 
@@ -32,7 +59,7 @@ PixelLab is a useful benchmark for the creator-facing experience we ultimately w
 
 ### Required benchmark
 
-Use one frozen character reference and palette to create a complete small production set:
+Use one frozen character reference and palette to create a complete small production set defined by the immutable run manifest:
 - idle;
 - walk/run;
 - attack;
@@ -51,7 +78,7 @@ Measure:
 - engine import in at least two benchmark runtimes;
 - total cost/time per **accepted animation set**, not per generated image.
 
-Terms must be re-read at experiment time because they are mutable vendor terms.
+No generated option may be silently removed or added after inspection. Attempts, rejects and acceptance reason are retained against the run manifest.
 
 ## SpriteForge
 
@@ -103,26 +130,43 @@ Pinned code revision: `6793c6640ff01c8fb389f3993434124bb43d2933`
 Official model repository: https://huggingface.co/VAST-AI/UniRig  
 Pinned model-repository revision: `36842e2b5947e9e60f89275b83208c8e74071c63`  
 Model-card licence at that revision: MIT  
-Evidence: **SOURCE-VERIFIED**  
-Disposition: **BENCHMARK NOW as open auto-rigging baseline**
+Evidence: **SOURCE-VERIFIED at repository/model-metadata level**  
+Disposition: **BENCHMARK NOW for skeleton prediction; skinning benchmark blocked pending upstream-intent/code-path verification**
 
-The pinned official model repository identifies the released UniRig Skeleton & Skinning Prediction component as MIT and says it was trained on `Seed3D/Articulation-XL2.0`. Other models/datasets discussed in the paper may be released separately, so this clearance applies only to the exact released component and revision being benchmarked.
+### Artifact inventory
+
+Official artifacts visible at the pinned model-repository state include:
+
+- Skeleton checkpoint: `skeleton/articulation-xl_quantization_256/model.ckpt`
+  - SHA-256: `d8cf9b42d56e7bc316d293597ecf8c4c39a8631cdd44a261ecf388242fabd0f4`
+  - size approximately 1.44 GB
+- Skin checkpoint: `skin/articulation-xl/model.ckpt`
+  - upload revision introducing the file: `950d6e591f9c989d42a9d321f6a6a752ebad5b92`
+  - SHA-256: `9d40cf42fb9d4c10d8b373d9f4f557c6fbbc5ebacae7ae6b3dce5a0d8a18bc33`
+  - size approximately 4.38 GB
+
+The official model-card text is internally inconsistent: its heading note refers to a Skeleton&Skinning component, the repository contains a skin checkpoint, yet its release-plan section still says the skinning weight prediction model is coming later. Therefore the existence of `skin/articulation-xl/model.ckpt` is **not** treated as proof that the current documented end-to-end skinning workflow is supported. Skeleton prediction can be benchmarked independently. Skinning remains blocked until the pinned code path, checkpoint purpose and intended supported release state are verified together.
+
+Both official `.ckpt` files expose pickle imports. Before execution, download only from the pinned official repository, verify the local file SHA-256 against the frozen manifest, and load in the most restrictive supported mode/environment. Unverified third-party checkpoint bytes are not execution-eligible.
 
 ### Required benchmark
 
-Use a frozen set of representative game meshes and measure:
+Use a frozen manifest of representative game meshes and measure skeleton output first:
 - skeleton hierarchy correctness;
 - orientation/transforms;
-- skin-weight quality under a standard motion set;
-- deformation artifacts;
 - humanoid vs non-humanoid coverage;
-- required topology cleanup;
+- required topology/input cleanup;
 - export/import through GLB/FBX as appropriate;
 - import in at least two target runtimes;
 - GPU/runtime requirements;
 - failure/retry/manual cleanup time.
 
-Every model file and input mesh gets its own asset/provenance record even where the model repository is MIT. Before execution, exact downloaded model files are hashed rather than relying on repository revision alone.
+Only after the skinning release ambiguity is resolved may the same manifest add:
+- skin-weight quality under a standard motion set;
+- deformation artifacts;
+- skinning cleanup time.
+
+Every model file and input mesh gets its own asset/provenance record. The run manifest pins both the repository revision and the exact local checkpoint hash; repository revision alone is not sufficient artifact provenance.
 
 ### Animation-provider separation
 
@@ -156,7 +200,7 @@ Current authoritative terms:
 - https://elevenlabs.io/service-specific-terms — last updated 22 June 2026 at research time.
 
 Evidence: **VENDOR-CLAIM / TERMS-VERIFIED, not execution evidence**  
-Disposition: **BENCHMARK commercial audio provider via adapter**
+Disposition: **BENCHMARK CANDIDATE via adapter; terms snapshot + exact service/plan required before execution**
 
 Important current term detail: the Sound Effects terms allow third-party sublicensing of SFX outputs unless the user opts out; opting out stops new third-party use prospectively but does not undo licences/uses already granted. The service-specific terms are product-specific and mutable.
 
@@ -164,13 +208,15 @@ Important current term detail: the Sound Effects terms allow third-party sublice
 
 For commercial audio APIs, provenance cannot be just `provider=ElevenLabs`. The record must identify:
 - exact service (SFX, Music, Speech/TTS, etc.);
-- current service-specific terms snapshot/version;
+- durable terms snapshot/reference + SHA-256 and retrieval time;
 - plan/account context where relevant;
 - opt-out/privacy/sharing state at generation time;
 - input/source rights;
 - model/voice ID;
 - output hash and downstream modifications;
 - commercial/redistribution status.
+
+Until those execution-time terms records exist, the provider is a researched candidate, not a commercially cleared automatic route.
 
 ### Audio acceptance tests
 
@@ -307,9 +353,11 @@ A provider is selected only after licence/privacy/cost eligibility checks.
 
 # 6. Immediate experiments
 
-1. **Sprite-family benchmark** — fixed character/palette across PixelLab and at least one provider-neutral deterministic pipeline; measure accepted-set quality/cost and engine import.
+Every item below requires its own immutable run manifest under the universal binding above. No result is comparable across a changed manifest hash.
+
+1. **Sprite-family benchmark** — fixed character/palette across PixelLab and at least one provider-neutral deterministic pipeline; measure accepted-set quality/cost and engine import. PixelLab remains blocked until its execution-time terms snapshot/plan record exists.
 2. **Sprite QA conformance** — implement/test alignment, palette, alpha, seam and atlas-metadata checks independently of provider.
-3. **UniRig benchmark** — frozen mesh set → rig/skin → standard animations → two engine imports; record cleanup time and deformation defects.
+3. **UniRig skeleton benchmark** — frozen mesh set → skeleton prediction → two engine imports; record cleanup time and hierarchy defects. Add skinning only after the checkpoint/release ambiguity is resolved.
 4. **Audio licence negative test** — assert that AudioCraft MusicGen/AudioGen CC-BY-NC weights are rejected for a commercial target before generation.
 5. **SFX benchmark** — commercial provider vs a commercially eligible open/local alternative once identified; same frozen cue list and loudness/loop tests.
 6. **Voice benchmark** — Chatterbox vs one commercial speech provider on a consent-cleared voice/reference set; include latency, intelligibility, consistency and game import.
