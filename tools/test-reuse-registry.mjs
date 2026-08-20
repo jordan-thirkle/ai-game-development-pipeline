@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const validator = path.resolve('tools/validate-reuse-registry.mjs');
+const exporter = path.resolve('tools/export-public-reuse-registry.mjs');
 const schema = path.resolve('schemas/reuse-candidate.schema.json');
 
 const baseRecord = {
@@ -80,4 +81,42 @@ test('quarantined candidate cannot be publication safe', async () => {
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /cannot be publication.safe=true/);
+});
+
+test('public exporter includes safe qualified records and excludes rejected records even if misflagged safe', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'reuse-export-'));
+  const output = path.join(dir, 'public.json');
+  try {
+    const safe = {
+      ...baseRecord,
+      id: 'safe-candidate',
+      name: 'Safe Candidate',
+      publication: { safe: true, slug: 'safe-candidate' }
+    };
+    const rejected = {
+      ...baseRecord,
+      id: 'rejected-candidate',
+      name: 'Rejected Candidate',
+      state: 'rejected',
+      assessment: { ...baseRecord.assessment, recommendation: 'reject' },
+      publication: { safe: true, slug: 'should-never-export' },
+      rejectionReason: 'Fixture rejection.'
+    };
+    await writeFile(path.join(dir, 'safe.json'), JSON.stringify(safe, null, 2));
+    await writeFile(path.join(dir, 'rejected.json'), JSON.stringify(rejected, null, 2));
+
+    const result = spawnSync(process.execPath, [exporter], {
+      cwd: process.cwd(),
+      env: { ...process.env, REUSE_REGISTRY_DIR: dir, PUBLIC_REUSE_OUTPUT: output },
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const exported = JSON.parse(await readFile(output, 'utf8'));
+    assert.equal(exported.count, 1);
+    assert.deepEqual(exported.records.map((record) => record.id), ['safe-candidate']);
+    assert.equal(JSON.stringify(exported).includes('Rejected Candidate'), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
