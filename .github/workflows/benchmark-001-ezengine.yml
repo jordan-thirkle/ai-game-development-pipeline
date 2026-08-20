@@ -66,6 +66,7 @@ jobs:
             -B "$RUNNER_TEMP/ezengine-build" \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Dev \
+            -DEZ_ENABLE_QT_SUPPORT=OFF \
             -DEZ_EXTERNAL_PROJECT_1="$GITHUB_WORKSPACE/$CANDIDATE" \
             2>&1 | tee "$EVIDENCE/configure.log"
 
