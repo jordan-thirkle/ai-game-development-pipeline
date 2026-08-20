@@ -90,6 +90,9 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   assert.equal(result.evidence.qa.status, 'pass');
   assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
   assert.equal(Buffer.isBuffer(result.bundle.bytes), true);
+  assert.equal(Buffer.isBuffer(result.playable.bytes), true);
+  assert.match(result.playable.bytes.toString('utf8'), /<canvas id="game">/);
+  assert.equal(result.playable.artifactSha256, result.evidence.build.artifactSha256);
   assert.deepEqual(result.safety, {
     dryRun: true,
     publicationExecuted: false,
@@ -104,12 +107,39 @@ test('expected build and QA failures preserve partial evidence and clean workspa
   assert.equal(build.evidence.build.status, 'fail');
   assert.equal(build.evidence.releaseCandidate, undefined);
   assert.equal(build.bundle, null);
+  assert.equal(build.playable, null);
   const qa = await failureRun('qa');
   assert.equal(qa.status, 'fail');
   assert.equal(qa.evidence.build.status, 'pass');
   assert.equal(qa.evidence.qa.status, 'fail');
   assert.equal(qa.evidence.publishing, undefined);
   assert.equal(qa.bundle, null);
+  assert.equal(qa.playable, null);
+});
+
+test('a passing run exposes the exact playable artifact through the local play route', async () => {
+  await withServer({}, async (base) => {
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+    const run = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(run.status, 201);
+    const result = await run.json();
+    assert.equal(result.playable.launchUrl, '/play/sample/');
+    assert.equal(result.playable.artifactSha256, result.evidence.build.artifactSha256);
+    const playable = await fetch(`${base}${result.playable.launchUrl}`);
+    assert.equal(playable.status, 200);
+    assert.equal(playable.headers.get('x-byjtt-artifact-sha256'), result.evidence.build.artifactSha256);
+    assert.match(await playable.text(), /<canvas id="game">/);
+  });
+});
+
+test('a fresh failed run invalidates the previous successful playable result', async () => {
+  let runNumber = 0;
+  await withServer({ execute: () => ++runNumber === 1 ? executeSampleRun() : failureRun('qa') }, async (base) => {
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 201);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 200);
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 422);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+  });
 });
 
 test('run endpoint rejects other methods and concurrent execution', async () => {
@@ -157,6 +187,7 @@ test('failed execution returns partial evidence as a non-success response', asyn
     assert.equal(result.evidence.build.status, 'pass');
     assert.equal(result.evidence.qa.status, 'fail');
     assert.equal(result.download, undefined);
+    assert.equal(result.playable, undefined);
   });
 });
 
