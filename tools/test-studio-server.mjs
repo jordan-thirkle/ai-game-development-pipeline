@@ -50,6 +50,16 @@ async function chunkedPost(url) {
   });
 }
 
+async function stalledBrief(url) {
+  const target = new URL(url);
+  return new Promise((resolvePromise) => {
+    const outgoing = request({ hostname: target.hostname, port: target.port, path: target.pathname, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '128' } });
+    outgoing.on('response', (response) => { response.resume(); response.once('end', resolvePromise); });
+    outgoing.on('error', resolvePromise);
+    outgoing.write('{"name":"partial');
+  });
+}
+
 test('capabilities disclose the fail-closed publishing boundary', async () => {
   await withServer({}, async (base) => {
     const response = await fetch(`${base}/api/pipeline/capabilities`);
@@ -102,6 +112,16 @@ test('run endpoint rejects other methods and concurrent execution', async () => 
     assert.equal(second.status, 409);
     release({ status: 'pass' });
     assert.equal((await first).status, 201);
+  });
+});
+
+test('stalled brief body releases the single-run slot after the intake deadline', async () => {
+  await withServer({ execute: async () => ({ status: 'pass' }) }, async (base) => {
+    const stalled = stalledBrief(`${base}/api/pipeline/brief-runs`);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await stalled;
+    const next = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(next.status, 201);
   });
 });
 
