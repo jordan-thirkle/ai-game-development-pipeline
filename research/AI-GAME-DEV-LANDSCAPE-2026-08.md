@@ -1,293 +1,224 @@
 # AI Game Development Landscape — 2026-08
 
-Status: **living research registry narrative**  
-Canonical standard: `../docs/AI-GAME-DEVELOPMENT-STANDARD.md` when that normative draft lands; until then, GitHub issue `#75` is authoritative.  
+Status: **living research narrative backed by structured registry data**  
+Canonical standard: `../docs/AI-GAME-DEVELOPMENT-STANDARD.md` when the normative draft lands; until then issue `#75` is authoritative.  
 Materialized records: `../registry/ai-game-dev-systems.v1.json`  
-Last substantive review: **2026-08-20** (Europe/London project date)
+Last substantive review: **2026-08-20T01:48:00+01:00** (`Europe/London` project time)
 
 ## Purpose
 
-This registry makes the pipeline's **best solved system first** rule executable.
+This research makes the pipeline's **best solved system first** rule executable.
 
-Before building a game-development subsystem, editor bridge, creator workflow, asset pipeline, agent runtime, testing layer, publishing path or live-ops capability, workers MUST search this registry and current primary sources. Existing systems should be adopted, wrapped, forked or benchmarked before bespoke implementation is accepted.
+Before building a game-development subsystem, workers MUST consult the structured registry and current primary sources. Existing systems should be adopted, wrapped, forked or benchmarked before bespoke implementation is accepted.
 
-This Markdown file is the human-readable research view. Stable IDs, revisions, benchmark joins and adoption states for materialized entries live in `registry/ai-game-dev-systems.v1.json`. Any entry used by an experiment must additionally satisfy `registry/PROVENANCE.md`.
+This Markdown file is the interpretation layer. Stable IDs, source revisions, licences, benchmark joins, adoption states and blocking conditions live in `registry/ai-game-dev-systems.v1.json`. Any system or asset used by an experiment must additionally satisfy `registry/PROVENANCE.md`.
 
 ## Evidence labels
 
-- **EXECUTED** — ByJTT has independently run the relevant capability.
-- **SOURCE-VERIFIED** — identified official docs/source/repository inspected, but ByJTT has not executed the capability yet.
-- **VENDOR-CLAIM** — vendor documentation/marketing claim requiring independent execution.
-- **PAPER-CLAIM** — research result not yet reproduced by ByJTT.
-- **UNKNOWN** — insufficient reproducible evidence in the registry.
+- **EXECUTED** — ByJTT independently ran the relevant capability.
+- **SOURCE-VERIFIED** — identified official source/docs/repository inspected, but not executed by ByJTT.
+- **VENDOR-CLAIM** — vendor claim requiring independent execution.
+- **PAPER-CLAIM** — research result not reproduced by ByJTT.
+- **UNKNOWN** — insufficient reproducible evidence.
 
-A vendor/source/paper claim MUST NOT silently become EXECUTED evidence.
+A claim MUST NOT silently graduate between evidence classes.
 
-## Dispositions
+## Adoption states
 
-- **BENCHMARK NOW** → `adoption_status=benchmark`
-- **INCUMBENT** → `adoption_status=incumbent`
-- **ADAPTER CANDIDATE** → `adoption_status=adapter_candidate`
-- **WATCH** → `adoption_status=watch`
-- **REFERENCE** → `adoption_status=reference`
-- **REJECT FOR NOW** → `adoption_status=rejected`
-
-Combinations such as `INCUMBENT + BENCHMARK NOW` are represented as combined adoption states in the materialized registry.
+- `benchmark` — execute a bounded comparison now.
+- `incumbent` — strongest current solved-system baseline until displaced by evidence.
+- `adapter_candidate` — useful behind a provider-neutral interface.
+- `watch` — promising but lower current leverage.
+- `reference` — architectural/reference baseline.
+- `rejected` — known mismatch; retain the reason to prevent repeated investigation.
 
 ---
 
 # 1. Full creator / engine systems
 
-## Unity AI + official MCP
+## Unity AI + first-party external-agent integration
 
+**Entry ID:** `system.unity.ai-first-party`  
 **Evidence:** SOURCE-VERIFIED  
-**Disposition:** BENCHMARK NOW / engine-adapter baseline
+**Adoption:** benchmark
 
-Primary sources checked 2026-08-20:
-- https://unity.com/blog/unity-ai-how-to-get-started
-- https://unity.com/features/ai
-- https://unity.com/news/unity-7-roadmap-revealed-at-unite-seoul
+Current official Unity sources document project/editor-aware AI and external-agent integration alongside a mature professional engine lifecycle. These are source-documented capabilities, not ByJTT execution results.
 
-Documented baseline includes project-aware in-editor AI, editor/project context, external-agent integration, mutation/undo controls and the broader Unity development lifecycle. These are source-documented capabilities, not ByJTT execution results.
+**Required benchmark:** same bounded game edit through the current first-party Unity AI path and an external agent; measure context accuracy, mutation safety/undo, execution/playtest evidence, tool friction, exportability and project ownership.
 
-**Required benchmark:** same bounded game edit via Unity's current first-party AI path and an external agent over its supported integration surface; measure context accuracy, mutation safety/undo, playtest execution, screenshots/evidence, token/tool friction and exportability.
+## Roblox Studio + Assistant + MCP
 
-## Roblox Studio + Assistant + official MCP
-
+**Entry ID:** `system.roblox.studio-assistant`  
 **Evidence:** SOURCE-VERIFIED  
-**Disposition:** BENCHMARK NOW / creator-experience baseline
+**Adoption:** benchmark
 
-Primary sources checked 2026-08-20:
-- https://create.roblox.com/docs/assistant/guide
-- https://create.roblox.com/docs/studio/mcp
-- https://create.roblox.com/docs/ai/accelerated-workflows
-- https://create.roblox.com/docs/studio
+Roblox is a strong vertically integrated creator/test/publish UX baseline. Its platform coupling makes it a capability/creator-experience benchmark, not our portability/ownership model.
 
-The sources document Assistant/Studio capabilities spanning project manipulation, asset workflows, visual context, playtest interaction and publishing. Strong Roblox-platform coupling makes this primarily a creator-UX/capability benchmark for our ownership model.
-
-**Required benchmark:** fixed novice brief → first playable → natural-language edit → visual correction → normal-input playtest → branch/revert → publish-preview path.
+**Required benchmark:** fixed novice brief → first playable → language-driven edit → visual correction → normal-input playtest → branch/revert → publish-preview.
 
 ## GDevelop
 
+**Entry ID:** `system.gdevelop`  
 **Evidence:** SOURCE-VERIFIED  
-**Disposition:** BENCHMARK NOW / incumbent beginner→shipping benchmark
+**Adoption:** incumbent + benchmark
 
-Primary sources checked 2026-08-20:
-- https://gdevelop.io/en-gb/features
-- https://gdevelop.io/en-gb/game-makers
-- https://gdevelop.io/en-gb/pricing
+GDevelop is our current beginner→shipping reference because it combines approachable authoring, code escape hatches and real publishing/product features.
 
-The sources document no-code authoring with code escape hatches, 2D/3D workflows, preview/debugging, extensions/assets, online/player features, analytics/monetisation integrations and publishing paths. Treat exact availability/plan limits as date-sensitive vendor facts to re-check at experiment time.
-
-**Required benchmark:** novice journey from fixed brief → first playable → iteration → save/reopen → multiplayer/backend requirement → analytics/monetisation setup → export.
+**Required benchmark:** novice fixed brief → first playable → iteration → save/reopen → online/backend need → analytics/monetisation configuration → export. Record every point where professional concepts become unavoidable.
 
 ## Rosebud
 
+**Entry ID:** `system.rosebud`  
 **Evidence:** VENDOR-CLAIM  
-**Disposition:** BENCHMARK NOW / time-to-first-playable baseline
+**Adoption:** benchmark
 
-Vendor sources checked 2026-08-20:
-- https://lab.rosebud.ai/blog/create-3d-game-with-ai
-- https://lab.rosebud.ai/blog/rosebud-ai-interface-guide
-- https://lab.rosebud.ai/blog/how-to-create-a-video-game
-
-Vendor-positioned strengths include browser-first natural-language creation, rapid playable scenes, chat iteration/generated assets and a low-setup play/publish loop. These remain vendor claims until independently executed.
+Rosebud is a time-to-first-playable benchmark. Ownership/export/debug/publishing claims remain untrusted until executed.
 
 ---
 
-# 2. Engine-agent bridges / MCP
+# 2. Engine-agent bridges
 
-## `tomyud1/godot-mcp`
+## Godot bridge pair
 
-**Entry ID:** `system.godot-mcp.tomyud1`  
-**Evidence:** SOURCE-VERIFIED  
-**Disposition:** INCUMBENT + BENCHMARK NOW
+- `system.godot-mcp.tomyud1` — live-editor-oriented incumbent candidate.
+- `system.godot-mcp.better` — contrasting file-first/composite-tool architecture.
 
-Pinned repository state verified 2026-08-20:
-- repository: https://github.com/tomyud1/godot-mcp
-- revision: `0d3f473922ea270c38df5c17cf061aa9da8470a2`
-- licence: MIT
-- pinned commit/release notes identify v0.5.0.
+Both have immutable repository revisions in the structured registry.
 
-The repository documents a Godot 4.x plugin/MCP bridge with file, scene, script, project, asset/runtime-oriented operations. Limitations and exact tool counts must be read from the pinned revision rather than assumed from later `main`.
+**Why compare both:** structural edits that look correct in files are not automatically equivalent to editor/runtime truth. The benchmark must test round-trip correctness, runtime behavior, error recovery, visual evidence, normal-input interaction, concurrency and token/tool cost.
 
-**Adapter test targets:** mutation correctness, live-editor truth, compile/runtime recovery, normal-input playtest, visual evidence, undo/versioning workaround, concurrency and token cost.
+## Unity MCP / agent alternatives
 
-## `n24q02m/better-godot-mcp`
+- `system.unity.ai-first-party` — first-party baseline.
+- `system.unity.mcp.emeryporter` — GPL external-tool candidate.
+- `system.unity.code-agent` — MIT-scoped Unity package with tests/screenshots/closed-loop play patterns; dependencies/assets remain separate licence records.
 
-**Entry ID:** `system.godot-mcp.better`  
-**Evidence:** SOURCE-VERIFIED  
-**Disposition:** BENCHMARK NOW
-
-Pinned repository state verified 2026-08-20:
-- repository: https://github.com/n24q02m/better-godot-mcp
-- revision: `85d7de392d2a59e32a82b41b643b3c389f5d1133`
-- licence: Apache-2.0
-- pinned commit dated 2026-08-19.
-
-The project provides a contrasting file-first/composite-tool architecture. The key experiment is whether structural edits that succeed at the file layer remain correct after Godot import/runtime execution.
-
-## Official Unity MCP / supported first-party external-agent surface
-
-**Evidence:** SOURCE-VERIFIED from the Unity sources above  
-**Disposition:** INCUMBENT first-party Unity baseline
-
-Use the current first-party Unity integration as the first Unity baseline. Open-source alternatives should displace it only on measured capability, openness, latency, safety, cost or licensing.
-
-## `emeryporter/UnityMCP`
-
-**Entry ID:** `system.unity.mcp.emeryporter`  
-**Evidence:** SOURCE-VERIFIED repository metadata  
-**Disposition:** WATCH
-
-Pinned repository state verified 2026-08-20:
-- repository: https://github.com/emeryporter/UnityMCP
-- revision: `846caa5b15fe9758c4ed0caa60022b80c1c81229`
-- release: 2.2.4
-- licence: GPL-3.0.
-
-GPL-3.0 is materially different from MIT/Apache for embedding/forking decisions. Treat as an external-tool candidate unless licence/dependency analysis explicitly supports deeper integration.
+Open-source alternatives displace first-party integration only on measured capability, openness, latency, safety, cost or licensing.
 
 ---
 
-# 3. Multi-agent game generation / research
+# 3. Multi-agent game generation research
 
 ## UniGen
 
+**Entry ID:** `system.unigen`  
+Pinned repository revision: `ce722cdc1fb80103a20c34783b80dccbed5c22f9`  
 **Evidence:** PAPER-CLAIM  
-**Disposition:** BENCHMARK / reproduce selected claims
+**Adoption:** benchmark via `bench.byjtt.multi-agent-reproduction`
 
-Sources checked 2026-08-20:
-- https://arxiv.org/abs/2509.26161
-- https://github.com/yxwan123/UniGen
+The paper describes Planning → Generation → Automation → Debugging and reports large development-time reductions. Those numbers remain paper-author evidence until reproduced.
 
-The paper describes a Planning → Generation → Automation → Debugging multi-agent workflow and reports large development-time reductions on its evaluated prototypes. None of those performance claims become ByJTT facts until reproduced.
+The repository currently exposes no licence in GitHub metadata, so code reuse/redistribution is blocked even though studying/reproducing the architecture is useful.
 
 ---
 
-# 4. Agent/workflow infrastructure
+# 4. External evaluation incumbents
 
-These systems remain important solved-system candidates, but this PR does not yet carry immutable/versioned source records for them. To preserve research integrity they are **not SOURCE-VERIFIED entries in the materialized registry yet**.
+## GameDevBench
 
-## Trigger.dev
+**Entry ID:** `benchmark.gamedevbench`  
+**Benchmark ID:** `bench.gamedevbench`
 
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** WATCH pending pinned-source record
+This is the incumbent external builder-agent benchmark. Its 333 Godot development tasks reduce our need to invent a self-serving proprietary “can this agent build games?” score.
 
-Candidate durable-workflow substrate. Before benchmark/adoption, add canonical docs/source revision, version/date, licence/deployment model and a bounded recovery/human-gate experiment.
+BYJTT-LAB should retain the broader lifecycle/commercial benchmark while consuming GameDevBench as one independent capability axis.
 
-## Inngest
+## Roblox OpenGameEval
 
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** WATCH pending pinned-source record
+**Entry ID:** `benchmark.roblox.open-game-eval`  
+**Benchmark ID:** `bench.roblox.open-game-eval`
 
-Candidate durable step/event orchestration substrate. Materialize evidence before relying on earlier chat/research claims.
+Use/match platform-specific tasks where appropriate rather than rebuilding all Roblox evaluation from scratch.
 
-## Temporal
+## Vitric verification primitives
 
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** REFERENCE pending pinned-source record
+**Entry ID:** `system.vitric`  
+**Benchmark ID:** `bench.vitric.verification`
 
-Reference candidate for durable execution semantics. Do not adopt solely from reputation; pin the exact SDK/server/docs state used by an experiment.
-
-**Rule:** do not build a bespoke durable workflow engine until these and other current incumbents have failed measured requirements.
+Vitric is not assumed to be our production engine. Its deterministic replay, snapshot/restore, semantic state, reachability/soft-lock and swarm-verification concepts deserve direct study because they may strengthen engine-agnostic evidence.
 
 ---
 
-# 5. Standards / interoperability candidates
+# 5. Asset-production incumbents and legal gates
 
-The following remain design references, but only MCP currently has a version identifier recorded in this narrative. They must receive materialized source/version records before an experiment claims conformance.
+See `AI-GAME-ASSET-SYSTEMS-2026-08.md` and structured entries:
 
-## MCP
+- `asset.comfyui` — workflow/orchestration baseline; GPL embedding requires separate review.
+- `asset.trellis` — open 3D baseline; production use blocked until model/submodule licences are fully inventoried.
+- `asset.hunyuan3d2` — rejected as the current UK default at the pinned licence revision due territorial restrictions.
+- `asset.meshy` — commercial 3D baseline candidate; VENDOR-CLAIM until executed.
+- `asset.scenario` — style-consistent/multimodal production candidate; VENDOR-CLAIM until executed.
 
-**Evidence:** SOURCE-VERIFIED at specification level  
-**Disposition:** INCUMBENT interoperability protocol candidate
-
-Canonical source: https://modelcontextprotocol.io/specification/2026-07-28  
-Specification revision: `2026-07-28`  
-Verified: 2026-08-20.
-
-Our tool/plugin architecture should compose with MCP where it fits rather than inventing a proprietary equivalent by default.
-
-## AGENTS.md + provider adapters
-
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** REFERENCE
-
-The architectural principle remains: canonical project instructions should live in portable repository state with thin provider adapters. Before treating AGENTS.md itself as an external standard, materialize its canonical source/version record.
-
-## C2PA
-
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** WATCH / provenance reference candidate
-
-C2PA/Content Credentials is a relevant external provenance reference, but exact spec/version/source metadata must be pinned before a conformance claim. It does not replace a game-specific asset ledger for licence/source/transformation/build relationships.
-
-## WCAG 2.2
-
-**Evidence:** UNKNOWN for this registry revision  
-**Disposition:** REFERENCE / accessibility baseline candidate
-
-WCAG 2.2 AA remains the intended web accessibility target, but the exact W3C Recommendation source/version must be materialized before this registry calls the entry SOURCE-VERIFIED.
+The asset pipeline treats **creator intent as canonical and providers as replaceable**. Art approval and legal/licence approval are separate gates.
 
 ---
 
-# 6. Capabilities that cannot support novelty claims by themselves
+# 6. Workflow and standards candidates not yet materialized
 
-The listed Unity, Roblox, GDevelop, Rosebud and bridge sources **document current systems offering meaningful subsets of** the following capabilities; this is not an assertion that every capability is universal or independently executed by ByJTT:
+Trigger.dev, Inngest, Temporal, AGENTS.md, C2PA and WCAG remain relevant research targets, but this registry revision intentionally does **not** call them SOURCE-VERIFIED unless the exact source/version record is materialized.
+
+MCP is the exception because the current specification revision is known and should remain our default interoperability reference where it fits.
+
+**Rule:** reputation or previous-chat memory is not evidence. A system becomes a registry input only when the current source/version/licence state is recorded.
+
+---
+
+# 7. Capabilities that cannot support novelty claims by themselves
+
+Current source/vendor materials document meaningful systems with subsets of:
 
 - natural-language generation;
 - project-aware AI chat;
 - scene/object mutation;
 - MCP/external-agent integration;
-- AI-generated assets;
+- generated assets;
 - screenshot/viewport reasoning;
 - automated playtest;
 - no-code authoring;
 - version/undo basics;
 - low-friction preview/publish.
 
-Therefore the standard MUST NOT claim novelty merely because it implements one of these features. Differentiation must be tested around the combined system:
+This does **not** mean every capability is universal or independently proven by ByJTT. It means none should be marketed as our moat in isolation.
+
+Our combined differentiation must instead survive testing around:
 
 1. engine/provider portability;
 2. same-project beginner → professional continuity;
-3. independent, revision-bound evidence;
+3. independent revision-bound evidence;
 4. code/dependency/asset provenance and ownership;
 5. solved-system-first cross-engine orchestration;
 6. complete commercial lifecycle;
 7. open conformance tests and external/public benchmarks;
 8. human-operable control plane derived from canonical state;
-9. provider replacement without losing the project.
+9. replacing providers without losing the project.
 
 ---
 
-# 7. Standard benchmark queue
+# 8. Benchmark queue
 
-Stable benchmark IDs are materialized in `registry/ai-game-dev-systems.v1.json`.
-
-| Priority | Benchmark ID / system | Experiment | Why now |
-|---|---|---|---|
-| P0 | `bench.byjtt.creator-journey` / GDevelop | fixed novice Creator Journey | beginner→shipping baseline |
-| P0 | `bench.roblox.open-game-eval` + Creator Journey | create/edit/visual-playtest/branch/publish | integrated creator UX + external eval |
-| P0 | `bench.byjtt.engine-adapter` / Unity first-party | editor mutation/undo/external-agent/playtest | professional-engine AI baseline |
-| P0 | `bench.byjtt.engine-adapter` / Godot MCP pair | same adapter conformance suite | live-editor vs file-first bridge tradeoff |
-| P0 | `bench.byjtt.creator-journey` / Rosebud | same brief/time-box first-playable journey | prompt→playable UX comparison |
-| P0 | `bench.gamedevbench` | stratified then full external suite | independent builder-agent capability |
-| P1 | UniGen | reproduce one bounded prototype | academic multi-agent topology claims |
-| P1 | durable workflow candidates | same work unit / human gate / recovery | avoid custom workflow-engine build |
-| P1 | provenance standards | generated-asset provenance round-trip | external-standard compatibility |
+| Priority | Benchmark/system | Experiment |
+|---|---|---|
+| P0 | `bench.byjtt.creator-journey` / GDevelop | fixed novice Creator Journey |
+| P0 | Roblox + `bench.roblox.open-game-eval` | create/edit/visual-playtest/branch/publish |
+| P0 | `bench.byjtt.engine-adapter` / Unity | editor mutation/undo/external-agent/playtest |
+| P0 | `bench.byjtt.engine-adapter` / Godot pair | same adapter conformance suite |
+| P0 | `bench.byjtt.creator-journey` / Rosebud | same brief/time-box first-playable journey |
+| P0 | `bench.gamedevbench` | stratified subset then full external suite |
+| P1 | `bench.byjtt.multi-agent-reproduction` / UniGen | reproduce one bounded prototype |
+| P1 | `bench.vitric.verification` | deterministic verification-primitives spike |
+| P1 | `bench.byjtt.asset-production` | same accepted-asset brief across open/commercial providers |
 
 ---
 
-# 8. Missing categories to research next
+# 9. Research gaps
 
-Each category needs at least one strong commercial incumbent and one strong open/open-source option where available, with licences and immutable evidence recorded before adoption:
+Each category needs strong commercial and open candidates where available, with current source/licence evidence before adoption:
 
-- 2D generation / sprite consistency / animation;
-- 3D generation, retopology, rigging and animation;
+- deterministic 2D generation / sprite consistency / animation;
+- rigging and animation systems;
 - audio/music/voice generation and editing;
 - procedural/world generation;
-- automated gameplay agents and visual QA;
+- gameplay agents and visual QA;
 - multiplayer/backend/state sync;
 - analytics/crash/live-ops;
 - store publishing/build/signing automation;
@@ -295,27 +226,4 @@ Each category needs at least one strong commercial incumbent and one strong open
 - age/privacy/safety/compliance;
 - game-design evaluation and human-playtest research.
 
-## Registry maintenance rule
-
-Materialized entries use stable IDs and the following fields in `registry/ai-game-dev-systems.v1.json`:
-
-```text
-entry_id
-name
-category
-canonical_url
-source_type
-license
-version_or_revision
-last_verified_at
-activity_signal
-execution_status
-benchmark_id
-adoption_status
-replacement_cost
-lock_in_risk
-redistribution_status
-notes
-```
-
-The public `games.byjtt.com/registry/` can later project a reviewed subset. The internal registry remains stricter and may include rejected systems, implementation risks and negative benchmark results.
+The public `games.byjtt.com/registry/` should eventually project a reviewed subset. The internal registry stays stricter and may include rejected systems, legal blockers, negative experiments and commercial-sensitive implementation risks.
