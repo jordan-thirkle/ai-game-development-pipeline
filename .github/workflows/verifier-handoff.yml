@@ -1,0 +1,41 @@
+name: Verifier revision handoff
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          package-manager-cache: false
+
+      - name: Run adversarial handoff tests
+        run: node --test tools/test-verifier-handoff.mjs
+
+      - name: Record actual checkout revision
+        run: echo "VERIFIER_CHECKOUT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Compile verifier handoff
+        run: node tools/compile-verifier-handoff.mjs
+
+      - name: Upload verifier handoff
+        uses: actions/upload-artifact@v7
+        with:
+          name: verifier-handoff-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: verifier-handoff/
+          if-no-files-found: error
+          retention-days: 14
