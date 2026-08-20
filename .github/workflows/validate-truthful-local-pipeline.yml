@@ -1,0 +1,42 @@
+name: Validate truthful local pipeline telemetry
+
+on:
+  pull_request:
+    paths:
+      - 'tools/run-pipeline-truthful.mjs'
+      - 'tools/test-run-pipeline-truthful.mjs'
+      - 'tools/run-pipeline.mjs'
+      - 'schemas/pipeline-run.schema.json'
+      - 'examples/sample-game/**'
+      - 'docs/QUICKSTART.md'
+      - '.github/workflows/validate-truthful-local-pipeline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  truthfulness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Assert exact checkout revision
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Install validation dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run adversarial telemetry tests
+        run: node --test tools/test-run-pipeline-truthful.mjs
+      - name: Dogfood sample end to end
+        run: |
+          rm -rf /tmp/byjtt-truthful-local-pipeline
+          node tools/run-pipeline-truthful.mjs --project examples/sample-game --output /tmp/byjtt-truthful-local-pipeline --dry-run
+          node tools/validate-record.mjs pipeline-run /tmp/byjtt-truthful-local-pipeline/pipeline-run.json
+          node -e "const r=require('/tmp/byjtt-truthful-local-pipeline/pipeline-run.json'); for (const k of ['toolCalls','failedToolCalls','humanInterventions','humanMinutes','iterations','bespokeLinesChanged']) if (r.execution[k] !== null) throw new Error(k+' must be null')"
