@@ -49,6 +49,17 @@ test('refuses symbolic links instead of exporting paths outside the reviewed san
   });
 });
 
+test('rejects backslash-delimited traversal before archive serialization', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'nested\\..\\..\\..\\escape.txt'), 'must never enter archive');
+    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
+    await assert.rejects(
+      createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-path' }),
+      (error) => error instanceof StudioBundleError && error.code === 'PATH_CONTAINMENT'
+    );
+  });
+});
+
 test('fails closed when the local starter exceeds the fixed export budget', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'oversize.bin'), Buffer.alloc(8 * 1024 * 1024 + 1, 1));
