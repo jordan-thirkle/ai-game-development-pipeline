@@ -1,0 +1,134 @@
+name: Benchmark 001 Bevy Tnua controller
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/bevy-avian/tnua-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-bevy-tnua.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controller-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/bevy-avian/tnua-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: experiments/BYJTT-LAB-001/candidates/bevy-avian/tnua-gate
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact execution revision
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          ACTUAL_HEAD="$(git rev-parse HEAD)"
+          test "$ACTUAL_HEAD" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$ACTUAL_HEAD"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "os=$(uname -a)"
+          } | tee evidence/environment.txt
+
+      - name: Install stable Rust
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          {
+            rustc --version
+            cargo --version
+          } | tee -a evidence/environment.txt
+
+      - name: Resolve exact dependency graph
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile 2>&1 | tee evidence/cargo-generate-lockfile.log
+          cargo tree --locked 2>&1 | tee evidence/cargo-tree.txt
+          cp Cargo.lock evidence/Cargo.lock
+          grep -q 'bevy v0.19.0' evidence/cargo-tree.txt
+          grep -q 'avian3d v0.7.0' evidence/cargo-tree.txt
+          grep -q 'bevy-tnua v0.32.0' evidence/cargo-tree.txt
+          grep -q 'bevy-tnua-avian3d v0.12.0' evidence/cargo-tree.txt
+
+      - name: Strict formatting, lint, tests, and release build
+        run: |
+          set -euo pipefail
+          cargo fmt --check 2>&1 | tee evidence/cargo-fmt.log
+          cargo clippy --all-targets --locked -- -D warnings 2>&1 | tee evidence/cargo-clippy.log
+          cargo test --locked 2>&1 | tee evidence/cargo-test.log
+          cargo build --release --locked 2>&1 | tee evidence/cargo-build-release.log
+
+      - name: Execute real Bevy Avian Tnua controller
+        env:
+          BYJTT_EVIDENCE_JSON: evidence/result.json
+        run: |
+          set -euo pipefail
+          cargo run --release --locked 2>&1 | tee evidence/runtime.log
+          test -s evidence/result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path('evidence/result.json').read_text())
+          required_true = (
+              'tnua_controller_executed',
+              'native_wall_stop_observed',
+              'release_stable',
+              'observation_copy_isolated',
+          )
+          for key in required_true:
+              if result.get(key) is not True:
+                  raise SystemExit(f'{key} was not true: {result.get(key)!r}')
+          if result.get('post_physics_arena_clamp') is not False:
+              raise SystemExit('post_physics_arena_clamp must remain false')
+          if result.get('external_input_executed') is not False:
+              raise SystemExit('this bounded gate must not claim external input')
+          if result.get('walk_speed_mps') != 3.5:
+              raise SystemExit('shared walk speed changed')
+          if result.get('walk_acceleration_mps2') != 18.0:
+              raise SystemExit('shared walk acceleration changed')
+          if result.get('logical_spawn_ground_m') != [0.0, 0.0, 10.0]:
+              raise SystemExit('shared logical spawn changed')
+          if abs(result.get('expected_east_center_x_m', 0.0) - 11.6) > 1e-5:
+              raise SystemExit('native wall geometry changed expected stop')
+          PY
+
+      - name: Bind exact-head evidence with hashes
+        if: always()
+        run: |
+          set -euo pipefail
+          sha256sum \
+            Cargo.toml \
+            src/main.rs \
+            README.md \
+            evidence/environment.txt \
+            evidence/Cargo.lock \
+            evidence/cargo-tree.txt \
+            evidence/cargo-fmt.log \
+            evidence/cargo-clippy.log \
+            evidence/cargo-test.log \
+            evidence/cargo-build-release.log \
+            evidence/runtime.log \
+            evidence/result.json \
+            > evidence/sha256.txt || true
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: byjtt-lab-001-bevy-tnua-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/bevy-avian/tnua-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
