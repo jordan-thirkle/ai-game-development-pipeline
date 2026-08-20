@@ -14,6 +14,7 @@ const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOOPBACK_HOST = '127.0.0.1';
 const MAX_BRIEF_BYTES = 4096;
 const BRIEF_BODY_TIMEOUT_MS = 1000;
+const PLAYABLE_ROUTE = '/play/sample/';
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -86,6 +87,9 @@ export async function executeSampleRun({ brief, run = runPipeline, scaffold = sc
     const bundle = result.status === 'pass'
       ? await createBundle({ projectDir, outputDir, projectId: normalizedBrief?.projectId || evidence.intake?.projectId || 'sample-game' })
       : null;
+    const playable = result.status === 'pass'
+      ? { bytes: await readFile(resolve(projectDir, 'dist', 'index.html')), artifactSha256: evidence.build?.artifactSha256 }
+      : null;
     return {
       status: result.status,
       error: result.status === 'pass' ? null : result.record?.summary || 'Pipeline evidence did not pass.',
@@ -97,7 +101,8 @@ export async function executeSampleRun({ brief, run = runPipeline, scaffold = sc
         destination: evidence.publishing.destination
       } : null,
       evidence,
-      bundle
+      bundle,
+      playable
     };
   } finally {
     await rm(workspace, { recursive: true, force: true });
@@ -128,32 +133,44 @@ function validLocalRequest(request) {
   return request.headers.host === expectedHost && (!origin || origin === expectedOrigin);
 }
 
-function exposeBundle(result, storeBundle) {
-  const { bundle, ...payload } = result;
-  if (!bundle?.bytes) return payload;
-  const token = randomUUID();
-  storeBundle({ token, ...bundle });
-  return {
-    ...payload,
-    download: {
+function exposeArtifacts(result, storeBundle, storePlayable) {
+  const { bundle, playable, ...payload } = result;
+  const response = { ...payload };
+  if (bundle?.bytes) {
+    const token = randomUUID();
+    storeBundle({ token, ...bundle });
+    response.download = {
       url: `/api/pipeline/downloads/${token}`,
       filename: bundle.filename,
       sizeBytes: bundle.sizeBytes,
       fileCount: bundle.fileCount,
       uncompressedBytes: bundle.uncompressedBytes,
       sha256: bundle.sha256
-    }
-  };
+    };
+  }
+  if (playable?.bytes) {
+    storePlayable(playable);
+    response.playable = { launchUrl: PLAYABLE_ROUTE, artifactSha256: playable.artifactSha256 };
+  }
+  return response;
 }
 
 export function createStudioServer({ execute = executeSampleRun } = {}) {
   let running = false;
   let downloadableBundle = null;
+  let playableArtifact = null;
   return createServer(async (request, response) => {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
         return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
+      }
+      if (new URL(request.url, 'http://localhost').pathname === PLAYABLE_ROUTE) {
+        if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin playable launches are not allowed.' });
+        if (!playableArtifact?.bytes) return sendJson(response, 404, { error: 'Playable result is no longer available. Run the pipeline again.' });
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': String(playableArtifact.bytes.length), 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-byjtt-artifact-sha256': playableArtifact.artifactSha256 });
+        return response.end(request.method === 'HEAD' ? undefined : playableArtifact.bytes);
       }
       const downloadMatch = request.url?.match(/^\/api\/pipeline\/downloads\/([0-9a-f-]+)$/i);
       if (downloadMatch) {
@@ -178,9 +195,10 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
         downloadableBundle = null;
+        playableArtifact = null;
         try {
           const result = await execute();
-          const payload = exposeBundle(result, (bundle) => { downloadableBundle = bundle; });
+          const payload = exposeArtifacts(result, (bundle) => { downloadableBundle = bundle; }, (playable) => { playableArtifact = playable; });
           return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
@@ -192,12 +210,13 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
         downloadableBundle = null;
+        playableArtifact = null;
         try {
           let brief;
           try { brief = await readBriefBody(request); }
           catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
           const result = await execute({ brief });
-          const payload = exposeBundle(result, (bundle) => { downloadableBundle = bundle; });
+          const payload = exposeArtifacts(result, (bundle) => { downloadableBundle = bundle; }, (playable) => { playableArtifact = playable; });
           return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
