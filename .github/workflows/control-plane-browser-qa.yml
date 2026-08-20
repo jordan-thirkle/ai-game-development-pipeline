@@ -15,8 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Record browser QA revision
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SHA"
+          {
+            echo '### Control plane browser QA revision'
+            echo
+            echo "- exact revision: \`$actual\`"
+            echo "- event: \`${{ github.event_name }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Detect browser-sensitive changes
         id: changes
         env:
