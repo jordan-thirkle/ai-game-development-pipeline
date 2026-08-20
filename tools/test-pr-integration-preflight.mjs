@@ -319,6 +319,47 @@ test('rate limited requests honor Retry-After before retrying', async () => {
   assert.deepEqual(sleeps, [10]);
 });
 
+test('secondary rate limit without Retry-After waits at least 60 seconds and ignores nonzero-quota reset', async () => {
+  const repoRoot = 'https://api.test/repos/acme/repo';
+  const prUrl = `${repoRoot}/pulls/200`;
+  let fileAttempts = 0;
+  const sleeps = [];
+  const now = 1_700_000_000_000;
+  const fetchFn = async (url) => {
+    if (url === prUrl) return jsonResponse(prDetail(200));
+    if (url === `${prUrl}/files?per_page=100`) {
+      fileAttempts += 1;
+      if (fileAttempts === 1) {
+        return jsonResponse({}, {
+          status: 403,
+          headers: {
+            'X-RateLimit-Remaining': '1',
+            'X-RateLimit-Reset': String((now + 5_000) / 1000)
+          }
+        });
+      }
+      return jsonResponse([{ filename: 'tools/example.mjs' }]);
+    }
+    if (url === `${repoRoot}/pulls?state=open&per_page=100`) return jsonResponse([]);
+    if (url.startsWith(`${repoRoot}/compare/`)) return jsonResponse({ behind_by: 0, ahead_by: 1 });
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const state = await loadLiveState({
+    repository: 'acme/repo',
+    prNumber: 200,
+    token: 'token',
+    apiBase: 'https://api.test',
+    fetchFn,
+    nowFn: () => now,
+    sleepFn: async (ms) => sleeps.push(ms)
+  });
+
+  assert.equal(state.currentPr.files_complete, true);
+  assert.equal(fileAttempts, 2);
+  assert.deepEqual(sleeps, [60_000]);
+});
+
 test('generic concurrency helper preserves order while bounding work', async () => {
   let active = 0;
   let maxActive = 0;
