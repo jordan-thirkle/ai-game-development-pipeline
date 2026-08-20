@@ -7,7 +7,7 @@ const ENEMY_SPAWN := Vector3(0.0, 0.0, -6.0)
 const ENEMY_MOVE_SPEED := 2.7
 const FIXED_DT := 1.0 / 60.0
 const DRIVEN_STEPS := 180
-const MAX_SYNC_FRAMES := 10
+const MAX_SYNC_FRAMES := 30
 
 var _authoritative_enemy_position := ENEMY_SPAWN
 
@@ -15,12 +15,12 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    # Use Godot's World3D-owned navigation map so the engine applies its current
-    # project navigation settings (cell size/height, up vector, connections).
-    var world_node := Node3D.new()
-    root.add_child(world_node)
-    await process_frame
-    var navigation_map: RID = world_node.get_world_3d().get_navigation_map()
+    # Use a dedicated engine-native NavigationServer3D map so this headless
+    # tracer owns map activation and can prove region attachment/synchronization
+    # directly instead of relying on World3D scene lifecycle side effects.
+    var navigation_map: RID = NavigationServer3D.map_create()
+    NavigationServer3D.map_set_up(navigation_map, Vector3.UP)
+    NavigationServer3D.map_set_active(navigation_map, true)
 
     var region: RID = NavigationServer3D.region_create()
     NavigationServer3D.region_set_enabled(region, true)
@@ -38,15 +38,33 @@ func _run() -> void:
     navigation_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
     NavigationServer3D.region_set_navigation_mesh(region, navigation_mesh)
 
-    var initial_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
+    var initial_map_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
+    var initial_region_iteration_id := NavigationServer3D.region_get_iteration_id(region)
     var sync_frames := 0
-    while NavigationServer3D.map_get_iteration_id(navigation_map) <= initial_iteration_id and sync_frames < MAX_SYNC_FRAMES:
+    while sync_frames < MAX_SYNC_FRAMES:
+        var current_regions: Array[RID] = NavigationServer3D.map_get_regions(navigation_map)
+        var map_synchronized := NavigationServer3D.map_get_iteration_id(navigation_map) > initial_map_iteration_id
+        var region_synchronized := NavigationServer3D.region_get_iteration_id(region) > initial_region_iteration_id
+        if map_synchronized and region_synchronized and current_regions.has(region):
+            break
         sync_frames += 1
         await physics_frame
 
     var map_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
+    var region_iteration_id := NavigationServer3D.region_get_iteration_id(region)
+    var map_active := NavigationServer3D.map_is_active(navigation_map)
+    var region_enabled := NavigationServer3D.region_get_enabled(region)
+    var region_attached := NavigationServer3D.region_get_map(region) == navigation_map
+    var map_contains_region := NavigationServer3D.map_get_regions(navigation_map).has(region)
+    var region_bounds := NavigationServer3D.region_get_bounds(region)
+
     var closest_enemy_point := NavigationServer3D.map_get_closest_point(navigation_map, ENEMY_SPAWN)
     var closest_player_point := NavigationServer3D.map_get_closest_point(navigation_map, PLAYER_SPAWN)
+    var closest_enemy_owner_matches := NavigationServer3D.map_get_closest_point_owner(navigation_map, ENEMY_SPAWN) == region
+    var closest_player_owner_matches := NavigationServer3D.map_get_closest_point_owner(navigation_map, PLAYER_SPAWN) == region
+    var region_closest_enemy_point := NavigationServer3D.region_get_closest_point(region, ENEMY_SPAWN)
+    var region_closest_player_point := NavigationServer3D.region_get_closest_point(region, PLAYER_SPAWN)
+
     var path: PackedVector3Array = NavigationServer3D.map_get_path(
         navigation_map,
         ENEMY_SPAWN,
@@ -89,12 +107,30 @@ func _run() -> void:
             path_inside_arena = false
             break
 
+    var synchronization_proven := (
+        map_iteration_id > initial_map_iteration_id
+        and region_iteration_id > initial_region_iteration_id
+        and map_active
+        and region_enabled
+        and region_attached
+        and map_contains_region
+    )
+    var query_ownership_proven := closest_enemy_owner_matches and closest_player_owner_matches
+    var result_passed := (
+        synchronization_proven
+        and query_ownership_proven
+        and path_found
+        and path_inside_arena
+        and final_distance < start_distance
+        and observation_isolated
+    )
+
     var result := {
         "experiment_id": "BYJTT-LAB-001",
         "slice": "godot-native-navigation-gate",
-        "result": "pass" if map_iteration_id > initial_iteration_id and path_found and path_inside_arena and final_distance < start_distance and observation_isolated else "fail",
+        "result": "pass" if result_passed else "fail",
         "engine_system": "NavigationServer3D",
-        "navigation_map_source": "World3D",
+        "navigation_map_source": "NavigationServer3D.map_create",
         "arena_width_m": ARENA_WIDTH,
         "arena_depth_m": ARENA_DEPTH,
         "player_spawn": [PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z],
@@ -103,10 +139,24 @@ func _run() -> void:
         "fixed_dt_s": FIXED_DT,
         "driven_steps": DRIVEN_STEPS,
         "sync_frames": sync_frames,
-        "initial_map_iteration_id": initial_iteration_id,
+        "initial_map_iteration_id": initial_map_iteration_id,
         "map_iteration_id": map_iteration_id,
+        "initial_region_iteration_id": initial_region_iteration_id,
+        "region_iteration_id": region_iteration_id,
+        "map_active": map_active,
+        "region_enabled": region_enabled,
+        "region_attached": region_attached,
+        "map_contains_region": map_contains_region,
+        "region_bounds_position": [region_bounds.position.x, region_bounds.position.y, region_bounds.position.z],
+        "region_bounds_size": [region_bounds.size.x, region_bounds.size.y, region_bounds.size.z],
         "closest_enemy_point": [closest_enemy_point.x, closest_enemy_point.y, closest_enemy_point.z],
         "closest_player_point": [closest_player_point.x, closest_player_point.y, closest_player_point.z],
+        "region_closest_enemy_point": [region_closest_enemy_point.x, region_closest_enemy_point.y, region_closest_enemy_point.z],
+        "region_closest_player_point": [region_closest_player_point.x, region_closest_player_point.y, region_closest_player_point.z],
+        "closest_enemy_owner_matches_region": closest_enemy_owner_matches,
+        "closest_player_owner_matches_region": closest_player_owner_matches,
+        "synchronization_proven": synchronization_proven,
+        "query_ownership_proven": query_ownership_proven,
         "path_found": path_found,
         "path_point_count": path.size(),
         "path_inside_arena": path_inside_arena,
@@ -121,5 +171,5 @@ func _run() -> void:
 
     print("BYJTT_RESULT=" + JSON.stringify(result))
     NavigationServer3D.free_rid(region)
-    world_node.queue_free()
+    NavigationServer3D.free_rid(navigation_map)
     quit(0 if result["result"] == "pass" else 1)
