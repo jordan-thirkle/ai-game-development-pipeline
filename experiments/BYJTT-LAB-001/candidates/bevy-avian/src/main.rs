@@ -5,12 +5,12 @@ use std::{fs, path::PathBuf, time::Duration};
 
 const ARENA_WIDTH: f32 = 24.0;
 const ARENA_DEPTH: f32 = 32.0;
-const PLAYER_SPAWN: Vec3 = Vec3::new(8.0, 0.0, 10.0);
+const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 10.0);
 const WALK_SPEED: f32 = 3.5;
 const PLAYER_WIDTH: f32 = 0.7;
 const WALL_THICKNESS: f32 = 0.5;
 const FIXED_DT: f64 = 1.0 / 60.0;
-const STEPS: usize = 180;
+const STEPS: usize = 300;
 
 #[derive(Component)]
 struct Player;
@@ -126,6 +126,7 @@ mod tests {
     fn shared_contract_constants_are_not_weakened() {
         assert_eq!(ARENA_WIDTH, 24.0);
         assert_eq!(ARENA_DEPTH, 32.0);
+        assert_eq!(PLAYER_SPAWN, Vec3::new(0.0, 0.0, 10.0));
         assert_eq!(WALK_SPEED, 3.5);
     }
 
