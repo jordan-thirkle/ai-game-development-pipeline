@@ -98,29 +98,18 @@ jobs:
             sleep .1
           done
           test "$READY" = 1
+          grep -q '^BYJTT_WINDOW_OPEN=true' "$ARTIFACTS/runtime.log"
+          grep -q '^BYJTT_WINDOW_VISIBLE=true' "$ARTIFACTS/runtime.log"
 
-          WINDOW_ID=''
-          for _ in $(seq 1 120); do
-            WINDOW_ID="$(xdotool search --pid "$LOVR_PID" 2>/dev/null | head -n 1 || true)"
-            if [ -z "$WINDOW_ID" ]; then
-              WINDOW_ID="$(xdotool search --name 'BYJTT LÖVR Render Input Gate' 2>/dev/null | head -n 1 || true)"
-            fi
-            if [ -n "$WINDOW_ID" ]; then break; fi
-            if ! kill -0 "$LOVR_PID" 2>/dev/null; then cat "$ARTIFACTS/runtime.log"; exit 1; fi
-            sleep .1
-          done
-          if [ -z "$WINDOW_ID" ]; then
-            xwininfo -root -tree > "$ARTIFACTS/xwininfo-root-tree.txt" 2>&1 || true
-            xdotool search --name '.*' 2>/dev/null | tee "$ARTIFACTS/all-window-ids.txt" || true
-            cat "$ARTIFACTS/runtime.log"
-            exit 1
+          xwininfo -root -tree > "$ARTIFACTS/xwininfo-root-tree.txt" 2>&1 || true
+          xdotool getactivewindow > "$ARTIFACTS/active-window-id.txt" 2>/dev/null || true
+          if [ -s "$ARTIFACTS/active-window-id.txt" ]; then
+            xdotool getwindowname "$(cat "$ARTIFACTS/active-window-id.txt")" > "$ARTIFACTS/active-window-name.txt" 2>/dev/null || true
           fi
-          echo "$WINDOW_ID" | tee "$ARTIFACTS/window-id.txt"
-          xdotool getwindowname "$WINDOW_ID" | tee "$ARTIFACTS/window-name.txt"
-          xdotool windowactivate --sync "$WINDOW_ID"
+
           xdotool keydown d
           sleep 5
-          import -display "$DISPLAY" -window "$WINDOW_ID" "$ARTIFACTS/rendered-window.png"
+          import -display "$DISPLAY" -window root "$ARTIFACTS/rendered-desktop.png"
           xdotool keyup d
 
           set +e
@@ -129,19 +118,22 @@ jobs:
           set -e
           cat "$ARTIFACTS/runtime.log"
           test "$RC" -eq 0
+          grep -q '^BYJTT_KEY_PRESSED=d' "$ARTIFACTS/runtime.log"
+          grep -q '^BYJTT_KEY_RELEASED=d' "$ARTIFACTS/runtime.log"
           grep '^BYJTT_RESULT=' "$ARTIFACTS/runtime.log" | tail -n 1 | sed 's/^BYJTT_RESULT=//' > "$ARTIFACTS/result.json"
           test -s "$ARTIFACTS/result.json"
-          test -s "$ARTIFACTS/rendered-window.png"
+          test -s "$ARTIFACTS/rendered-desktop.png"
       - name: Assert machine-readable evidence boundary
         run: |
           set -euo pipefail
-          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.window_open || !r.window_visible || !r.rendered_window_path_executed || !r.external_input_executed || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.render_frames<10 || r.max_draws_per_frame<6) process.exit(1);' "$GATE/artifacts/render-input-gate/result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.window_open || !r.window_visible || !r.window_focused || !r.rendered_window_path_executed || !r.external_input_executed || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.render_frames<10 || r.max_draws_per_frame<6) process.exit(1);' "$GATE/artifacts/render-input-gate/result.json"
+          identify "$GATE/artifacts/render-input-gate/rendered-desktop.png" | tee "$GATE/artifacts/render-input-gate/screenshot-identify.txt"
           sha256sum \
             "$GATE/conf.lua" \
             "$GATE/main.lua" \
             "$GATE/.luacheckrc" \
             "$GATE/artifacts/render-input-gate/result.json" \
-            "$GATE/artifacts/render-input-gate/rendered-window.png" \
+            "$GATE/artifacts/render-input-gate/rendered-desktop.png" \
             > "$GATE/artifacts/render-input-gate/sha256.txt"
       - name: Upload exact-head evidence
         if: always()
