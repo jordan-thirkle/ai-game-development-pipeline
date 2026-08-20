@@ -1,6 +1,6 @@
 # Unity 6.3 Phase A proof handoff
 
-Status: **implementation prepared; Unity Editor/runtime execution remains BLOCKED / UNKNOWN on this head until a licensed Unity environment runs the proof suite.**
+Status: **implementation prepared; Unity Editor/runtime execution remains BLOCKED / UNKNOWN until a licensed Unity environment executes the proof suite on the exact head.**
 
 Parent: `BYJTT-LAB-001` / issue #39. This is intentionally a bounded player movement + native collision tracer, not a full Phase A candidate claim.
 
@@ -46,7 +46,9 @@ These tests are **not evidence until a real Unity Editor executes them on the ex
 
 ## Reproduce in a licensed environment
 
-The repository workflow `.github/workflows/benchmark-001-unity.yml` is `workflow_dispatch` only and fails closed when Unity activation credentials are absent. It runs the PlayMode suite against this project through GameCI's Unity Test Runner.
+The candidate-specific workflow `.github/workflows/benchmark-001-unity.yml` runs on pushes to this isolated branch that touch the Unity candidate/workflow and also exposes `workflow_dispatch` after it becomes available to GitHub's dispatcher. The push trigger exists specifically so pre-merge exact-head proof does not depend on the workflow already existing on `main`.
+
+The workflow records the exact candidate SHA before the licence gate. If Unity activation credentials are missing it writes `execution_status=blocked`, uploads the blocker/exact-head artifact, and fails. It must never convert this condition into a runtime pass. With credentials present it runs the PlayMode suite through GameCI's Unity Test Runner.
 
 Required repository secrets for the documented Personal-license route:
 
