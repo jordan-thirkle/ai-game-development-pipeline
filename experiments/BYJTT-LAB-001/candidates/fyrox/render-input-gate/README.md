@@ -6,7 +6,8 @@ This additive gate tests the next independent Fyrox runtime frontier without cha
 
 ## What this gate must prove
 
-- exact `fyrox = 1.0.0` on Rust 1.87;
+- exact `fyrox = 1.0.0`;
+- Rust 1.88 as the minimum executable toolchain for the published dependency graph;
 - warnings-as-errors compile/test/release build;
 - a real Fyrox `Executor` window and graphics context under Linux/Xvfb;
 - a real OS `D` press and release delivered by X11 to the focused window;
@@ -14,6 +15,10 @@ This additive gate tests the next independent Fyrox runtime frontier without cha
 - fixed-rate plugin updates while the external key is held;
 - the unchanged shared walk speed of 3.5 m/s used to quantify delivered input duration;
 - screenshot, window diagnostics, runtime log, machine-readable result and hashes bound to the exact candidate head.
+
+## Toolchain lifecycle finding
+
+Fyrox `1.0.0` declares `rust-version = "1.87"`, and its published `fyrox-impl` `1.0.0` also declares Rust 1.87. However, that same upstream `fyrox-impl` manifest directly requires `libloading = "0.9"`; the published `libloading 0.9.0` requires Rust 1.88. Exact-head runs under Rust 1.87 therefore fail before candidate code can compile. This gate records that upstream package/MSRV mismatch as lifecycle cost and uses the minimum toolchain that can execute the unchanged Fyrox 1.0 dependency requirement. It does not alter a BYJTT gameplay constant or acceptance criterion.
 
 ## Evidence boundary
 
