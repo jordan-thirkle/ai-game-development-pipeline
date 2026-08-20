@@ -1,7 +1,8 @@
 # AI Game Asset Production Systems — 2026-08
 
 Status: living research companion to `AI-GAME-DEV-LANDSCAPE-2026-08.md`  
-Last verified: **2026-08-20**
+Last verified: **2026-08-20T01:48:00+01:00** (`Europe/London` project time)  
+Materialized records: `../registry/ai-game-dev-systems.v1.json`
 
 ## Core rule
 
@@ -15,7 +16,10 @@ The pipeline must separate:
 4. **production conversion** — topology, UVs, materials, rigging, scale, pivots, collision, LODs, texture compression, audio normalization, sprite packing, etc.;
 5. **provenance/licensing** — source, licence, model/tool/version, references, transformations and hashes;
 6. **game validation** — import into the target engine, visual QA, runtime/performance/memory budgets and platform compatibility;
-7. **human approval** — style, quality and fit.
+7. **art approval** — style, quality and fit;
+8. **licence/legal approval** — a separate blocking decision whenever usage rights are unresolved or require human interpretation.
+
+Art approval MUST NOT satisfy a licence/legal gate.
 
 The Game Development OS should expose these as one creator experience while preserving each boundary underneath.
 
@@ -25,30 +29,28 @@ The Game Development OS should expose these as one creator experience while pres
 
 ## ComfyUI
 
+**Entry ID:** `asset.comfyui`  
 Repository: https://github.com/Comfy-Org/ComfyUI  
-Licence: GPL-3.0  
+Pinned revision: `5ab2f7a2d676c1fb7b410c22e82e2ed8f217b56c`  
+Pinned source paths: repository root/README and `LICENSE` at that revision  
+Licence: GPL-3.0 for the repository at the pinned revision; individual nodes/models/workflows require their own records  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **INCUMBENT workflow-engine candidate / BENCHMARK NOW as external adapter**
 
-Repository snapshot checked 2026-08-20:
-- ~128k GitHub stars / ~15k forks;
-- actively pushed on 2026-08-19;
-- Python;
-- node-graph workflow engine with API/backend;
-- project documentation positions it across image, video, 3D, audio and other model workflows;
-- sophisticated workflows can be exposed through simpler app-style interfaces.
+Pinned repository state was checked at `2026-08-20T01:48:00+01:00`. The repository metadata identifies `master` as the default branch and the pinned commit was authored on 2026-08-19. Its documented role is a node-graph workflow engine/API/backend spanning multiple generative-media model workflows.
 
 ### Why it matters
 
-ComfyUI already solves a huge amount of model orchestration, reproducible graph execution and ecosystem integration. Building an in-house model-node runtime would need a very strong measured reason.
+ComfyUI already solves a large amount of model orchestration, graph execution and ecosystem integration. Building an in-house model-node runtime would need a strong measured reason.
 
 ### Integration stance
 
 - Treat ComfyUI as a **replaceable external workflow provider**, not the canonical asset data model.
-- Store the workflow graph/version, model identifiers, seeds/parameters, inputs and output hashes in our provenance ledger.
-- Build Creator Mode forms/actions on top of validated templates rather than exposing a giant node graph to beginners.
-- Pro Mode may link/open the underlying graph for expert control.
-- Because ComfyUI itself is GPL-3.0, embedding/distribution strategy requires explicit licence review. Calling a separately operated/local service through an adapter has a different legal/architectural profile from incorporating its code.
+- Store workflow graph/revision, model identifiers, seeds/parameters, inputs and output hashes in our provenance ledger.
+- Build Creator Mode forms/actions on top of validated templates rather than exposing the full graph to beginners.
+- Pro Mode may reveal/open the underlying graph.
+- Because the repository is GPL-3.0, embedding/distribution is a **separate human licence-review gate**. An external/local service adapter is the preferred experiment shape until that review is complete.
+- Custom nodes and model weights MUST be inventoried separately; the ComfyUI repository licence does not license every workflow dependency.
 
 ### Benchmark
 
@@ -65,70 +67,69 @@ Measure reproducibility, setup cost, generation time, VRAM/cloud cost, provenanc
 
 ## Microsoft TRELLIS
 
+**Entry ID:** `asset.trellis`  
 Repository: https://github.com/microsoft/TRELLIS  
-Licence: MIT for models and majority of code; repository notes some submodules carry their own licences  
-Evidence: **SOURCE-VERIFIED**  
-Disposition: **BENCHMARK NOW as permissive local/open 3D baseline**
+Pinned root revision: `442aa1e1afb9014e80681d3bf604e8d728a86ee7`  
+Pinned source paths: root `README.md`, root `LICENSE`, dependency/submodule declarations at that revision  
+Evidence: **SOURCE-VERIFIED for the pinned root repository only**  
+Disposition: **BENCHMARK NOW as open/local 3D baseline, production use blocked pending dependency/model-artifact inventory**
 
-Repository snapshot checked 2026-08-20:
-- ~13.4k stars / ~1.3k forks;
-- official Microsoft research implementation;
-- text or image → 3D;
-- outputs can include radiance fields, 3D Gaussians and meshes;
-- supports asset variants/local editing;
-- training code and pretrained models are public.
+The root repository reports MIT licensing, but the project also contains/depends on submodules and model artifacts that can carry separate terms. Therefore this record deliberately does **not** generalize the root MIT licence across every artifact used by an experiment.
 
-Practical constraints in project documentation:
-- primarily tested on Linux;
-- NVIDIA GPU with at least 16 GB memory required for the documented setup;
-- CUDA/toolchain dependencies.
+Documented capabilities include text/image-conditioned 3D generation and mesh/3D representations. Documented setup is GPU-heavy and primarily Linux/NVIDIA-oriented.
 
 ### Pipeline fit
 
-TRELLIS is a useful **quality/open-control baseline**, but its hardware/runtime footprint means it may not be the default local Creator Mode path on ordinary laptops.
+TRELLIS is a useful open-control/quality baseline, but its hardware/runtime footprint means it may not be the default local Creator Mode path on ordinary laptops.
 
 The adapter should be able to dispatch the same asset intent to:
 - local capable workstation;
 - remote GPU worker;
 - commercial API provider;
-while keeping the canonical asset/provenance contract unchanged.
+while keeping canonical asset/provenance state unchanged.
+
+### Required pre-experiment inventory
+
+Before a TRELLIS-generated artifact can enter a benchmark or production candidate:
+- pin every model artifact used;
+- pin relevant submodules/dependencies;
+- record each licence separately;
+- record redistribution/commercial status;
+- block use if any required licence is unresolved.
 
 ### Benchmark requirements
 
 - image-to-3D and text/reference-to-3D quality;
-- reproducibility under fixed seed/input;
+- reproducibility under fixed seed/input where supported;
 - GLB/mesh extraction quality;
 - topology/UV/material cleanup needed before game import;
 - scale/pivot/collision/LOD post-processing;
 - VRAM, wall time and compute cost;
 - import correctness in at least two benchmark runtimes;
-- exact licence inventory for used submodules/model artifacts.
+- exact licence inventory for the concrete model/dependency/artifact set.
 
-## Tencent Hunyuan3D-2 repository family
+## Tencent Hunyuan3D-2
 
+**Entry ID:** `asset.hunyuan3d2`  
 Repository: https://github.com/Tencent-Hunyuan/Hunyuan3D-2  
+Pinned revision: `f8db63096c8282cb27354314d896feba5ba6ff8a`  
+Pinned licence path: `LICENSE` at that revision  
 Evidence: **SOURCE-VERIFIED**  
 Disposition: **REJECT AS DEFAULT FOR CURRENT UK PIPELINE pending exact version/component legal clearance**
 
-Technical capabilities documented by the project include:
-- image/text-conditioned shape generation;
-- separate texture generation;
-- GLB/OBJ-compatible mesh output;
-- local code, API server, Gradio and Blender-addon workflows;
-- multiview and texture workflows;
-- newer model work including PBR-related pipelines.
+Technical capabilities documented by the project include image/text-conditioned shape generation, separate texture generation and common mesh-output workflows.
 
 ### Critical licence finding
 
-The repository's Hunyuan3D 2.0 Community License states that the agreement **does not apply in the European Union, United Kingdom or South Korea**.
+The pinned Hunyuan3D 2.0 Community License states territorial restrictions including that the agreement does not apply in the United Kingdom, European Union or South Korea.
 
 Therefore:
-- do not add this repository/model family to the automatic UK commercial asset provider pool;
-- do not let an agent infer "open source on GitHub" means commercially usable here;
-- any newer Hunyuan3D component/version must receive its **own exact licence/territory review** before use;
-- community wrappers do not cure upstream model licence restrictions.
+- do not add this pinned model/repository state to the automatic UK commercial provider pool;
+- do not let an agent infer "public GitHub repository" means commercially usable here;
+- any different/newer Hunyuan3D artifact receives its **own exact licence/territory review**;
+- wrappers do not cure upstream model restrictions.
 
-This becomes a test case for the provenance/licensing subsystem: provider selection should be capable of rejecting a technically strong model **before generation** because the intended territory/use is incompatible.
+This is a mandatory negative conformance case: provider selection for a UK commercial target must refuse the pinned artifact before generation and explain why.
 
 ---
 
@@ -136,14 +137,21 @@ This becomes a test case for the provenance/licensing subsystem: provider select
 
 ## Meshy
 
-Evidence: **VENDOR/SOURCE-VERIFIED, not yet independently benchmarked**  
+**Entry ID:** `asset.meshy`  
+Evidence: **VENDOR-CLAIM; not independently executed by ByJTT**  
 Disposition: **BENCHMARK NOW as commercial 3D-production baseline**
 
-Relevant vendor-positioned capabilities include 3D generation, texturing/PBR-oriented workflows, rigging/animation and engine integrations.
+Vendor sources captured for the current research snapshot:
+- https://docs.meshy.ai/en/webapp/guides/use-cases/game-assets
+- https://docs.meshy.ai/en
+- https://help.meshy.ai/en/articles/10137554-what-is-the-ownership-of-the-generated-models
+- https://help.meshy.ai/en/articles/16102098-can-i-use-meshy-assets-commercially
+
+The vendor documents capabilities around 3D generation, texturing/PBR-oriented workflows, rigging/animation and game-engine import. Terms/output rights are plan- and input-dependent and MUST be re-read at generation time.
 
 ### Benchmark role
 
-Compare against local/open baselines on **game-ready total cost**, not screenshot appeal:
+Compare on **game-ready accepted-asset total cost**, not screenshot appeal:
 - creator time to acceptable asset;
 - geometry/topology cleanup;
 - textures/materials;
@@ -151,15 +159,22 @@ Compare against local/open baselines on **game-ready total cost**, not screensho
 - LOD/collision requirements;
 - engine import;
 - API latency/cost;
-- commercial terms and output rights;
-- reproducibility/provenance information available through the API.
+- exact commercial/output rights for the selected plan and source inputs;
+- reproducibility/provenance metadata available through the API.
 
 ## Scenario
 
-Evidence: **VENDOR/SOURCE-VERIFIED, not yet independently benchmarked**  
-Disposition: **BENCHMARK for style-consistent production workflows**
+**Entry ID:** `asset.scenario`  
+Evidence: **VENDOR-CLAIM; not independently executed by ByJTT**  
+Disposition: **BENCHMARK NOW for style-consistent production workflows**
 
-Scenario is particularly relevant to consistency/custom-model and multi-media production workflows.
+Vendor sources captured for the current research snapshot:
+- https://www.scenario.com/platform
+- https://docs.scenario.com/get-started/training/training-models/
+- https://www.scenario.com/features/workflows
+- https://help.scenario.com/articles/8779329416-content-policy-copyright-what-each-model-allows
+
+Vendor materials position Scenario around model/style training, repeatable workflows and multiple media/provider integrations. Exact model-provider terms are not uniform and must be recorded per workflow.
 
 ### Benchmark role
 
@@ -190,16 +205,22 @@ Even when generation comes from TRELLIS, Meshy, Scenario or another provider, th
 - GLB/glTF/FBX interchange;
 - automated renders/turntables for visual QA.
 
-The specific Blender automation/agent bridge should be separately researched; the standard should depend on **capabilities and open interchange**, not one MCP implementation.
+The specific Blender automation/agent bridge should be separately researched; the standard should depend on capabilities and open interchange, not one MCP implementation.
 
 ---
 
-# 5. Asset-provider conformance contract
+# 5. Mandatory asset provenance/conformance record
 
-Every asset provider adapter SHOULD eventually expose a normalized record similar to:
+A normalized asset record is **mandatory at generation or import time**, before the output is used by an experiment. It is not deferred until production promotion.
+
+At minimum it must carry:
 
 ```text
+asset_id
 intent_id
+source_url_or_repository
+source_revision
+source_author_or_publisher
 provider_id
 provider_version
 model_id
@@ -216,32 +237,67 @@ cost
 raw_output_hashes
 accepted_output_hashes
 licence_id
+licence_source
 territory
 commercial_use_status
 source_attribution_requirements
-transformation_history
-human_approval
+modification_history
+experiment_ids
+validation_results
+redistribution_status
+generator_metadata
+art_approval_status
+art_approval_reviewer
+art_approval_at
+licence_review_status
+licence_review_reviewer
+licence_review_decided_at
+licence_blocking_reason
 engine_import_results
 performance_results
 ```
 
-### Pre-generation gate
+This record extends, and MUST remain compatible with, `registry/PROVENANCE.md`.
 
-Before generation:
+### Provenance completeness
+
+`provenance_complete=true` is permitted only when all fields required by the asset's source/use path are present, including stable identity, source/revision, author/publisher, licence/commercial status, attribution, modifications, experiment linkage, validation, redistribution state, and generator/source metadata.
+
+Missing required provenance blocks:
+- use in a benchmark as an accepted input/output;
+- promotion to `production_candidate`;
+- redistribution/publishing;
+- claims about commercial readiness.
+
+Raw quarantined outputs may be retained solely for investigation if clearly marked `provenance_incomplete` and cannot be consumed downstream.
+
+### Pre-generation/import gate
+
+Before generation or third-party import:
 - intended commercial/non-commercial use known;
 - intended territories/platforms known where licences require it;
-- provider/model licence known;
+- provider/model/source licence identified;
 - reference/input ownership known;
 - estimated cost within budget;
-- sensitive/private source handling acceptable.
+- sensitive/private source handling acceptable;
+- mandatory provenance record allocated;
+- unresolved legal/licensing ambiguity sets `licence_review_status=blocked` and prevents execution when human review is required.
+
+### Separate approval gates
+
+**Art approval** covers style, quality, identity/consistency and fit.
+
+**Licence/legal approval** covers unresolved usage rights, territory, attribution, commercial terms and redistribution. It has its own reviewer and decision timestamp. An art director approval cannot satisfy it.
+
+When licence terms are straightforward and machine-verifiable, the automated gate can record `licence_review_status=machine_cleared`. If terms are ambiguous/material, status remains `blocked_pending_human_review` until a human decision is recorded.
 
 ### Post-generation gate
 
 Before an asset becomes `production_candidate`:
 - output file parses;
-- provenance record complete;
-- licence is compatible;
-- visual/art-direction review complete;
+- provenance is complete;
+- licence/legal status is compatible and not blocked;
+- art-direction review complete;
 - engine import succeeds;
 - scale/pivot/material expectations pass;
 - runtime memory/performance is within relevant budget;
@@ -251,13 +307,13 @@ Before an asset becomes `production_candidate`:
 
 # 6. Creator Mode implication
 
-A beginner should not have to choose between "TRELLIS", "ComfyUI", "Meshy" or a future provider to create a prop.
+A beginner should not have to choose between TRELLIS, ComfyUI, Meshy or a future provider to create a prop.
 
 Creator Mode should ask for **intent**:
 
 > "Make a weathered wooden market stall that matches this village."
 
-The asset orchestrator then chooses/compares eligible providers based on:
+The asset orchestrator then chooses/compares **eligible** providers based on:
 - required modality;
 - current benchmark quality;
 - style consistency;
@@ -267,15 +323,15 @@ The asset orchestrator then chooses/compares eligible providers based on:
 - time/cost budget;
 - target engine/platform requirements.
 
-Pro Mode can reveal and override provider/model/workflow choices.
+Pro Mode can reveal and override provider/model/workflow choices, but cannot bypass mandatory provenance or unresolved legal gates without an explicitly recorded human decision.
 
-This is another important portability boundary: **creator intent is canonical; provider output is replaceable**.
+This is another portability boundary: **creator intent is canonical; provider output is replaceable**.
 
 # Immediate experiments
 
-1. **ComfyUI template adapter spike** — structured intent → fixed graph → captured provenance → output artifact.
-2. **TRELLIS game-ready spike** — reference image → mesh → Blender normalization → GLB → two engine imports → runtime/memory measurements.
-3. **Meshy comparison** — same asset brief through commercial path; measure accepted-asset total cost/time.
-4. **Style consistency set** — choose one 2D/character provider workflow and generate a multi-asset family, not a single cherry-picked image.
-5. **Licence rejection test** — feed Hunyuan3D-2.0 into provider selection for a UK commercial target and assert the pipeline refuses it with a clear reason before generation.
-6. **Provenance round-trip** — edit/generated asset through at least two tools and verify source/licence/transformation history survives to the shipped build manifest.
+1. **ComfyUI template adapter spike** — structured intent → fixed graph → mandatory provenance → output artifact.
+2. **TRELLIS game-ready spike** — first complete dependency/model licence inventory, then reference image → mesh → Blender normalization → GLB → two engine imports → runtime/memory measurements.
+3. **Meshy comparison** — same asset brief through the commercial path; record current plan/output terms and accepted-asset total cost/time.
+4. **Style consistency set** — choose one 2D/character provider workflow and generate a multi-asset family, not a cherry-picked image.
+5. **Licence rejection test** — feed pinned Hunyuan3D-2 into provider selection for a UK commercial target and assert refusal before generation.
+6. **Provenance round-trip** — generated/imported asset through at least two tools and verify source/licence/transformation history survives to the shipped build manifest.
