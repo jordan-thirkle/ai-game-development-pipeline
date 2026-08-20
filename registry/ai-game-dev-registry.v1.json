@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "last_verified_at": "2026-08-20T02:51:00+01:00",
+  "verification_timezone": "Europe/London",
+  "policy_shard": "registry/ai-game-dev-systems.v1.json",
+  "shards": [
+    {
+      "shard_id": "core",
+      "path": "registry/ai-game-dev-systems.v1.json",
+      "namespace": "core",
+      "required": true
+    },
+    {
+      "shard_id": "media",
+      "path": "registry/ai-game-media-systems.v1.json",
+      "namespace": "media",
+      "required": true
+    }
+  ],
+  "rules": {
+    "global_entry_ids_unique": true,
+    "global_benchmark_ids_unique": true,
+    "cross_shard_benchmark_joins_allowed": true,
+    "policy_enums_inherited_from_policy_shard": true,
+    "repository_commit_is_the_atomic_registry_revision": true
+  }
+}
