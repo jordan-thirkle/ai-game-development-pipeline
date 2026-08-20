@@ -37,10 +37,14 @@ jobs:
           dotnet --info >> "$CANDIDATE/artifacts/physics-gate/environment.txt"
       - name: Restore committed dependency graph
         working-directory: ${{ env.CANDIDATE }}
-        run: dotnet restore StridePhysicsGate.csproj --locked-mode | tee artifacts/physics-gate/restore.log
+        run: |
+          set -o pipefail
+          dotnet restore StridePhysicsGate.csproj --locked-mode | tee artifacts/physics-gate/restore.log
       - name: Strict release build
         working-directory: ${{ env.CANDIDATE }}
-        run: dotnet build StridePhysicsGate.csproj -c Release --no-restore /warnaserror | tee artifacts/physics-gate/build.log
+        run: |
+          set -o pipefail
+          dotnet build StridePhysicsGate.csproj -c Release --no-restore /warnaserror | tee artifacts/physics-gate/build.log
       - name: Freeze resolved dependency graph
         working-directory: ${{ env.CANDIDATE }}
         run: |
@@ -48,7 +52,9 @@ jobs:
           dotnet list StridePhysicsGate.csproj package --include-transitive > artifacts/physics-gate/dependency-tree.txt
       - name: Execute resolved Stride Bepu backend
         working-directory: ${{ env.CANDIDATE }}
-        run: dotnet run --project StridePhysicsGate.csproj -c Release --no-build -- artifacts/physics-gate/result.json | tee artifacts/physics-gate/runtime.log
+        run: |
+          set -o pipefail
+          dotnet run --project StridePhysicsGate.csproj -c Release --no-build -- artifacts/physics-gate/result.json | tee artifacts/physics-gate/runtime.log
       - name: Assert machine-readable evidence boundary
         run: |
           node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.native_wall_stop_observed || r.post_physics_arena_clamp || !r.observation_copy_isolated || r.stride_character_component_executed !== false) process.exit(1);' "$CANDIDATE/artifacts/physics-gate/result.json"
