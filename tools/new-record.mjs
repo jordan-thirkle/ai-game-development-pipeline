@@ -74,91 +74,22 @@ const templates = {
     }
   },
   'game-graduation': {
-    schemaVersion: '1.0.0',
-    candidateId: id,
-    sourceExperimentIds: ['replace-me'],
-    decision: 'continue-research',
-    decisionDate: date,
-    evidence: {
-      playableBuild: false,
-      playerValue: 'Unknown; evidence required.',
-      technicalViability: 'Unknown; evidence required.',
-      references: [],
-      playtestSummary: null,
-      performanceSummary: null
-    },
-    product: {
-      playerFantasy: 'Unknown',
-      coreLoop: 'Unknown',
-      differentiation: 'Unknown',
-      targetPlatforms: ['unknown'],
-      releaseScope: 'Unknown',
-      returnReasons: []
-    },
-    technical: {
-      proposedRuntime: null,
-      runtimeDecisionEvidence: null,
-      reusableComponentIds: [],
-      knownMigrationNeeds: [],
-      performanceRisks: []
-    },
-    commercial: {
-      monetisationHypotheses: [],
-      distributionHypotheses: [],
-      costRisks: [],
-      revenueHypotheses: []
-    },
-    operations: {
-      telemetryRequired: true,
-      releaseAutomationRequired: true,
-      supportRequired: false,
-      maintenanceRisks: [],
-      backendRequirements: [],
-      complianceRequirements: []
-    },
-    risks: [],
-    killCriteria: [],
-    nextActions: ['Collect evidence before requesting graduation.']
+    schemaVersion: '1.0.0', candidateId: id, sourceExperimentIds: ['replace-me'], decision: 'continue-research', decisionDate: date,
+    evidence: { playableBuild: false, playerValue: 'Unknown; evidence required.', technicalViability: 'Unknown; evidence required.', references: [], playtestSummary: null, performanceSummary: null },
+    product: { playerFantasy: 'Unknown', coreLoop: 'Unknown', differentiation: 'Unknown', targetPlatforms: ['unknown'], releaseScope: 'Unknown', returnReasons: [] },
+    technical: { proposedRuntime: null, runtimeDecisionEvidence: null, reusableComponentIds: [], knownMigrationNeeds: [], performanceRisks: [] },
+    commercial: { monetisationHypotheses: [], distributionHypotheses: [], costRisks: [], revenueHypotheses: [] },
+    operations: { telemetryRequired: true, releaseAutomationRequired: true, supportRequired: false, maintenanceRisks: [], backendRequirements: [], complianceRequirements: [] },
+    risks: [], killCriteria: [], nextActions: ['Collect evidence before requesting graduation.']
   },
   'game-status': {
-    schemaVersion: '1.0.0',
-    gameId: id,
-    repository: null,
-    lifecycleStage: 'production',
-    runtime: {
-      name: 'unknown',
-      version: 'unknown',
-      decisionEvidence: null
-    },
-    releases: [],
-    health: {
-      telemetry: { status: 'unknown', evidence: null },
-      crashReporting: { status: 'unknown', evidence: null },
-      releasePipeline: { status: 'unknown', evidence: null },
-      commerce: { status: 'unknown', evidence: null },
-      support: { status: 'unknown', evidence: null }
-    },
-    monetisation: {
-      model: [],
-      state: 'none',
-      activeExperiment: null,
-      economicsEvidence: null
-    },
-    maintenance: {
-      policy: 'Define maintenance and upgrade policy before public release.',
-      lastDependencyReview: null,
-      lastPlatformReview: null,
-      risks: []
-    },
-    evidence: {
-      pipelineRuns: [],
-      releaseEvidence: [],
-      publicationSafe: []
-    },
-    nextReview: {
-      date: null,
-      action: 'Replace unknown scaffold state with evidence-backed status.'
-    }
+    schemaVersion: '1.0.0', gameId: id, repository: null, lifecycleStage: 'production',
+    runtime: { name: 'unknown', version: 'unknown', decisionEvidence: null }, releases: [],
+    health: { telemetry: { status: 'unknown', evidence: null }, crashReporting: { status: 'unknown', evidence: null }, releasePipeline: { status: 'unknown', evidence: null }, commerce: { status: 'unknown', evidence: null }, support: { status: 'unknown', evidence: null } },
+    monetisation: { model: [], state: 'none', activeExperiment: null, economicsEvidence: null },
+    maintenance: { policy: 'Define maintenance and upgrade policy before public release.', lastDependencyReview: null, lastPlatformReview: null, risks: [] },
+    evidence: { pipelineRuns: [], releaseEvidence: [], publicationSafe: [] },
+    nextReview: { date: null, action: 'Replace unknown scaffold state with evidence-backed status.' }
   },
   'reuse-candidate': {
     id,
@@ -166,55 +97,19 @@ const templates = {
     description: 'Discovery scaffold only; replace all placeholder evidence before qualification.',
     kind: 'other',
     state: 'discovered',
-    source: {
-      canonicalUrl: 'https://example.invalid/replace-with-upstream',
-      provider: 'replace-me'
-    },
+    source: { canonicalUrl: 'https://example.invalid/replace-with-upstream', provider: 'replace-me' },
     licence: {
-      status: 'unknown',
-      identifier: 'unknown',
-      evidenceUrl: 'https://example.invalid/replace-with-licence-evidence',
-      attributionRequired: false,
+      status: 'unknown', identifier: 'unknown', evidenceUrl: 'https://example.invalid/replace-with-licence-evidence', attributionRequired: false, checkedAt: iso,
       notice: 'Unknown until verified from a primary source.'
     },
     commercialUse: 'unknown',
-    provenance: {
-      confidence: 'unknown',
-      notes: 'Unknown until source/rightsholder provenance is verified.'
-    },
-    maintenance: {
-      status: 'unclear',
-      evidence: 'No maintenance evidence collected yet.',
-      notes: 'Replace with current upstream evidence.'
-    },
-    compatibility: {
-      notes: 'Not assessed yet.'
-    },
-    risk: {
-      supplyChain: 'unknown',
-      dependencyBurden: 'unknown',
-      legalNotes: 'Not assessed yet.',
-      securityNotes: 'Not assessed yet.'
-    },
-    assessment: {
-      integrationEffort: 'unknown',
-      lifecycleRisk: 'unknown',
-      scores: {},
-      recommendation: 'defer',
-      notes: 'Discovery scaffold cannot be promoted until evidence is collected.'
-    },
-    evidence: [
-      {
-        type: 'discovery-placeholder',
-        url: 'https://example.invalid/replace-with-evidence',
-        checkedAt: iso,
-        notes: 'Replace placeholder with primary-source evidence.'
-      }
-    ],
-    publication: {
-      safe: false,
-      notes: 'Never publish an unqualified scaffold.'
-    },
+    provenance: { confidence: 'unknown', notes: 'Unknown until source/rightsholder provenance is verified.' },
+    maintenance: { status: 'unclear', evidence: 'No maintenance evidence collected yet.', checkedAt: iso, notes: 'Replace with current upstream evidence.' },
+    compatibility: { notes: 'Not assessed yet.' },
+    risk: { supplyChain: 'unknown', dependencyBurden: 'unknown', legalNotes: 'Not assessed yet.', securityNotes: 'Not assessed yet.' },
+    assessment: { integrationEffort: 'unknown', lifecycleRisk: 'unknown', scores: {}, recommendation: 'defer', notes: 'Discovery scaffold cannot be promoted until evidence is collected.' },
+    evidence: [{ type: 'discovery-placeholder', url: 'https://example.invalid/replace-with-evidence', checkedAt: iso, notes: 'Replace placeholder with primary-source evidence.' }],
+    publication: { safe: false, notes: 'Never publish an unqualified scaffold.' },
     usedIn: [],
     lastVerified: iso
   }
