@@ -2,6 +2,12 @@ name: BYJTT-LAB-001 Unity proof
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - benchmark/001-unity-proof-handoff
+    paths:
+      - .github/workflows/benchmark-001-unity.yml
+      - experiments/BYJTT-LAB-001/candidates/unity/**
 
 permissions:
   contents: read
@@ -19,15 +25,35 @@ jobs:
       - name: Checkout exact requested revision
         uses: actions/checkout@v4
 
+      - name: Record exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p unity-test-artifacts
+          {
+            echo "candidate_head=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "workflow_run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "expected_editor=6000.3.13f1"
+          } | tee unity-test-artifacts/exact-head.txt
+
       - name: Fail closed when Unity activation is unavailable
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "${UNITY_LICENSE:-}" || -z "${UNITY_EMAIL:-}" || -z "${UNITY_PASSWORD:-}" ]]; then
+            {
+              echo "execution_status=blocked"
+              echo "blocker=missing_unity_activation_credentials"
+              echo "runtime_pass=false"
+            } | tee unity-test-artifacts/execution-status.txt
             echo "Unity execution BLOCKED: UNITY_LICENSE / UNITY_EMAIL / UNITY_PASSWORD are required."
             exit 1
           fi
-          echo "candidate_head=${GITHUB_SHA}" | tee unity-candidate-head.txt
+          {
+            echo "execution_status=license_gate_passed"
+            echo "runtime_pass=unknown_until_tests_complete"
+          } | tee unity-test-artifacts/execution-status.txt
 
       - name: Execute Unity PlayMode proof
         uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9
@@ -37,24 +63,10 @@ jobs:
           testMode: playmode
           artifactsPath: unity-test-artifacts
 
-      - name: Preserve exact-head marker
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p unity-test-artifacts
-          {
-            echo "candidate_head=${GITHUB_SHA}"
-            echo "workflow_run_id=${GITHUB_RUN_ID}"
-            echo "workflow_run_attempt=${GITHUB_RUN_ATTEMPT}"
-            echo "expected_editor=6000.3.13f1"
-          } > unity-test-artifacts/exact-head.txt
-
-      - name: Upload Unity proof artifacts
+      - name: Upload Unity proof or blocker artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: byjtt-lab-001-unity-proof-${{ github.sha }}
-          path: |
-            unity-test-artifacts
-            unity-candidate-head.txt
+          path: unity-test-artifacts
           if-no-files-found: error
