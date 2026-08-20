@@ -175,7 +175,7 @@ func _run() -> void:
     mutated_observation["distance_to_player"] = 999.0
     var isolated_observation: Dictionary = runtime.observe()
     var isolated_enemy_position: Array = isolated_observation.get("enemy_position", [999.0, 999.0, 999.0])
-    var observation_isolated := (
+    var observation_isolated: bool = (
         int(isolated_observation.get("player_health", 999)) == player_health
         and float(isolated_enemy_position[0]) != 999.0
         and float(isolated_observation.get("distance_to_player", 999.0)) != 999.0
