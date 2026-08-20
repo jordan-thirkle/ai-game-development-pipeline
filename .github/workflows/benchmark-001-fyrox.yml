@@ -1,0 +1,68 @@
+name: Benchmark 001 Fyrox native physics
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/fyrox/**'
+      - '.github/workflows/benchmark-001-fyrox.yml'
+permissions:
+  contents: read
+jobs:
+  native-physics:
+    name: native-physics
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/fyrox
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install Rust 1.87
+        run: |
+          rustup toolchain install 1.87.0 --profile minimal
+          rustup override set 1.87.0
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - name: Record execution environment
+        run: |
+          mkdir -p "$CANDIDATE/evidence"
+          {
+            echo "rustc=$(rustc --version)"
+            echo "cargo=$(cargo --version)"
+            echo "os=$(uname -a)"
+            echo "github_sha=$GITHUB_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+          test "$GITHUB_SHA" = "$CANDIDATE_HEAD_SHA"
+      - name: Resolve and freeze dependencies
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo generate-lockfile
+      - name: Strict compile check
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo check --locked
+      - name: Execute tests
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo test --locked
+      - name: Release build
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo build --release --locked
+      - name: Execute real Fyrox native-physics tracer
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo run --release --locked
+      - name: Record dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: cargo tree --locked > evidence/cargo-tree.txt
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byjtt-lab-001-fyrox-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/fyrox/evidence/**
+            experiments/BYJTT-LAB-001/candidates/fyrox/Cargo.lock
+          if-no-files-found: warn
+          retention-days: 30
