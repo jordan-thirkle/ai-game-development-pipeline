@@ -22,7 +22,7 @@ try {
   await page.locator('#run-brief').click();
   assert.equal(await page.locator('#run-brief').isDisabled(), true, 'brief control remained active during a visual run');
   assert.equal(await page.locator('#run-sample').isDisabled(), true, 'sample control remained active during a brief run');
-  await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('verified local starter'), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('opened below'), null, { timeout: 30000 });
   assert.equal(await page.locator('#run-brief').isEnabled(), true, 'brief control was not restored after the run');
   assert.equal(await page.locator('#run-sample').isEnabled(), true, 'sample control was not restored after the run');
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'brief flow did not prove all six local stages');
@@ -35,6 +35,14 @@ try {
   assert.match(evidence, /Publication executed: false/);
   assert.match(evidence, /Secrets used: false/);
   assert.match(evidence, /Dry-run only: true/);
+
+  assert.equal(await page.locator('#play-result').isVisible(), true, 'playable result panel was not exposed');
+  const playSrc = await page.locator('#play-frame').getAttribute('src');
+  assert.match(playSrc, /\/play\/sample\/$/);
+  const playResponse = await page.request.get(playSrc);
+  assert.equal(playResponse.ok(), true, `playable result HTTP ${playResponse.status()}`);
+  assert.match(playResponse.headers()['x-byjtt-artifact-sha256'], /^sha256:[a-f0-9]{64}$/);
+  assert.match(await playResponse.text(), /<canvas id="game">/);
 
   const downloadLink = page.getByRole('link', { name: 'Download starter bundle' });
   assert.equal(await downloadLink.count(), 1, 'verified starter download was not exposed in Studio');
