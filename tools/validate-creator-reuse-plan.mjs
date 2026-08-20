@@ -27,22 +27,21 @@ function sameClearance(planSnapshot, entry) {
   );
 }
 
-function eligibleForPlanReuse(entry, decision) {
-  if (!entry) return false;
-  if (!['reuse_unchanged', 'adapt'].includes(decision)) return false;
-
-  const licensing = entry.licensing ?? {};
-  const allClear =
+function fullyCleared(entry) {
+  const licensing = entry?.licensing ?? {};
+  return (
     ['cleared', 'not_applicable'].includes(licensing.code_clearance_status) &&
     ['cleared', 'not_applicable'].includes(licensing.asset_clearance_status) &&
-    ['cleared', 'not_applicable'].includes(entry.dependency_clearance_status);
+    ['cleared', 'not_applicable'].includes(entry?.dependency_clearance_status) &&
+    licensing.commercial_use_status === 'allowed_with_conditions' &&
+    !['copyleft', 'mixed', 'unknown'].includes(licensing.license_class)
+  );
+}
 
-  if (!allClear) return false;
-  if (licensing.commercial_use_status !== 'allowed_with_conditions') return false;
-  if (['copyleft', 'mixed', 'unknown'].includes(licensing.license_class)) return false;
-
+function eligibleForPlanReuse(entry, capabilityKind) {
+  if (!entry || !fullyCleared(entry)) return false;
   if (entry.adoption_status === 'drop_in_candidate') return true;
-  if (entry.adoption_status === 'asset_source_candidate' && ['asset', 'audio'].includes(entry.__capabilityKind)) return true;
+  if (entry.adoption_status === 'asset_source_candidate' && ['asset', 'audio'].includes(capabilityKind)) return true;
   return false;
 }
 
@@ -74,6 +73,24 @@ for (const key of ['whole_starter_search_completed', 'mechanic_search_completed'
   if (plan?.discovery?.[key] !== true) fail(`discovery.${key} must be true before the plan can pass`);
 }
 
+const effort = plan?.discovery_effort;
+if (!asObject(effort)) {
+  fail('discovery_effort must be an object');
+} else {
+  if (!['instrumented', 'not_instrumented'].includes(effort.measurement_status)) fail('discovery_effort.measurement_status is invalid');
+  if (!['interactive_manual_agent', 'dedicated_discovery_agent', 'mixed'].includes(effort.method)) fail('discovery_effort.method is invalid');
+  if (!nonEmpty(effort.notes)) fail('discovery_effort.notes is required');
+  if (effort.measurement_status === 'instrumented') {
+    for (const key of ['search_actions', 'source_fetches', 'observed_elapsed_minutes']) {
+      if (typeof effort[key] !== 'number' || effort[key] < 0) fail(`discovery_effort.${key} must be a non-negative number when instrumented`);
+    }
+  } else {
+    for (const key of ['search_actions', 'source_fetches', 'observed_elapsed_minutes']) {
+      if (effort[key] !== null) fail(`discovery_effort.${key} must remain null when measurement_status=not_instrumented`);
+    }
+  }
+}
+
 const entries = new Map((registry?.entries ?? []).map((entry) => [entry.entry_id, entry]));
 const capabilities = Array.isArray(plan?.capabilities) ? plan.capabilities : [];
 if (capabilities.length < 6) fail('plan must cover at least six generic capabilities');
@@ -98,23 +115,17 @@ for (const capability of capabilities) {
   if (selectedId && !(capability.candidates_considered ?? []).includes(selectedId)) fail(`${id} selected_entry_id must appear in candidates_considered`);
 
   if (selected) {
-    selected.__capabilityKind = capability.kind;
     if (!sameClearance(capability.clearance_snapshot, selected)) {
       fail(`${id} clearance_snapshot must exactly match the selected registry entry; plan snapshots may not soften source evidence`);
     }
-    delete selected.__capabilityKind;
   } else if (capability?.clearance_snapshot?.evidence_status !== 'UNKNOWN') {
     fail(`${id} with no selected source must keep evidence_status=UNKNOWN`);
   }
 
   if (['reuse_unchanged', 'adapt'].includes(capability?.decision)) {
     if (!selected) fail(`${id} ${capability.decision} requires selected_entry_id`);
-    if (selected) {
-      selected.__capabilityKind = capability.kind;
-      if (!eligibleForPlanReuse(selected, capability.decision)) {
-        fail(`${id} ${capability.decision} cannot use ${selected.entry_id}: source is not fully cleared and eligible for this capability kind`);
-      }
-      delete selected.__capabilityKind;
+    if (selected && !eligibleForPlanReuse(selected, capability.kind)) {
+      fail(`${id} ${capability.decision} cannot use ${selected.entry_id}: source is not fully cleared and eligible for this capability kind`);
     }
   }
 
@@ -146,8 +157,8 @@ for (const capability of capabilities) {
   if (capability?.decision === 'generate_gap') {
     if (selectedId !== null) fail(`${id} generate_gap must not select an external source`);
     if (!nonEmpty(capability?.gap_reason)) fail(`${id} generate_gap requires a documented external discovery gap`);
-    if (capability?.kind === 'asset' || capability?.kind === 'audio') {
-      if (plan?.discovery?.free_asset_search_completed !== true) fail(`${id} generation requires free asset discovery first`);
+    if ((capability?.kind === 'asset' || capability?.kind === 'audio') && plan?.discovery?.free_asset_search_completed !== true) {
+      fail(`${id} generation requires free asset discovery first`);
     }
   }
 
@@ -174,13 +185,22 @@ for (const [key, expected] of Object.entries(counts)) {
 if (!Number.isInteger(plan?.metrics?.whole_starters_considered) || plan.metrics.whole_starters_considered < 1) fail('metrics.whole_starters_considered must be >= 1');
 if (plan?.metrics?.realized_time_savings_claimed !== false) fail('realized_time_savings_claimed must remain false until implementation evidence exists');
 
-const externalCoverage = capabilities.filter((c) => (c.candidates_considered ?? []).length > 0).length / Math.max(capabilities.length, 1);
-const plannedReuseRate = counts.planned_reuse_or_adapt / Math.max(capabilities.length, 1);
-if (plan?.metrics?.external_candidate_coverage_pct !== undefined && plan.metrics.external_candidate_coverage_pct !== Math.round(externalCoverage * 100)) {
-  fail(`metrics.external_candidate_coverage_pct must equal recomputed value ${Math.round(externalCoverage * 100)}`);
-}
-if (plan?.metrics?.planned_reuse_or_adapt_pct !== undefined && plan.metrics.planned_reuse_or_adapt_pct !== Math.round(plannedReuseRate * 100)) {
-  fail(`metrics.planned_reuse_or_adapt_pct must equal recomputed value ${Math.round(plannedReuseRate * 100)}`);
+const denominator = Math.max(capabilities.length, 1);
+const externalCandidateCoveragePct = Math.round((capabilities.filter((c) => (c.candidates_considered ?? []).length > 0).length / denominator) * 100);
+const eligibleCandidateCoveragePct = Math.round((counts.planned_reuse_or_adapt / denominator) * 100);
+const noReuseBaseline = capabilities.length;
+const plannedCustomAfterReuse = capabilities.length - counts.planned_reuse_or_adapt;
+const plannedSurfaceReductionPct = Math.round(((noReuseBaseline - plannedCustomAfterReuse) / Math.max(noReuseBaseline, 1)) * 100);
+
+const expectedMetrics = {
+  external_candidate_coverage_pct: externalCandidateCoveragePct,
+  eligible_candidate_coverage_pct: eligibleCandidateCoveragePct,
+  no_reuse_baseline_generic_custom_capabilities: noReuseBaseline,
+  planned_generic_custom_capabilities_after_reuse: plannedCustomAfterReuse,
+  planned_generic_surface_reduction_pct: plannedSurfaceReductionPct,
+};
+for (const [key, expected] of Object.entries(expectedMetrics)) {
+  if (plan?.metrics?.[key] !== expected) fail(`metrics.${key} must equal recomputed value ${expected}`);
 }
 
 if (!nonEmpty(plan?.evidence_boundary) || !/no realized|claims no realized|no realised|claims no realised/i.test(plan.evidence_boundary)) {
@@ -193,4 +213,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Creator reuse plan valid: ${capabilities.length} capabilities; ${counts.planned_reuse_or_adapt} reuse/adapt; ${counts.blocked_review} blocked; ${counts.discovery_gaps} discovery gaps; external candidate coverage=${Math.round(externalCoverage * 100)}%.`);
+console.log(`Creator reuse plan valid: ${capabilities.length} capabilities; ${counts.planned_reuse_or_adapt} reuse/adapt; ${counts.blocked_review} blocked; ${counts.discovery_gaps} discovery gaps; external coverage=${externalCandidateCoveragePct}%; eligible coverage=${eligibleCandidateCoveragePct}%; planned generic surface reduction=${plannedSurfaceReductionPct}%; discovery effort=${effort.measurement_status}.`);
