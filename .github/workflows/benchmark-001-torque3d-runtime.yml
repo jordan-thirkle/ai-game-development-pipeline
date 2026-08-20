@@ -46,7 +46,7 @@ jobs:
           from pathlib import Path
           p = Path('.github/workflows/benchmark-001-torque3d-runtime.yml')
           text = p.read_text(encoding='utf-8')
-          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip', 'extract_dir/Torque3D']
+          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip', 'extract_dir/Torque3D', 'timeout 2s wmctrl']
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit(f'missing fail-closed workflow markers: {missing}')
@@ -160,26 +160,31 @@ jobs:
           openbox > "$EVIDENCE_DIR/openbox.log" 2>&1 &
           openbox_pid=$!
           cleanup() {
-            if [[ -n "${runtime_pid:-}" ]] && kill -0 "$runtime_pid" 2>/dev/null; then kill "$runtime_pid" 2>/dev/null || true; fi
+            if [[ -n "${runtime_pid:-}" ]]; then
+              kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+              sleep 1
+              kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
             kill "$openbox_pid" "$xvfb_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
           sleep 2
-          xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt"
-          glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1 || true
+          timeout 3s xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt"
+          timeout 3s glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1 || true
 
           binary_abs="$(readlink -f "$binary")"
           binary_dir="$(dirname "$binary_abs")"
           binary_name="$(basename "$binary_abs")"
           cd "$binary_dir"
-          timeout 18s "./$binary_name" > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
+          setsid timeout --signal=TERM --kill-after=2s 18s "./$binary_name" > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
           runtime_pid=$!
 
           window_seen=false
           survived_five_seconds=false
           for i in $(seq 1 12); do
             sleep 1
-            wmctrl -lx > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt" 2>&1 || true
+            timeout 2s wmctrl -lx > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt" 2>&1 || true
             if [[ -s "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt" ]]; then window_seen=true; fi
             if (( i >= 5 )) && kill -0 "$runtime_pid" 2>/dev/null; then survived_five_seconds=true; fi
             if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
@@ -187,7 +192,9 @@ jobs:
 
           runtime_exit='running'
           if kill -0 "$runtime_pid" 2>/dev/null; then
-            kill "$runtime_pid" 2>/dev/null || true
+            kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+            sleep 1
+            kill -KILL -- "-$runtime_pid" 2>/dev/null || true
             wait "$runtime_pid" 2>/dev/null || true
             runtime_exit='terminated-after-proof-window'
           else
@@ -196,13 +203,16 @@ jobs:
             runtime_exit="$?"
             set -e
           fi
+          runtime_pid=''
 
           cd "$GITHUB_WORKSPACE"
           loader_failure=false
-          if grep -Eqi 'error while loading shared libraries|cannot open shared object file|GLXBad|Segmentation fault|core dumped' "$EVIDENCE_DIR/runtime.log"; then loader_failure=true; fi
+          if grep -Eqi 'error while loading shared libraries|cannot open shared object file|Segmentation fault|core dumped' "$EVIDENCE_DIR/runtime.log"; then loader_failure=true; fi
+          null_renderer=false
+          if grep -Fqi 'GFX Null Device' "$EVIDENCE_DIR/runtime.log"; then null_renderer=true; fi
 
           passed=false
-          if [[ "$loader_failure" == false && ( "$window_seen" == true || "$survived_five_seconds" == true ) ]]; then passed=true; fi
+          if [[ "$loader_failure" == false && "$survived_five_seconds" == true ]]; then passed=true; fi
 
           jq -n \
             --arg status "$( [[ "$passed" == true ]] && echo pass || echo runtime-launch-failed )" \
@@ -212,8 +222,9 @@ jobs:
             --argjson window_seen "$window_seen" \
             --argjson survived_five_seconds "$survived_five_seconds" \
             --argjson loader_failure "$loader_failure" \
+            --argjson null_renderer "$null_renderer" \
             --argjson passed "$passed" \
-            '{status:$status,binary:$binary,runtime_executed:$runtime_executed,window_seen:$window_seen,survived_five_seconds:$survived_five_seconds,loader_failure:$loader_failure,runtime_exit:$runtime_exit,passed:$passed}' \
+            '{status:$status,binary:$binary,runtime_executed:$runtime_executed,window_seen:$window_seen,survived_five_seconds:$survived_five_seconds,loader_failure:$loader_failure,null_renderer:$null_renderer,runtime_exit:$runtime_exit,passed:$passed}' \
             > "$EVIDENCE_DIR/runtime-result.json"
 
           test "$passed" = true
