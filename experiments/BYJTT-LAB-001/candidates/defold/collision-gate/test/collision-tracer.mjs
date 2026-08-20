@@ -10,6 +10,9 @@ const bundleRoot = path.join(gate, 'bundle');
 const artifacts = path.join(gate, 'artifacts', 'native-collision');
 const port = 4179;
 const url = `http://127.0.0.1:${port}`;
+const EAST_WALL_INNER_FACE_X = 12.0;
+const PLAYER_HALF_WIDTH_M = 0.4;
+const EXPECTED_CENTER_CEILING_X = EAST_WALL_INNER_FACE_X - PLAYER_HALF_WIDTH_M;
 await mkdir(artifacts, { recursive: true });
 
 async function findIndex(dir) {
@@ -83,9 +86,10 @@ try {
   await page.waitForTimeout(500);
   const released = await waitFor(page, value => value.seq > stopped.seq, 'released observation');
   const releaseDriftM = Math.abs(released.player.position[0] - releaseStartX);
+  const centerCeilingErrorM = Math.abs(released.player.position[0] - EXPECTED_CENTER_CEILING_X);
 
-  if (!(stopped.player.position[0] > 10.5)) throw new Error(`Player never reached east boundary: x=${stopped.player.position[0]}`);
-  if (stopped.player.max_x > 12.05) throw new Error(`Native physics allowed arena penetration: max_x=${stopped.player.max_x}`);
+  if (centerCeilingErrorM > 0.08) throw new Error(`Native stop missed expected x=${EXPECTED_CENTER_CEILING_X}: final=${released.player.position[0]}`);
+  if (released.player.max_x > EXPECTED_CENTER_CEILING_X + 0.05) throw new Error(`Native physics exceeded collision tolerance: max_x=${released.player.max_x}`);
   if (releaseDriftM > 0.05) throw new Error(`Input release drifted ${releaseDriftM} m`);
   if (released.contract.post_physics_arena_clamp !== false) throw new Error('Gate reported a post-physics arena clamp');
 
@@ -115,12 +119,17 @@ try {
     external_input_executed: true,
     input: 'KeyD held for 4500 ms then released',
     shared_walk_speed_mps: 3.5,
+    arena_width_m: 24,
+    east_wall_inner_face_x: EAST_WALL_INNER_FACE_X,
+    player_half_width_m: PLAYER_HALF_WIDTH_M,
+    expected_center_ceiling_x: EXPECTED_CENTER_CEILING_X,
+    center_ceiling_error_m: centerCeilingErrorM,
     initial_x: initial.player.position[0],
     final_x: released.player.position[0],
     max_x: released.player.max_x,
     collision_count: released.player.collision_count,
     release_drift_m: releaseDriftM,
-    native_wall_stop_observed: released.player.collision_count > 0 && released.player.max_x <= 12.05,
+    native_wall_stop_observed: released.player.collision_count > 0 && centerCeilingErrorM <= 0.08 && released.player.max_x <= EXPECTED_CENTER_CEILING_X + 0.05,
     dynamic_collision_object_executed: true,
     post_physics_arena_clamp: false,
     observation_copy_isolated: observationCopyIsolated,
