@@ -81,19 +81,19 @@ async function requestAll(url, token) {
 export async function loadLiveState({ repository, prNumber, token, apiBase = 'https://api.github.com' }) {
   const repoUrl = `${apiBase}/repos/${repository}`;
   const { data: pr } = await requestJson(`${repoUrl}/pulls/${prNumber}`, token);
-  const files = await requestAll(`${repoUrl}/pulls/${prNumber}/files?per_page=100`, token);
-  const peers = await requestAll(`${repoUrl}/pulls?state=open&per_page=100`, token);
-  const peerFiles = [];
+  const [files, peers, compareResponse] = await Promise.all([
+    requestAll(`${repoUrl}/pulls/${prNumber}/files?per_page=100`, token),
+    requestAll(`${repoUrl}/pulls?state=open&per_page=100`, token),
+    requestJson(`${repoUrl}/compare/${encodeURIComponent(pr.base.ref)}...${encodeURIComponent(pr.head.sha)}`, token)
+  ]);
 
-  for (const peer of peers) {
-    if (peer.number === prNumber) continue;
-    const changed = await requestAll(`${repoUrl}/pulls/${peer.number}/files?per_page=100`, token);
-    peerFiles.push({ number: peer.number, title: peer.title, files: changed.map((file) => file.filename) });
-  }
-
-  const { data: compare } = await requestJson(
-    `${repoUrl}/compare/${encodeURIComponent(pr.base.ref)}...${encodeURIComponent(pr.head.sha)}`,
-    token
+  const peerFiles = await Promise.all(
+    peers
+      .filter((peer) => peer.number !== prNumber)
+      .map(async (peer) => {
+        const changed = await requestAll(`${repoUrl}/pulls/${peer.number}/files?per_page=100`, token);
+        return { number: peer.number, title: peer.title, files: changed.map((file) => file.filename) };
+      })
   );
 
   return {
@@ -104,7 +104,7 @@ export async function loadLiveState({ repository, prNumber, token, apiBase = 'ht
       mergeable: pr.mergeable,
       files: files.map((file) => file.filename)
     },
-    compare,
+    compare: compareResponse.data,
     peerFiles
   };
 }
