@@ -1,0 +1,79 @@
+{
+  "id": "ecctrl",
+  "name": "Ecctrl",
+  "description": "Physics-driven character, vehicle, drone and custom-gravity controller toolkit for React Three Fiber and Rapier, including touch controls and runtime animation state.",
+  "kind": "controller",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://github.com/pmndrs/ecctrl/tree/f6c28b5bd989851885eafb55d2cdbec71b28046a",
+    "provider": "pmndrs / Erdong Chen",
+    "repositoryUrl": "https://github.com/pmndrs/ecctrl",
+    "version": "2.0.1",
+    "commit": "f6c28b5bd989851885eafb55d2cdbec71b28046a"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT",
+    "evidenceUrl": "https://github.com/pmndrs/ecctrl/blob/f6c28b5bd989851885eafb55d2cdbec71b28046a/LICENSE",
+    "attributionRequired": true,
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notice": "MIT source; preserve copyright and permission notice in copies or substantial portions."
+  },
+  "commercialUse": "verified-allowed",
+  "provenance": {
+    "confidence": "high",
+    "notes": "Official pmndrs repository, pinned to the current 2.0.1 commit when checked."
+  },
+  "maintenance": {
+    "status": "active",
+    "evidence": "Repository pushed 2026-08-17; version 2.0.1 specifically improved touch joystick tracking, pointer capture and lower-frame-rate touch behavior.",
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notes": "Revalidate peer dependency compatibility with the selected Three/R3F/Rapier versions before promotion."
+  },
+  "compatibility": {
+    "engines": ["Three.js", "React Three Fiber", "Rapier"],
+    "platforms": ["web", "desktop", "mobile"],
+    "notes": "Requires React, R3F and react-three-rapier; optional Drei/Leva features add dependencies. Mobile/touch support exists upstream but still needs target-device execution."
+  },
+  "risk": {
+    "supplyChain": "medium",
+    "dependencyBurden": "medium",
+    "legalNotes": "MIT code is commercially compatible; separately source and license all game art/audio/models used with it.",
+    "securityNotes": "NPM/React dependency chain requires normal lockfile, dependency and supply-chain review."
+  },
+  "assessment": {
+    "integrationEffort": "medium",
+    "lifecycleRisk": "medium",
+    "scores": {
+      "projectFit": 4.5,
+      "licenceCommercialCompatibility": 5,
+      "provenanceConfidence": 5,
+      "maintenanceUpstreamHealth": 5,
+      "mobileInputCoverage": 5,
+      "integrationEffort": 3.5
+    },
+    "recommendation": "benchmark",
+    "notes": "High-value solved controller candidate when the chosen web lane already uses R3F/Rapier; dependency cost may make it a poor fit for plain Three.js or non-React lanes."
+  },
+  "evidence": [
+    {
+      "type": "official-repository",
+      "url": "https://github.com/pmndrs/ecctrl/tree/f6c28b5bd989851885eafb55d2cdbec71b28046a",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Current repository metadata and 2.0.1 source inspected; upstream describes character/vehicle/drone/custom-gravity controllers and touch input."
+    },
+    {
+      "type": "official-licence",
+      "url": "https://github.com/pmndrs/ecctrl/blob/f6c28b5bd989851885eafb55d2cdbec71b28046a/LICENSE",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Pinned MIT licence."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "ecctrl",
+    "notes": "Publish as a qualified R3F/Rapier controller candidate, not a universal controller recommendation; disclose peer-dependency footprint and benchmark status."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T03:40:00Z"
+}
