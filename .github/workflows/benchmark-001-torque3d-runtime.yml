@@ -78,10 +78,8 @@ jobs:
           asset_size="$(jq -r '.size' "$EVIDENCE_DIR/linux-asset.json")"
           printf 'asset_name=%s\nasset_url=%s\nasset_size=%s\n' "$asset_name" "$asset_url" "$asset_size" | tee "$EVIDENCE_DIR/asset-metadata.txt"
 
-          curl --fail --silent --show-error --location \
-            --retry 3 \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            "$asset_url" \
+          curl --fail --silent --show-error --location --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" "$asset_url" \
             -o "$EVIDENCE_DIR/$asset_name"
 
           actual_size="$(stat -c '%s' "$EVIDENCE_DIR/$asset_name")"
@@ -93,32 +91,24 @@ jobs:
           printf '%s\n' "$EXPECTED_SHA" > "$EVIDENCE_DIR/expected-sha256.txt"
 
           if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{64}$ ]]; then
-            jq -n \
-              --arg status 'provenance-bootstrap-blocked' \
-              --arg observed_sha256 "$observed_sha" \
-              --arg expected_sha256 "$EXPECTED_SHA" \
-              --arg asset_name "$asset_name" \
-              --argjson asset_size "$asset_size" \
-              '{status:$status, runtime_executed:false, asset_name:$asset_name, asset_size:$asset_size, observed_sha256:$observed_sha256, expected_sha256:$expected_sha256}' \
+            jq -n --arg status 'provenance-bootstrap-blocked' --arg observed_sha256 "$observed_sha" \
+              --arg expected_sha256 "$EXPECTED_SHA" --arg asset_name "$asset_name" --argjson asset_size "$asset_size" \
+              '{status:$status,runtime_executed:false,asset_name:$asset_name,asset_size:$asset_size,observed_sha256:$observed_sha256,expected_sha256:$expected_sha256}' \
               > "$EVIDENCE_DIR/runtime-result.json"
             echo "Official asset resolved and hashed, but expected-sha256.txt is intentionally unset. Refusing extraction/execution." >&2
             exit 42
           fi
 
           if [[ "$observed_sha" != "$EXPECTED_SHA" ]]; then
-            jq -n \
-              --arg status 'provenance-mismatch' \
-              --arg observed_sha256 "$observed_sha" \
-              --arg expected_sha256 "$EXPECTED_SHA" \
-              --arg asset_name "$asset_name" \
-              '{status:$status, runtime_executed:false, asset_name:$asset_name, observed_sha256:$observed_sha256, expected_sha256:$expected_sha256}' \
+            jq -n --arg status 'provenance-mismatch' --arg observed_sha256 "$observed_sha" \
+              --arg expected_sha256 "$EXPECTED_SHA" --arg asset_name "$asset_name" \
+              '{status:$status,runtime_executed:false,asset_name:$asset_name,observed_sha256:$observed_sha256,expected_sha256:$expected_sha256}' \
               > "$EVIDENCE_DIR/runtime-result.json"
             echo "SHA-256 mismatch. Refusing extraction/execution." >&2
             exit 43
           fi
 
           echo "asset_name=$asset_name" >> "$GITHUB_OUTPUT"
-          echo "observed_sha=$observed_sha" >> "$GITHUB_OUTPUT"
 
       - name: Install bounded Linux runtime dependencies
         if: success()
@@ -167,10 +157,11 @@ jobs:
               wait "$runtime_pid" 2>/dev/null || true
             fi
             kill "$openbox_pid" "$xvfb_pid" 2>/dev/null || true
+            rm -rf "$extract_dir"
           }
           trap cleanup EXIT
           sleep 2
-          timeout 3s xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt"
+          timeout 3s xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt" 2>&1 || true
           timeout 3s glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1 || true
 
           binary_abs="$(readlink -f "$binary")"
@@ -214,16 +205,11 @@ jobs:
           passed=false
           if [[ "$loader_failure" == false && "$survived_five_seconds" == true ]]; then passed=true; fi
 
-          jq -n \
-            --arg status "$( [[ "$passed" == true ]] && echo pass || echo runtime-launch-failed )" \
-            --arg binary "$binary_abs" \
-            --arg runtime_exit "$runtime_exit" \
-            --argjson runtime_executed true \
-            --argjson window_seen "$window_seen" \
-            --argjson survived_five_seconds "$survived_five_seconds" \
-            --argjson loader_failure "$loader_failure" \
-            --argjson null_renderer "$null_renderer" \
-            --argjson passed "$passed" \
+          jq -n --arg status "$( [[ "$passed" == true ]] && echo pass || echo runtime-launch-failed )" \
+            --arg binary "$binary_abs" --arg runtime_exit "$runtime_exit" \
+            --argjson runtime_executed true --argjson window_seen "$window_seen" \
+            --argjson survived_five_seconds "$survived_five_seconds" --argjson loader_failure "$loader_failure" \
+            --argjson null_renderer "$null_renderer" --argjson passed "$passed" \
             '{status:$status,binary:$binary,runtime_executed:$runtime_executed,window_seen:$window_seen,survived_five_seconds:$survived_five_seconds,loader_failure:$loader_failure,null_renderer:$null_renderer,runtime_exit:$runtime_exit,passed:$passed}' \
             > "$EVIDENCE_DIR/runtime-result.json"
 
@@ -236,9 +222,7 @@ jobs:
           set -Eeuo pipefail
           mkdir -p "$EVIDENCE_DIR"
           find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
-            | sort -z \
-            | xargs -0 -r sha256sum \
-            > "$EVIDENCE_DIR/sha256-manifest.txt"
+            | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
           cat "$EVIDENCE_DIR/runtime-result.json" 2>/dev/null || true
           cat "$EVIDENCE_DIR/sha256-manifest.txt"
 
