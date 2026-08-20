@@ -55,31 +55,32 @@
   },
   "allOf": [
     {
-      "if":{"properties":{"state":{"enum":["qualified","benchmarking","promoted"]}},"required":["state"]},
-      "then":{"properties":{"licence":{"properties":{"status":{"const":"verified"}}},"commercialUse":{"enum":["verified-allowed","conditional"]},"provenance":{"properties":{"confidence":{"enum":["high","medium"]}}}}}
+      "if":{"type":"object","properties":{"state":{"enum":["qualified","benchmarking","promoted"]}},"required":["state"]},
+      "then":{"type":"object","properties":{"licence":{"type":"object","properties":{"status":{"const":"verified"}}},"commercialUse":{"enum":["verified-allowed","conditional"]},"provenance":{"type":"object","properties":{"confidence":{"enum":["high","medium"]}}}}}
     },
     {
-      "if":{"properties":{"state":{"const":"promoted"}},"required":["state"]},
+      "if":{"type":"object","properties":{"state":{"const":"promoted"}},"required":["state"]},
       "then":{
+        "type":"object",
         "required":["usedIn"],
         "properties":{
-          "usedIn":{"minItems":1},
-          "assessment":{"properties":{"recommendation":{"const":"reuse"}}},
-          "evidence":{"contains":{"type":"object","properties":{"type":{"enum":["execution","benchmark"]}},"required":["type"]},"minContains":1}
+          "usedIn":{"type":"array","minItems":1},
+          "assessment":{"type":"object","properties":{"recommendation":{"const":"reuse"}}},
+          "evidence":{"type":"array","contains":{"type":"object","properties":{"type":{"enum":["execution","benchmark"]}},"required":["type"]},"minContains":1}
         }
       }
     },
     {
-      "if":{"properties":{"state":{"const":"rejected"}},"required":["state"]},
-      "then":{"required":["rejectionReason"],"properties":{"publication":{"properties":{"safe":{"const":false}}}}}
+      "if":{"type":"object","properties":{"state":{"const":"rejected"}},"required":["state"]},
+      "then":{"type":"object","required":["rejectionReason"],"properties":{"publication":{"type":"object","properties":{"safe":{"const":false}}}}}
     },
     {
-      "if":{"properties":{"state":{"const":"quarantined"}},"required":["state"]},
-      "then":{"properties":{"publication":{"properties":{"safe":{"const":false}}}}}
+      "if":{"type":"object","properties":{"state":{"const":"quarantined"}},"required":["state"]},
+      "then":{"type":"object","properties":{"publication":{"type":"object","properties":{"safe":{"const":false}}}}}
     },
     {
-      "if":{"properties":{"publication":{"properties":{"safe":{"const":true}},"required":["safe"]}},"required":["publication"]},
-      "then":{"properties":{"publication":{"required":["slug"]}}}
+      "if":{"type":"object","properties":{"publication":{"type":"object","properties":{"safe":{"const":true}},"required":["safe"]}},"required":["publication"]},
+      "then":{"type":"object","properties":{"publication":{"type":"object","required":["slug"]}}}
     }
   ]
 }
