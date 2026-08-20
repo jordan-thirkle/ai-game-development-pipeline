@@ -8,6 +8,25 @@ Build a continuously improving, evidence-backed library of whole games, mechanic
 
 The library exists to support the complete By JTT AI Game Development Pipeline. It is not a link directory and it is not an endorsement list.
 
+## Agent entrypoint
+
+Before substantial reusable implementation, invoke `agents/EXTERNAL-REUSE-DISCOVERY-GATE.md`.
+
+Create a fail-closed candidate scaffold with:
+
+```sh
+npm run new:record -- reuse-candidate registry/reuse/<candidate-id>.json <candidate-id>
+```
+
+The scaffold intentionally starts as `discovered`, with unknown licence/provenance/risk and `publication.safe=false`. Replace placeholder evidence from primary sources before requesting `qualified` state.
+
+Validate the library with:
+
+```sh
+npm run validate:reuse
+npm run gate:reuse-freshness
+```
+
 ## Source of truth
 
 `registry/reuse/*.json` is canonical operational state.
