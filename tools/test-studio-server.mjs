@@ -50,11 +50,32 @@ async function chunkedPost(url) {
   });
 }
 
+async function stalledBrief(url) {
+  const target = new URL(url);
+  return new Promise((resolvePromise, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      callback(value);
+    };
+    const outgoing = request({ hostname: target.hostname, port: target.port, path: target.pathname, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '128' } });
+    const deadline = setTimeout(() => {
+      finish(reject, new Error('stalled brief request exceeded its client deadline'));
+      outgoing.destroy();
+    }, 2500);
+    outgoing.on('response', (response) => { response.resume(); response.once('end', () => finish(resolvePromise)); });
+    outgoing.on('error', () => finish(resolvePromise));
+    outgoing.write('{"name":"partial');
+  });
+}
+
 test('capabilities disclose the fail-closed publishing boundary', async () => {
   await withServer({}, async (base) => {
     const response = await fetch(`${base}/api/pipeline/capabilities`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false });
+    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
   });
 });
 
@@ -68,6 +89,10 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   assert.equal(result.evidence.qa.executed, true);
   assert.equal(result.evidence.qa.status, 'pass');
   assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
+  assert.equal(Buffer.isBuffer(result.bundle.bytes), true);
+  assert.equal(Buffer.isBuffer(result.playable.bytes), true);
+  assert.match(result.playable.bytes.toString('utf8'), /<canvas id="game">/);
+  assert.equal(result.playable.artifactSha256, result.evidence.build.artifactSha256);
   assert.deepEqual(result.safety, {
     dryRun: true,
     publicationExecuted: false,
@@ -76,16 +101,57 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   });
 });
 
+test('bounded brief inputs shape the playable artifact and mobile controls', async () => {
+  const result = await executeSampleRun({ brief: { name: 'Pocket <Quest>', objective: 'Collect & escape safely.', targetPlatform: 'mobile' } });
+  assert.equal(result.status, 'pass');
+  const playable = result.playable.bytes.toString('utf8');
+  assert.match(playable, /Pocket &lt;Quest&gt;/);
+  assert.doesNotMatch(playable, /<b>Pocket <Quest><\/b>/);
+  assert.match(playable, /Collect &amp; escape safely\./);
+  assert.match(playable, /Target: mobile/);
+  assert.match(playable, /Touch movement controls/);
+  assert.match(playable, /\.touch\{display:grid/);
+});
+
 test('expected build and QA failures preserve partial evidence and clean workspaces', async () => {
   const build = await failureRun('build');
   assert.equal(build.status, 'fail');
   assert.equal(build.evidence.build.status, 'fail');
   assert.equal(build.evidence.releaseCandidate, undefined);
+  assert.equal(build.bundle, null);
+  assert.equal(build.playable, null);
   const qa = await failureRun('qa');
   assert.equal(qa.status, 'fail');
   assert.equal(qa.evidence.build.status, 'pass');
   assert.equal(qa.evidence.qa.status, 'fail');
   assert.equal(qa.evidence.publishing, undefined);
+  assert.equal(qa.bundle, null);
+  assert.equal(qa.playable, null);
+});
+
+test('a passing run exposes the exact playable artifact through the local play route', async () => {
+  await withServer({}, async (base) => {
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+    const run = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(run.status, 201);
+    const result = await run.json();
+    assert.equal(result.playable.launchUrl, '/play/sample/');
+    assert.equal(result.playable.artifactSha256, result.evidence.build.artifactSha256);
+    const playable = await fetch(`${base}${result.playable.launchUrl}`);
+    assert.equal(playable.status, 200);
+    assert.equal(playable.headers.get('x-byjtt-artifact-sha256'), result.evidence.build.artifactSha256);
+    assert.match(await playable.text(), /<canvas id="game">/);
+  });
+});
+
+test('a fresh failed run invalidates the previous successful playable result', async () => {
+  let runNumber = 0;
+  await withServer({ execute: () => ++runNumber === 1 ? executeSampleRun() : failureRun('qa') }, async (base) => {
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 201);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 200);
+    assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 422);
+    assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+  });
 });
 
 test('run endpoint rejects other methods and concurrent execution', async () => {
@@ -99,6 +165,15 @@ test('run endpoint rejects other methods and concurrent execution', async () => 
     assert.equal(second.status, 409);
     release({ status: 'pass' });
     assert.equal((await first).status, 201);
+  });
+});
+
+test('stalled brief body releases the single-run slot after the intake deadline', async () => {
+  await withServer({ execute: async () => ({ status: 'pass' }) }, async (base) => {
+    const stalled = stalledBrief(`${base}/api/pipeline/brief-runs`);
+    await stalled;
+    const next = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
+    assert.equal(next.status, 201);
   });
 });
 
@@ -123,6 +198,8 @@ test('failed execution returns partial evidence as a non-success response', asyn
     assert.equal(result.status, 'fail');
     assert.equal(result.evidence.build.status, 'pass');
     assert.equal(result.evidence.qa.status, 'fail');
+    assert.equal(result.download, undefined);
+    assert.equal(result.playable, undefined);
   });
 });
 
