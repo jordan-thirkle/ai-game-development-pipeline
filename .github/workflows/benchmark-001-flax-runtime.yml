@@ -13,7 +13,7 @@ permissions:
 jobs:
   flax-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     env:
       CANDIDATE: experiments/BYJTT-LAB-001/candidates/flax
       CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -59,8 +59,7 @@ jobs:
           PY
           URL="$(cat /tmp/flax-url)"
           EXPECTED="$(cat /tmp/flax-expected-sha)"
-          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 \
-            "$URL" -o /tmp/FlaxEditorLinux.zip
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 "$URL" -o /tmp/FlaxEditorLinux.zip
           OBSERVED="$(sha256sum /tmp/FlaxEditorLinux.zip | awk '{print $1}')"
           printf '%s  %s\n' "$OBSERVED" "$URL" | tee "$CANDIDATE/artifacts/runtime/flax-package-sha256.txt"
           if [ "$EXPECTED" = "BOOTSTRAP_REQUIRED" ]; then
@@ -78,14 +77,14 @@ jobs:
           mkdir -p /tmp/flax
           unzip -q /tmp/FlaxEditorLinux.zip -d /tmp/flax
           EDITOR="/tmp/flax/Binaries/Editor/Linux/Development/FlaxEditor"
+          PROJECT="$GITHUB_WORKSPACE/$CANDIDATE/smoke/Smoke.flaxproj"
           test -f "$EDITOR"
+          test -f "$PROJECT"
           chmod +x "$EDITOR"
-          PROJECT="$RUNNER_TEMP/byjtt-flax-smoke"
-          timeout 180s "$EDITOR" -new -project "$PROJECT" -headless -null -mute -std -exit \
-            2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-new-project.log"
-          test -f "$PROJECT"/*.flaxproj
-          timeout 180s "$EDITOR" -project "$PROJECT" -headless -null -mute -std -genProjectFiles -exit \
-            2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-project-files.log"
+          find /tmp/flax/Binaries -maxdepth 5 -type f -iname 'Flax.Build*' -print \
+            | tee "$CANDIDATE/artifacts/runtime/tool-inventory.txt"
+          timeout 90s "$EDITOR" -project "$PROJECT" -headless -null -mute -std -exit \
+            2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-headless.log"
           python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -95,7 +94,7 @@ jobs:
               'flax_version_pin': '1.12.6912',
               'official_binary_verified': True,
               'headless_engine_executed': True,
-              'project_generated': True,
+              'committed_project_opened': True,
               'character_controller_executed': False,
               'external_input_executed': False,
               'phase_a_executed': False,
@@ -104,10 +103,11 @@ jobs:
           PY
           sha256sum \
             "$CANDIDATE/runtime-manifest.json" \
+            "$CANDIDATE/smoke/Smoke.flaxproj" \
             "$CANDIDATE/artifacts/runtime/environment.txt" \
             "$CANDIDATE/artifacts/runtime/flax-package-sha256.txt" \
-            "$CANDIDATE/artifacts/runtime/flax-new-project.log" \
-            "$CANDIDATE/artifacts/runtime/flax-project-files.log" \
+            "$CANDIDATE/artifacts/runtime/tool-inventory.txt" \
+            "$CANDIDATE/artifacts/runtime/flax-headless.log" \
             "$CANDIDATE/artifacts/runtime/result.json" \
             > "$CANDIDATE/artifacts/runtime/SHA256SUMS"
 
