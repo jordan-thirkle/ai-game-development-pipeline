@@ -1,0 +1,16 @@
+{
+  "name": "ByJtt.Benchmark.Unity",
+  "rootNamespace": "ByJtt.Benchmark.Unity",
+  "references": [
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
