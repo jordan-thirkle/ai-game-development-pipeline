@@ -24,6 +24,8 @@ jobs:
         run: npm run validate
       - name: Validate bounded Studio brief flow
         run: node --test tools/test-studio-brief.mjs
+      - name: Validate downloadable local starter bundle
+        run: node --test tools/test-studio-bundle.mjs
       - name: Validate committed record fixtures
         run: |
           npm run validate:record -- pipeline-run examples/records/pipeline-run.valid.json
