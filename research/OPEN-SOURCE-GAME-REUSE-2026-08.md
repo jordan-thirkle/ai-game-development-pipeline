@@ -8,6 +8,12 @@ For By JTT, “reuse” means the wider published ecosystem, not merely componen
 
 This file defines the bounded evidence-backed gate for issue #106 / PR #110. It is a discovery and screening layer, not a claim that any listed project has been executed or adopted in a By JTT game.
 
+### Registry boundary after the AI-system shard split
+
+`registry/ai-game-dev-registry.v1.json` now indexes the AI game-development **system/media** shards. This external-reuse registry deliberately remains a sibling contract because it models a different thing: source projects/assets that may be copied, adapted, studied or composed into games, with explicit code/asset/dependency licence clearance and adoption semantics. It does not redefine AI-system policy or duplicate system IDs.
+
+A future global catalogue may index both registries, but that join should be a separately coordinated change to the current shard index rather than an opportunistic mutation from this five-path workstream. Until then, this registry is authoritative only for the external-reuse discovery gate described here.
+
 ## Gate order
 
 For a material game-development requirement:
@@ -28,7 +34,7 @@ For a material game-development requirement:
 
 ## Fail-closed licence clearance
 
-Licence prose alone is not enough. Each entry now records three independent clearance states:
+Licence prose alone is not enough. Each entry records three independent clearance states:
 
 - `code_clearance_status`
 - `asset_clearance_status`
