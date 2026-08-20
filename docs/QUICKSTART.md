@@ -8,9 +8,9 @@ Start the local visual interface from the repository root:
 npm run studio
 ```
 
-Open `http://127.0.0.1:4173/apps/studio/`, choose **Run Pipeline**, then select **Run sample pipeline**. Studio creates a fresh sample copy in a temporary workspace and shows intake/scaffold, registry selection, build, QA, release-candidate, and publishing-plan evidence as a visual journey.
+Open `http://127.0.0.1:4173/apps/studio/`, choose **Run Pipeline**, then select **Run sample pipeline**. Studio creates a fresh playable sample in a temporary workspace, shows intake/scaffold, registry selection, build, QA, release-candidate, and publishing-plan evidence, then opens the exact verified browser artifact below the journey. Use WASD or the arrow keys to collect the green beacon. **Open in new tab** launches the same artifact in a larger view.
 
-This interface is local and user-safe: it listens only on the loopback address, never requests secrets, accepts no store destination, performs no upload, and displays the final receipt proving `executed: false` and `secretsUsed: false`.
+This interface is local and user-safe: it listens only on the loopback address, never requests secrets, accepts no store destination, performs no upload, and displays the final receipt proving `executed: false` and `secretsUsed: false`. Only the latest successful sample artifact is playable, and its temporary sandbox is removed when Studio stops or a newer successful run replaces it.
 
 ## Command-line alternative
 
