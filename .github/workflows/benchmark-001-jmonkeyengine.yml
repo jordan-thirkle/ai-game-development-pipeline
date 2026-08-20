@@ -1,0 +1,60 @@
+name: Benchmark 001 jMonkeyEngine physics gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physics-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/physics-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
+      - name: Strict compile and package
+        working-directory: ${{ env.CANDIDATE }}
+        run: mvn --batch-mode --no-transfer-progress clean verify | tee artifacts/physics-gate/maven-verify.log
+      - name: Freeze resolved dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=artifacts/physics-gate/dependency-tree.txt
+      - name: Execute real jME Bullet simulation
+        working-directory: ${{ env.CANDIDATE }}
+        run: mvn --batch-mode --no-transfer-progress exec:java -Dexec.args="artifacts/physics-gate/result.json" | tee artifacts/physics-gate/runtime.log
+      - name: Assert machine-readable pass
+        run: |
+          node -e 'const fs=require("fs"); const p=process.argv[1]; const r=JSON.parse(fs.readFileSync(p,"utf8")); if(!r.passed || !r.native_wall_stop_observed || r.post_physics_arena_clamp || !r.observation_copy_isolated) process.exit(1);' "$CANDIDATE/artifacts/physics-gate/result.json"
+          sha256sum "$CANDIDATE/pom.xml" "$CANDIDATE/artifacts/physics-gate/result.json" > "$CANDIDATE/artifacts/physics-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-jmonkeyengine-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
