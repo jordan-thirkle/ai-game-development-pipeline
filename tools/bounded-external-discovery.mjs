@@ -1,8 +1,9 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 
 const token = process.env.GITHUB_TOKEN ?? '';
 const outputPath = process.argv[2] ?? '/tmp/bounded-discovery-result.json';
+const registryPath = process.argv[3] ?? 'registry/open-source-game-reuse.v1.json';
 const api = 'https://api.github.com';
 const started = new Date();
 const t0 = performance.now();
@@ -112,14 +113,22 @@ function normalizeRepo(repo, capabilityId, revision) {
   };
 }
 
-const registry = await github('/repos/jordan-thirkle/ai-game-development-pipeline/contents/registry/open-source-game-reuse.v1.json?ref=standard/external-open-source-reuse-gate')
-  .then((file) => JSON.parse(Buffer.from(file.content, 'base64').toString('utf8')));
-sourceFetches += 1;
+const registry = JSON.parse(await readFile(registryPath, 'utf8'));
 const registryEntries = new Map(registry.entries.map((entry) => [entry.entry_id, entry]));
-
 const queueByRepo = new Map();
 const perCapability = {};
 const queryLog = [];
+const revisionCache = new Map();
+let duplicateSelections = 0;
+
+async function exactRevision(repo) {
+  const key = repo.full_name.toLowerCase();
+  if (revisionCache.has(key)) return revisionCache.get(key);
+  const branch = await github(`/repos/${repo.full_name}/branches/${encodeURIComponent(repo.default_branch)}`);
+  sourceFetches += 1;
+  revisionCache.set(key, branch.commit.sha);
+  return branch.commit.sha;
+}
 
 for (const capability of capabilities) {
   const searchUrl = `/search/repositories?q=${encodeURIComponent(`${capability.query} in:name,description,readme`)}&sort=stars&order=desc&per_page=10`;
@@ -161,6 +170,7 @@ for (const capability of capabilities) {
     const key = seed.repository.toLowerCase();
     const existing = queueByRepo.get(key);
     if (existing) {
+      duplicateSelections += 1;
       existing.capabilities = [...new Set([...existing.capabilities, capability.id])];
       selectedIds.push(existing.candidate_id);
     } else {
@@ -170,12 +180,12 @@ for (const capability of capabilities) {
   }
 
   if (selected) {
-    const branch = await github(`/repos/${selected.full_name}/branches/${encodeURIComponent(selected.default_branch)}`);
-    sourceFetches += 1;
-    const candidate = normalizeRepo(selected, capability.id, branch.commit.sha);
+    const revision = await exactRevision(selected);
+    const candidate = normalizeRepo(selected, capability.id, revision);
     const key = candidate.repository.toLowerCase();
     const existing = queueByRepo.get(key);
     if (existing) {
+      duplicateSelections += 1;
       existing.capabilities = [...new Set([...existing.capabilities, capability.id])];
       selectedIds.push(existing.candidate_id);
     } else {
@@ -184,7 +194,7 @@ for (const capability of capabilities) {
     }
   }
 
-  perCapability[capability.id] = selectedIds;
+  perCapability[capability.id] = [...new Set(selectedIds)];
 }
 
 const queue = [...queueByRepo.values()].sort((a, b) => b.stars - a.stars || a.repository.localeCompare(b.repository));
@@ -207,7 +217,7 @@ const output = {
   reviewable_candidate_count: reviewableCandidateCount,
   capability_candidate_coverage_pct: Math.round((candidateCoverage / capabilities.length) * 100),
   fully_cleared_capability_coverage_pct: Math.round((fullyClearedCoverage / capabilities.length) * 100),
-  irrelevant_or_duplicate_filtered: null,
+  irrelevant_or_duplicate_filtered: duplicateSelections,
   human_interventions: 0,
   unsafe_promotions: 0,
   elapsed_minutes: Number(elapsedMinutes.toFixed(3)),
@@ -216,15 +226,17 @@ const output = {
   queue,
   query_log: queryLog,
   per_capability: perCapability,
-  notes: 'Bounded on-demand prototype only. GitHub Search/API + canonical external-reuse seeds; no repository execution, no scheduled operation, no production registry writes, and no automatic commercial clearance beyond inherited canonical evidence.',
+  notes: 'Bounded on-demand prototype only. GitHub Search/API + local canonical external-reuse seeds; no repository execution, no scheduled operation, no production registry writes, and no automatic commercial clearance beyond inherited canonical evidence.',
 };
 
 await writeFile(outputPath, JSON.stringify(output, null, 2));
 console.log(JSON.stringify({
   search_actions: output.search_actions,
   source_fetches: output.source_fetches,
+  total_network_actions: output.search_actions + output.source_fetches,
   candidates: output.candidate_count,
   coverage_pct: output.capability_candidate_coverage_pct,
   fully_cleared_coverage_pct: output.fully_cleared_capability_coverage_pct,
+  duplicates_filtered: output.irrelevant_or_duplicate_filtered,
   elapsed_minutes: output.elapsed_minutes,
 }, null, 2));
