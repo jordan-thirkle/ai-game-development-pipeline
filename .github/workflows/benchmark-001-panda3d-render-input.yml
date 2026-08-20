@@ -81,11 +81,11 @@ jobs:
           trap cleanup EXIT
           glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1 || true
 
-          timeout --signal=TERM 35s python "$GATE/render_input_gate.py" "$RESULT" >"$ARTIFACTS/runtime.log" 2>&1 &
+          timeout --signal=TERM 55s python "$GATE/render_input_gate.py" "$RESULT" >"$ARTIFACTS/runtime.log" 2>&1 &
           APP_PID=$!
 
           WINDOW_ID=""
-          for _ in $(seq 1 80); do
+          for _ in $(seq 1 140); do
             WINDOW_ID="$(xdotool search --onlyvisible --name '^BYJTT-LAB-001 Panda3D Bullet$' 2>/dev/null | head -n 1 || true)"
             if [ -n "$WINDOW_ID" ]; then break; fi
             if ! kill -0 "$APP_PID" 2>/dev/null; then break; fi

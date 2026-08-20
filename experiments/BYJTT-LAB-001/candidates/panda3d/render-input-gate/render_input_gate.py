@@ -30,6 +30,7 @@ loadPrcFileData("", f"window-title {WINDOW_TITLE}")
 loadPrcFileData("", "win-size 960 540")
 loadPrcFileData("", "sync-video false")
 loadPrcFileData("", "show-frame-rate-meter false")
+loadPrcFileData("", "audio-library-name null")
 
 
 class RenderInputGate(ShowBase):
