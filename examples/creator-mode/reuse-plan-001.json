@@ -11,6 +11,7 @@
   "source_registry": {
     "path": "registry/open-source-game-reuse.v1.json",
     "revision": "cf98798b5d63ef434ad137e4016007883a3d10a6",
+    "git_blob_sha": "486da3fdbe9b755a5c7be3158974cbb1efaac54e",
     "dependency_pr": 110
   },
   "discovery": {
