@@ -30,9 +30,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
-          cache: npm
-      - name: Install locked dependencies
-        run: npm ci
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Validate frozen comparison input
         run: node tools/validate-discovery-mode-comparison.mjs examples/creator-mode/discovery-comparison-001.json --allow-pending-worker
       - name: Run bounded discovery worker
