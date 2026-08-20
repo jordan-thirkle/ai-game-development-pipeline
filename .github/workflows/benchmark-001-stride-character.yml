@@ -1,0 +1,82 @@
+name: Benchmark 001 Stride CharacterComponent gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/stride/character-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-stride-character.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  character-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/stride/character-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SDL_AUDIODRIVER: dummy
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5.4.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install Linux runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri mesa-vulkan-drivers libx11-6 libxcursor1 libxi6 libxrandr2 libasound2t64
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/character-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "dotnet_sdk=$(dotnet --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/character-gate/environment.txt"
+          dotnet --info >> "$CANDIDATE/artifacts/character-gate/environment.txt"
+      - name: Restore committed dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          dotnet restore StrideCharacterGate.csproj --locked-mode | tee artifacts/character-gate/restore.log
+      - name: Strict release build
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          dotnet build StrideCharacterGate.csproj -c Release --no-restore /warnaserror | tee artifacts/character-gate/build.log
+      - name: Freeze resolved dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          cp packages.lock.json artifacts/character-gate/packages.lock.json
+          dotnet list StrideCharacterGate.csproj package --include-transitive > artifacts/character-gate/dependency-tree.txt
+      - name: Execute engine-integrated CharacterComponent
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          xvfb-run -a dotnet run --project StrideCharacterGate.csproj -c Release --no-build -- artifacts/character-gate/result.json | tee artifacts/character-gate/runtime.log
+      - name: Assert machine-readable evidence boundary
+        run: |
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.stride_character_component_executed !== true || r.post_physics_arena_clamp || r.external_input_executed !== false || !r.observation_copy_isolated || r.native_contact_count_observed < 1 || r.maximum_observed_x > r.expected_east_wall_center_ceiling + 0.08 || r.final_x < r.expected_east_wall_center_ceiling - 0.12 || r.release_drift > 0.02) process.exit(1);' "$CANDIDATE/artifacts/character-gate/result.json"
+          sha256sum \
+            "$CANDIDATE/StrideCharacterGate.csproj" \
+            "$CANDIDATE/Program.cs" \
+            "$CANDIDATE/README.md" \
+            "$CANDIDATE/artifacts/character-gate/packages.lock.json" \
+            "$CANDIDATE/artifacts/character-gate/dependency-tree.txt" \
+            "$CANDIDATE/artifacts/character-gate/result.json" \
+            > "$CANDIDATE/artifacts/character-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-stride-character-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/stride/character-gate/artifacts/character-gate/**
+          if-no-files-found: error
+          retention-days: 30
