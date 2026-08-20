@@ -8,6 +8,7 @@ import { evaluateControlPlaneFreshness } from './control-plane-freshness.mjs';
 const fixedNow='2026-08-19T22:30:00+01:00';
 const cases=[
   ['fresh','2026-08-19T20:00:00+01:00',true,'fresh'],
+  ['high-precision fraction','2026-08-19T20:00:00.12345678901234567890+01:00',true,'fresh'],
   ['boundary','2026-08-19T16:30:00+01:00',true,'fresh'],
   ['stale','2026-08-19T12:00:00+01:00',false,'stale'],
   ['invalid generatedAt','not-a-date',false,'invalid-generated-at'],
@@ -22,9 +23,13 @@ for(const [name,generatedAt,ok,status] of cases){
   assert.equal(result.status,status,`${name} status`);
 }
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'0099-01-01T00:00:00Z'},{now:'0099-01-01T01:00:00Z'}).status,'fresh');
+assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00.12345678901234567890+01:00'},{now:'2026-08-19T20:00:01.12345678901234567890+01:00'}).status,'fresh');
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:'not-a-date'}).status,'invalid-now');
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:'2026-02-30T20:00:00Z'}).status,'invalid-now');
 assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:fixedNow,maxAgeHours:0}).status,'invalid-config');
+assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:fixedNow,maxAgeHours:true}).status,'invalid-config');
+assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:fixedNow,maxAgeHours:[6]}).status,'invalid-config');
+assert.equal(evaluateControlPlaneFreshness({generatedAt:'2026-08-19T20:00:00+01:00'},{now:fixedNow,maxAgeHours:'6'}).status,'fresh');
 
 const dir=await mkdtemp(join(tmpdir(),'byjtt-freshness-'));
 const fixture=join(dir,'state.json');
@@ -33,6 +38,8 @@ async function cli(generatedAt,now=fixedNow,limit='6'){
   return spawnSync(process.execPath,['tools/check-control-plane-freshness.mjs',fixture],{cwd:new URL('..',import.meta.url),encoding:'utf8',env:{...process.env,CONTROL_PLANE_NOW:now,CONTROL_PLANE_MAX_AGE_HOURS:limit}});
 }
 let result=await cli('2026-08-19T20:00:00+01:00');
+assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/snapshot .* is fresh/i);
+result=await cli('2026-08-19T20:00:00.12345678901234567890+01:00');
 assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/snapshot .* is fresh/i);
 result=await cli('2026-08-19T12:00:00+01:00');
 assert.equal(result.status,1);assert.match(result.stderr,/stale/i);
