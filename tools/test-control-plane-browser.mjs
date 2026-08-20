@@ -63,20 +63,21 @@ await record('visual sample pipeline completes with safe publishing evidence',as
   await page.close();
 });
 
-await record('visual sample failure stays explicit and retryable',async()=>{
+await record('visual sample failure stays explicit and retryable without inventing stage failures',async()=>{
   const {page,consoleErrors}=await open({width:1280,height:800});
   await page.route('**/api/pipeline/runs',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Deliberate test failure'})}));
   await page.locator('[data-view="local-run"]').click();
   await page.locator('#run-sample').click();
   await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Deliberate test failure'));
-  assert.equal(await page.locator('[data-run-step].fail').count(),6,'failed stages reverted to an idle-looking state');
+  assert.equal(await page.locator('[data-run-step].fail').count(),0,'generic service failure was misattributed to pipeline stages');
+  assert.equal(await page.locator('[data-run-step].planned').count(),6,'unknown stage execution was not preserved as unexecuted');
   assert.equal(await page.locator('#run-sample').isEnabled(),true,'retry stayed disabled');
   assert.equal(await page.locator('#run-evidence-panel').isVisible(),false,'stale success evidence became visible');
   assert(consoleErrors.every(message=>/Failed to load resource.*500/.test(message)),`unexpected console errors: ${consoleErrors.join('; ')}`);
   await page.close();
 });
 
-await record('visual partial evidence identifies a QA stop',async()=>{
+await record('visual partial evidence identifies a QA stop without failing later unexecuted stages',async()=>{
   const {page}=await open({width:1280,height:800});
   const partial={status:'fail',error:'QA failed',evidence:{intake:{validation:{status:'pass'}},registry:{entries:[{}]},build:{executed:true,status:'pass'},qa:{executed:true,status:'fail'}}};
   await page.route('**/api/pipeline/runs',route=>route.fulfill({status:422,contentType:'application/json',body:JSON.stringify(partial)}));
@@ -87,7 +88,8 @@ await record('visual partial evidence identifies a QA stop',async()=>{
   assert.equal(await page.locator('[data-run-step="registry"].pass').count(),1);
   assert.equal(await page.locator('[data-run-step="build"].pass').count(),1);
   assert.equal(await page.locator('[data-run-step="qa"].fail').count(),1);
-  assert.equal(await page.locator('[data-run-step="publishing"].fail').count(),1);
+  assert.equal(await page.locator('[data-run-step="releaseCandidate"].planned').count(),1);
+  assert.equal(await page.locator('[data-run-step="publishing"].planned').count(),1);
   await page.close();
 });
 
