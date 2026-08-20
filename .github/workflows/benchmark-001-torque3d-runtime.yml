@@ -127,7 +127,7 @@ jobs:
           set -Eeuo pipefail
           asset_name='${{ steps.provenance.outputs.asset_name }}'
           archive="$EVIDENCE_DIR/$asset_name"
-          extract_dir="$EVIDENCE_DIR/extracted"
+          extract_dir="$GITHUB_WORKSPACE/$EVIDENCE_DIR/extracted"
           mkdir -p "$extract_dir"
 
           unzip -Z1 "$archive" > "$EVIDENCE_DIR/archive-files.txt"
@@ -173,10 +173,15 @@ jobs:
 
           window_seen=false
           survived_five_seconds=false
+          : > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt"
+          : > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/wmctrl-errors.txt"
           for i in $(seq 1 12); do
             sleep 1
-            timeout 2s wmctrl -lx > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt" 2>&1 || true
-            if [[ -s "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt" ]]; then window_seen=true; fi
+            window_sample="$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows-${i}.txt"
+            if timeout 2s wmctrl -lx > "$window_sample" 2>> "$GITHUB_WORKSPACE/$EVIDENCE_DIR/wmctrl-errors.txt"; then
+              cat "$window_sample" >> "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt"
+              if grep -Eq '^0x[[:xdigit:]]+[[:space:]]' "$window_sample"; then window_seen=true; fi
+            fi
             if (( i >= 5 )) && kill -0 "$runtime_pid" 2>/dev/null; then survived_five_seconds=true; fi
             if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
           done
