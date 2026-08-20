@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 10
     env:
       GODOT_URL: https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
-      EXPECTED_GODOT_SHA256: BOOTSTRAP_REQUIRED
+      EXPECTED_GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
     steps:
       - name: Check out exact candidate head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -40,10 +40,6 @@ jobs:
           curl --fail --location --retry 3 --output /tmp/godot.zip "$GODOT_URL"
           OBSERVED_SHA="$(sha256sum /tmp/godot.zip | awk '{print $1}')"
           printf 'url=%s\nexpected_sha256=%s\nobserved_sha256=%s\n' "$GODOT_URL" "$EXPECTED_GODOT_SHA256" "$OBSERVED_SHA" | tee /tmp/godot-provenance.txt
-          if [ "$EXPECTED_GODOT_SHA256" = "BOOTSTRAP_REQUIRED" ]; then
-            echo 'Refusing to execute an unverified engine binary; pin the observed SHA-256 first.' >&2
-            exit 42
-          fi
           test "$OBSERVED_SHA" = "$EXPECTED_GODOT_SHA256"
           unzip -q /tmp/godot.zip -d /tmp/godot
           GODOT_BIN="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
