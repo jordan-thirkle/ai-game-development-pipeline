@@ -19,27 +19,32 @@ The canonical event/config model belongs to the game project. Provider SDK objec
 
 ## Reproducible evidence records
 
-Mutable vendor documentation is pinned by retrieval date and claim scope; open-source SDK claims additionally use immutable source commits. Hosted-service/product terms are deliberately separate from SDK licences.
+Mutable vendor documentation is pinned by a project-authored immutable claim snapshot as well as its live provenance URL. The current snapshot is:
 
-| Evidence ID | Scope | Primary source | Pin / retrieval |
+- artifact: `research/evidence/liveops/vendor-claims-2026-08-20.md`
+- artifact commit: `139129d07402df18cb4bb82312c6264df4c8de92`
+- artifact SHA-256: `a55c99d31d40b7d7797f7a686c5247d738d6df7d0236b9ad29b761d1386a71cf`
+- retrieval timestamp recorded in artifact: `2026-08-20T04:49:00+01:00`
+
+The snapshot is paraphrased claim evidence, not a substituted copy of vendor docs; live sources must still be rechecked at execution time. Hosted-service/product terms remain separate from SDK licences.
+
+| Evidence ID | Scope | Live primary source | Immutable evidence |
 |---|---|---|---|
-| `liveops.sentry.unity-4.8.0` | Unity SDK source/release/licence | `https://github.com/getsentry/sentry-unity` | release commit `01f2aacb7ac4e29c3f801cb94ab6be7ca501e01a`; retrieved 2026-08-20 |
-| `liveops.firebase.unity-release` | Firebase Unity SDK release | `https://firebase.google.com/support/release-notes/unity` | mutable vendor docs; v13.14.0 dated 2026-07-17; retrieved 2026-08-20 |
-| `liveops.firebase.crashlytics-unity` | Crashlytics Unity collection, crash, symbolication behavior | `https://firebase.google.com/docs/crashlytics/unity/customize-crash-reports` and `https://firebase.google.com/docs/crashlytics/unity/get-started` | mutable vendor docs; retrieved 2026-08-20 |
-| `liveops.firebase.remote-config-unity` | Remote Config defaults/fetch/activate/realtime behavior | `https://firebase.google.com/docs/remote-config/unity/get-started`, `https://firebase.google.com/docs/remote-config/unity/real-time`, `https://firebase.google.com/docs/remote-config/quotas-limits` | mutable vendor docs; retrieved 2026-08-20 |
-| `liveops.gameanalytics.unity-8.0.1` | Unity SDK source/release/licence | `https://github.com/GameAnalytics/GA-SDK-UNITY` | commit `af7b0d28dc607b8cb0b2daddf60a813635d1abfe`; retrieved 2026-08-20 |
-| `liveops.gameanalytics.ab` | A/B enrollment, limits and enhanced-JSON compatibility | `https://docs.gameanalytics.com/products-and-features/segment-iq/ab-testing/how-to-create-and-manage-ab-tests/` and `https://docs.gameanalytics.com/products-and-features/segment-iq/ab-testing/best-practices-and-faq/` | mutable vendor docs; retrieved 2026-08-20 |
-| `liveops.posthog.unity-1.1.1` | first-party Unity SDK source/release/licence | `https://github.com/PostHog/posthog-unity` | release commit `79b930c851b0acc9a04ae2262745fc8402f71a58`; retrieved 2026-08-20 |
-| `liveops.posthog.unity-docs` | queueing, feature flags/experiments, error tracking, platform behavior | `https://posthog.com/docs/libraries/unity` | mutable vendor docs; retrieved 2026-08-20 |
-| `liveops.otel` | vendor-neutral instrumentation/Collector role | `https://opentelemetry.io/docs/`, `https://opentelemetry.io/docs/what-is-opentelemetry/`, `https://opentelemetry.io/docs/collector/` | mutable project docs; retrieved 2026-08-20 |
+| `liveops.sentry.unity-4.8.0` | Unity SDK source/release/licence | `https://github.com/getsentry/sentry-unity` | release commit `01f2aacb7ac4e29c3f801cb94ab6be7ca501e01a` |
+| `liveops.firebase.unity-release` | Firebase Unity SDK release | `https://firebase.google.com/support/release-notes/unity` | snapshot artifact above, anchor `#liveopsfirebaseunity-release`, SHA-256 above |
+| `liveops.firebase.crashlytics-unity` | Crashlytics Unity collection/crash/symbolication behavior | Firebase Crashlytics Unity customize/get-started docs | snapshot anchor `#liveopsfirebasecrashlytics-unity`, SHA-256 above |
+| `liveops.firebase.remote-config-unity` | Remote Config defaults/fetch/activate/realtime behavior | Firebase Remote Config Unity get-started/realtime/quotas docs | snapshot anchor `#liveopsfirebaseremote-config-unity`, SHA-256 above |
+| `liveops.gameanalytics.unity-8.0.1` | Unity SDK source/release/licence | `https://github.com/GameAnalytics/GA-SDK-UNITY` | commit `af7b0d28dc607b8cb0b2daddf60a813635d1abfe` |
+| `liveops.gameanalytics.ab` | A/B enrollment/limits/enhanced-JSON compatibility | current GameAnalytics A/B docs | snapshot anchor `#liveopsgameanalyticsab`, SHA-256 above |
+| `liveops.posthog.unity-1.1.1` | first-party Unity SDK source/release/licence | `https://github.com/PostHog/posthog-unity` | release commit `79b930c851b0acc9a04ae2262745fc8402f71a58` |
+| `liveops.posthog.unity-docs` | queueing/flags/experiments/error/platform behavior | `https://posthog.com/docs/libraries/unity` | snapshot anchor `#liveopsposthogunity-docs`, SHA-256 above |
+| `liveops.otel` | vendor-neutral instrumentation/Collector role | OpenTelemetry docs / what-is / Collector docs | snapshot anchor `#liveopsotel`, SHA-256 above |
 
-Pricing, retention, DPA/region availability and hosted-plan limits are **not frozen by this table** unless explicitly captured in a benchmark run manifest; they change too quickly to be treated as timeless SDK facts.
+Pricing, retention, DPA/region availability and hosted-plan limits are **not frozen by this table** unless explicitly captured in a benchmark run manifest.
 
 ---
 
 # 1. Canonical telemetry contract
-
-Every production game should be able to route the same approved telemetry envelope to one or more providers:
 
 ```text
 TelemetryEvent
@@ -67,37 +72,33 @@ TelemetryEvent
 
 ## Event identity and delivery semantics
 
-`event_id` is generated once at the canonical event boundary and is globally unique for that logical event. Retries, fan-out to multiple sinks, local persistence and replay **reuse the same `event_id`**. An adapter must never generate a fresh ID merely because delivery is retried.
+`event_id` is generated once at the canonical event boundary and is globally unique for that logical event. Retries, fan-out, local persistence and replay **reuse the same `event_id`**.
 
-The canonical transport is **at-least-once internally with deduplication by `event_id` wherever the provider/export path permits it**. Provider APIs that cannot preserve an idempotency key are recorded as having weaker duplicate guarantees and are scored accordingly. Replayed events retain original occurrence time, original `event_id`, schema version and session sequence.
+The canonical transport is **at-least-once internally with deduplication by `event_id` wherever the provider/export path permits it**. Provider APIs that cannot preserve an idempotency key are recorded as having weaker duplicate guarantees. Replayed events retain original occurrence time, ID, schema version and session sequence.
 
-`session_sequence` is monotonic only within one canonical session and provides deterministic local ordering evidence. Cross-device/global ordering is not inferred from it. `occurred_at_utc` is the canonical comparable event time. `monotonic_elapsed_ms_optional` is only for local durations and must never be interpreted as an epoch timestamp.
+`session_sequence` is monotonic only within one canonical session. `occurred_at_utc` is the comparable event time. `monotonic_elapsed_ms_optional` is only for local durations and never an epoch timestamp.
 
-Queues are bounded by both event count and encoded bytes. On overflow, low-priority events are dropped before high-value lifecycle/economy/purchase/error events according to a versioned project-owned priority table. Drop counts, reasons and queue high-water marks are themselves observable through bounded internal counters. Telemetry must never consume unbounded disk, memory or retry time.
+Queues are bounded by both event count and encoded bytes. On overflow, low-priority events drop before high-value lifecycle/economy/purchase/error events according to a versioned project-owned table. Drop counts/reasons/high-water marks are themselves bounded diagnostics.
 
 ## Typed payload bounds
 
-`properties_typed{}` is not an arbitrary JSON dumping ground. Each stable `event_name` has a versioned allowlist/schema. The canonical baseline is:
+Each stable `event_name` has a versioned allowlist/schema. Canonical baseline:
 
-- scalar types only by default: boolean, bounded integer/decimal, bounded UTF-8 string, and enumerated string;
-- arrays/objects only when explicitly declared by that event schema;
-- maximum nesting depth: **2**;
-- maximum custom properties per event: **32**;
-- maximum property-key length: **64 bytes UTF-8**;
-- maximum string value: **256 bytes UTF-8** unless an event schema declares a smaller bound;
-- maximum canonical encoded event payload before provider mapping: **16 KiB**;
-- free-form logs, stack traces, chat, prompts, transcripts and arbitrary user text are not analytics properties;
-- high-cardinality identifiers require explicit schema review and must not be promoted into provider dimensions/tags by default.
+- scalar types by default: boolean, bounded integer/decimal, bounded UTF-8 string, enumerated string;
+- arrays/objects only when explicitly declared;
+- maximum nesting depth **2**;
+- maximum custom properties **32**;
+- key length **64 UTF-8 bytes**;
+- string value **256 UTF-8 bytes** unless stricter;
+- maximum canonical encoded event **16 KiB** before provider mapping;
+- logs, stack traces, chat, prompts, transcripts and arbitrary user text are not analytics properties;
+- high-cardinality identifiers require explicit schema review and are not provider dimensions/tags by default.
 
-Provider adapters may impose stricter limits but may not silently widen the canonical privacy/cardinality contract. A rejected/trimmed property produces a bounded diagnostic counter rather than blocking gameplay.
+Provider adapters may be stricter but may not silently widen the canonical privacy/cardinality contract.
 
-High-value domain events use stable semantic names such as `session_started`, `session_ended`, `onboarding_step_completed`, `level_started`, `level_completed`, `level_failed`, `reward_granted`, `currency_earned`, `currency_spent`, `purchase_started`, `purchase_completed`, `ad_impression`, `ad_reward_granted`, `match_started`, `match_completed`, `progression_changed`, `feature_exposed`, and `error_recovered`.
-
-Provider adapters translate these to provider-native forms; game/domain code never emits provider-specific names directly.
+Stable domain names include `session_started`, `session_ended`, `onboarding_step_completed`, `level_started`, `level_completed`, `level_failed`, `reward_granted`, `currency_earned`, `currency_spent`, `purchase_started`, `purchase_completed`, `ad_impression`, `ad_reward_granted`, `match_started`, `match_completed`, `progression_changed`, `feature_exposed`, and `error_recovered`.
 
 ## Consent and privacy state machine
-
-Canonical collection state is explicit:
 
 ```text
 unknown -> granted | denied
@@ -106,17 +107,15 @@ denied -> granted
 revoked -> granted | denied
 ```
 
-Before `granted`, app-controlled optional analytics events are not uploaded. The default privacy-safe implementation also does not persist those optional events to a cross-launch queue. Strictly necessary local operational counters must be separately classified and may not be routed to analytics providers merely by calling them “essential.”
+Before `granted`, app-controlled optional analytics is neither uploaded nor persisted to a cross-launch queue by default. On grant, new eligible events may flow; pre-grant events are not retroactively uploaded by default. On revoke, adapters stop optional capture/upload, purge project queues, rotate/revoke project-controlled pseudonymous analytics identifiers where applicable, and invoke only provider controls that actually exist.
 
-On `granted`, new eligible events may flow. Events captured while consent was not granted are **not retroactively uploaded** unless the product has an explicit lawful, documented requirement and benchmark evidence for that exact behavior.
+Already-uploaded data follows provider deletion/export capabilities; the project never promises deletion the provider cannot deliver.
 
-On `granted -> revoked`, adapters stop new optional capture/upload, purge project-owned unsent queues, rotate/revoke project-controlled pseudonymous analytics identifiers where applicable, and invoke provider-specific opt-out/deletion controls that actually exist. Already-uploaded provider data is governed by that provider’s deletion/export capabilities and documented separately; the project must not claim deletion guarantees a provider cannot deliver.
+Provider-managed crash SDKs are separate. Current Firebase Crashlytics Unity docs state crash information can remain stored locally while automatic collection is disabled and later be sent if enabled. Every crash benchmark records exact local caching/re-enable/purge/identifier/server-deletion behavior for its SDK/platform version.
 
-Provider-managed crash SDKs require separate treatment. Current Firebase Crashlytics Unity documentation states that crash information can remain stored locally while automatic collection is disabled and can later be sent if collection is enabled. Therefore “collection disabled” is not assumed to mean “no local provider cache.” Every crash provider benchmark records local caching, re-enable behavior, available unsent-report purge controls, identifier behavior and server-side deletion limits for the exact SDK/platform version.
+No direct PII belongs in the default telemetry contract. Crash breadcrumbs/context receive the same privacy review. Remote config is never a secret, entitlement or anti-cheat authority store.
 
-No email, phone, real name, raw IP-derived identity, voice transcript, child identifier or other direct PII belongs in the default telemetry contract. Crash breadcrumbs/custom context receive the same privacy review. Remote config is never a secret, entitlement or anti-cheat authority store.
-
-Frozen consent tests include fresh install unknown state, unknown→denied, unknown→granted, denied→granted, granted→revoked, revoked→granted, offline transitions, app restart in each state, queued project events, provider-managed cached crash reports, identifier rotation, and deletion/export workflows.
+Frozen consent tests cover fresh/unknown, denied, granted, revoke/regrant, offline, restart, project queues, provider-managed cached crash reports, identifier rotation and deletion/export workflows.
 
 ---
 
@@ -124,30 +123,27 @@ Frozen consent tests include fresh install unknown state, unknown→denied, unkn
 
 ## Sentry Unity
 
-Official repository: `getsentry/sentry-unity`  
 Pinned release commit: `01f2aacb7ac4e29c3f801cb94ab6be7ca501e01a`  
 Release: **4.8.0 — 2026-07-30**  
-SDK repository licence at pin: **MIT**  
+SDK repository licence: **MIT**  
 Evidence: **SOURCE-VERIFIED; NOT BYJTT EXECUTED**  
-Disposition: **INCUMBENT CROSS-PLATFORM GAME CRASH/ERROR BENCHMARK**
+Disposition: **CROSS-PLATFORM GAME CRASH/ERROR BENCHMARK**
 
-The Unity SDK is independently versioned and open-source. Console feasibility is benchmarked only with required platform/developer access and never inferred from desktop behavior.
+Benchmark caught/unhandled managed exceptions, native/IL2CPP where supported, symbolication, release correlation, breadcrumbs/context, crash-free health, offline delivery, privacy/consent, alert latency, runtime/build overhead, development-build filtering and console feasibility where applicable. Console support is only proven with required platform access.
 
-Required benchmark: caught/non-fatal and unhandled managed exceptions; native/IL2CPP where supported; symbolication; release correlation; breadcrumbs/context; crash-free health; offline delivery; privacy/consent; alert latency; CPU/RAM/network/build-size overhead; development-build filtering; and console path feasibility where applicable.
-
-Repository MIT licensing applies to SDK code only. Hosted-service terms, retention and data processing are separate records.
+Hosted-service terms/retention/data processing remain separate from SDK licensing.
 
 ## Firebase Crashlytics for Unity
 
-Current Unity SDK release in official release notes: **13.14.0 — 2026-07-17**  
+Observed vendor release reference: **Firebase Unity SDK 13.14.0 — 2026-07-17**  
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
-Disposition: **INCUMBENT MOBILE/UNITY CRASH BENCHMARK + FIREBASE-SUITE BENCHMARK**
+Disposition: **MOBILE/UNITY CRASH + FIREBASE-SUITE BENCHMARK**
 
-Current Unity docs cover managed/native crash reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires symbols to be **generated and uploaded** for the exact build; Apple symbol handling follows the Unity/Xcode path.
+Current Unity docs cover managed/native reporting, caught exceptions, logs/custom keys, identifiers and optional Analytics breadcrumbs. Android IL2CPP symbolication requires matching symbols to be **generated and uploaded** for the exact build.
 
-Crashlytics collection is automatic by default but supports disabling automatic collection/runtime opt-in. Current docs explicitly state local crash information may be retained while disabled and sent after later enablement. This cached-report path is a required privacy benchmark.
+Automatic collection is default but configurable. Current docs explicitly state local crash information may be retained while disabled and sent after later enablement; that path is a required privacy benchmark.
 
-Use the same failure matrix/build as Sentry. Compare symbolication, grouping, context, fatal/non-fatal semantics, crash-free metrics, alerting, build integration, Analytics dependency for breadcrumbs, consent transitions, cached reports, export/deletion feasibility and mobile cost/ops burden. Do not run two native crash SDKs simultaneously until coexistence and handler ordering are proven.
+Use the same failure matrix/build as Sentry. Do not run two native crash SDKs simultaneously until coexistence, handler ordering and overhead are proven.
 
 ---
 
@@ -155,33 +151,27 @@ Use the same failure matrix/build as Sentry. Compare symbolication, grouping, co
 
 ## GameAnalytics Unity
 
-Official repository: `GameAnalytics/GA-SDK-UNITY`  
 Pinned source commit: `af7b0d28dc607b8cb0b2daddf60a813635d1abfe`  
 Release: **8.0.1 — 2026-06-11**  
-SDK repository licence at pin: **MIT**  
+SDK licence: **MIT**  
 Evidence: **SOURCE-VERIFIED SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
-Disposition: **INCUMBENT GAME-SPECIFIC ANALYTICS + REMOTE-CONFIG/EXPERIMENT BENCHMARK**
+Disposition: **GAME-SPECIFIC ANALYTICS + CONFIG/EXPERIMENT BENCHMARK**
 
-Current product docs support analytics plus Remote Config/A-B testing including enhanced JSON configs; Unity SDK 8.0.0+ is the documented minimum for enhanced JSON support. Current experiment docs state one active experiment enrollment per user, no assignment when the first qualifying session is offline, a 1,000,000-user maximum, and compatible SDK requirements for enhanced JSON.
+Current product docs cover analytics, Remote Config/A-B and enhanced JSON config. Current A/B docs describe one active experiment enrollment per user, no enrollment during a first qualifying offline session, a 1,000,000-user ceiling, and enhanced-config SDK compatibility constraints.
 
-Benchmark retention/cohorts, onboarding, progression/failure, economy, lawful acquisition segmentation, ad/IAP correlation, cardinality limits, operator answer time, export/API access, ingest delay, offline behavior, SDK overhead, privacy/deletion/export workflow, config fallback and assignment reproducibility.
-
-Hosted-service pricing/data terms remain separate from the MIT SDK.
+Benchmark retention, onboarding, progression/failure, economy, lawful acquisition segmentation, ad/IAP correlation, cardinality, operator answer time, export/API access, ingest delay, offline behavior, SDK overhead, privacy/deletion/export, config fallback and assignment reproducibility.
 
 ## PostHog Unity
 
-Official repository: `PostHog/posthog-unity`  
 Pinned release commit: `79b930c851b0acc9a04ae2262745fc8402f71a58`  
 Release: **1.1.1 — 2026-07-29**  
-SDK repository licence at pin: **MIT**, with applicable inherited Sentry notices retained where stated  
+SDK licence: **MIT** with inherited notices where stated  
 Evidence: **SOURCE-VERIFIED SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
 Disposition: **CROSS-PRODUCT + UNITY ANALYTICS/FLAGS/ERROR BENCHMARK**
 
-PostHog now has a first-party Unity SDK. Current Unity docs describe asynchronous queueing/batching, analytics capture, feature flags/experiments and error tracking. This earns direct Unity benchmarking, not default status.
+PostHog has a first-party Unity SDK with queued/asynchronous delivery, analytics, flags/experiments and error tracking. Current Unity docs scope Session Replay as supported on **Windows/macOS/Linux, iOS and Android**, unsupported on **WebGL**, with console support unestablished by this research. WebGL persistence/CORS constraints remain separate benchmark inputs.
 
-Current Unity docs scope Session Replay by target: it is supported on **Windows/macOS/Linux, iOS and Android**, unsupported on **WebGL**, and this research has not established console support, so consoles remain **untested/unknown** rather than “unavailable.” WebGL storage/CORS constraints are also recorded separately.
-
-Benchmark install/update/removal, canonical event mapping and ID preservation, queue overflow/offline behavior, consent/restart behavior, funnels/cohorts, flags/assignments/exposure, error tracking versus dedicated crash incumbents, WebGL storage/CORS constraints, Session Replay on supported desktop/mobile targets plus the WebGL rejection path, export portability, API/MCP operability, cost and privacy/security requirements. Platform/feature claims must be frozen from the exact official Unity docs in the run manifest rather than assumed from another PostHog SDK.
+Benchmark install/removal, canonical ID mapping, queue/offline/consent behavior, funnels/cohorts, flags/assignments/exposure, error tracking, platform constraints, export, API/MCP operability, cost and privacy/security.
 
 ---
 
@@ -192,27 +182,27 @@ Benchmark install/update/removal, canonical event mapping and ID preservation, q
 Evidence: **VENDOR-DOC CLAIM; NOT BYJTT EXECUTED**  
 Disposition: **UNITY/MOBILE LIVE-CONFIG BENCHMARK**
 
-Firebase Remote Config supports Unity with source-code in-app defaults, explicit fetch/cache/activate behavior, targeted overrides, rollouts and A/B tests. Current Unity docs support real-time updates on Android/Apple with Firebase Unity SDK 11.0.0+ **and require the Firebase Remote Config Realtime API to be enabled**.
+Unity supports in-app defaults plus explicit fetch/cache/activation, targeting, rollout and A/B. Real-time updates on supported Android/Apple targets require **Firebase Unity SDK 11.0.0+ and the Firebase Remote Config Realtime API enabled**.
 
-Real-time mode opens a foreground HTTP connection. Listener registrations share that connection; removing the final listener closes it, and the SDK stops listening in background and restarts in foreground. Current Firebase limits projects to **20,000,000 concurrent open real-time connections**. Above the limit, incremental real-time connection requests can be rejected and the client SDK falls back to standard fetch. A newly published template receives a temporary propagation exception to that connection ceiling as documented by Firebase.
+Realtime uses a foreground HTTP connection; listener registrations share it; final listener removal closes it; backgrounding stops listening and foregrounding restarts. Current docs state a **20,000,000 concurrent open real-time connection** project limit, with rejected incremental connections able to fall back to standard fetch and a documented propagation exception after publishing a new template.
 
-Every Firebase realtime benchmark manifest records the exact Firebase Unity SDK version, Realtime API enabled/disabled state, listener registration/removal lifecycle, foreground/background behavior, connection quota assumptions, standard-fetch fallback, fetch/activate policy, and setup failures separately from provider capability failures.
+Every run records SDK version, API enabled state, listener lifecycle, background/foreground behavior, quota assumption, standard-fetch fallback, fetch/activate policy, and setup failures separately from capability failures.
 
-The safety property remains typed source-controlled defaults plus explicit validation/fetch/activation. Remote values are overrides, never the only definition of a gameplay-critical value.
+Typed source-controlled defaults remain authoritative fallback; remote config never becomes the only definition of critical gameplay state.
 
 ## GameAnalytics Remote Config + A/B
 
-Evidence: **VENDOR-DOC CLAIM; SDK SOURCE-VERIFIED; NOT BYJTT EXECUTED**  
+Evidence: **VENDOR-DOC CLAIM + SOURCE-PINNED SDK; NOT BYJTT EXECUTED**  
 Disposition: **GAME-SPECIFIC CONFIG/EXPERIMENT BENCHMARK**
 
-Current docs support string/enhanced-JSON configs, version identifiers, targeted values and A/B overrides. Older-client compatibility is part of the benchmark because enhanced configs require compatible SDK versions.
+Benchmark version identifiers, targeted overrides, enhanced JSON compatibility, defaults/readiness/update behavior and old-client compatibility.
 
 ## PostHog Feature Flags + Experiments
 
 Evidence: **SOURCE-VERIFIED UNITY SDK + VENDOR-DOC PRODUCT CLAIMS; NOT BYJTT EXECUTED**  
-Disposition: **UNITY/WEB/APP + AGENT-OPERATED ROLLOUT BENCHMARK**
+Disposition: **UNITY/WEB/APP ROLLOUT BENCHMARK**
 
-The first-party Unity SDK means flags/experiments are benchmarked on Unity directly. Provider calls remain outside economy, entitlement and anti-cheat logic: gameplay receives a validated typed snapshot/assignment from the boundary.
+Flags/experiments are benchmarked directly in Unity, but provider calls remain outside economy, entitlement and anti-cheat logic.
 
 ---
 
@@ -220,21 +210,18 @@ The first-party Unity SDK means flags/experiments are benchmarked on Unity direc
 
 ## OpenTelemetry
 
-Evidence sources: `liveops.otel` above  
 Evidence: **SOURCE/SPEC-VERIFIED; NOT BYJTT EXECUTED**  
-Disposition: **INCUMBENT VENDOR-NEUTRAL SERVER TELEMETRY CONTRACT**
+Disposition: **VENDOR-NEUTRAL SERVER TELEMETRY CONTRACT BENCHMARK**
 
-OpenTelemetry is the open vendor-neutral instrumentation/collection/export boundary for traces, metrics and logs and is explicitly **not an observability backend**. The Collector is a vendor-agnostic receive/process/export layer, allowing backend changes without re-instrumenting authoritative servers and services.
+OpenTelemetry is the instrumentation/collection/export boundary for traces, metrics and logs and is **not an observability backend**. The Collector is a vendor-agnostic receive/process/export layer.
 
-Stable resource attributes include `service.name`, `service.version`, `service.instance.id`, `deployment.environment`, `byjtt.game_id`, `byjtt.build_id`, `byjtt.region`, `byjtt.server_provider` and `byjtt.server_image_digest`. Bounded-cardinality session correlation is allowed where justified; raw PII, tokens, chat content and arbitrary payloads are not.
+Stable resource attributes include `service.name`, `service.version`, `service.instance.id`, `deployment.environment`, `byjtt.game_id`, `byjtt.build_id`, `byjtt.region`, `byjtt.server_provider` and `byjtt.server_image_digest`. Direct PII/tokens/chat/arbitrary payloads are forbidden.
 
-Required benchmarks cover OTLP via Collector, cross-service traces, server loop/tick metrics, allocation/startup timing, error/log correlation, sampling, collector outage/backpressure, backend swap without instrumentation change, and cardinality/cost guardrails.
+Benchmark OTLP via Collector, cross-service traces, loop/tick metrics, allocation/startup, error/log correlation, sampling, outage/backpressure, backend swap and cardinality/cost.
 
 ---
 
 # 6. Provider-neutral live-ops runtime contract
-
-Canonical code should expose typed boundaries equivalent to:
 
 ```text
 AnalyticsSink.capture(event: TelemetryEvent) -> CaptureResult
@@ -252,12 +239,6 @@ CaptureResult
   status = accepted | dropped | disabled
   drop_reason_required_when_dropped = queue_full | payload_invalid | payload_too_large | consent_not_granted | retention_expired | retry_budget_exhausted | provider_rejected | adapter_disabled | sampled_out | other_bounded
   queue_depth
-
-FlushResult
-  delivered_count
-  retained_count
-  dropped_count
-  timed_out
 
 ConfigSnapshot<T>
   schema_id
@@ -298,86 +279,100 @@ ExperimentSnapshot
   context_available
 ```
 
-`ExperimentContext` is an allowlisted, privacy-bounded value object, not an arbitrary properties map. Direct PII is forbidden; `approved_cohort_attributes` uses the same scalar/type discipline as telemetry, is capped at **16 attributes**, and each value is at most **128 UTF-8 bytes**. High-cardinality free-form identifiers are not allowed as cohort attributes. If consent/policy does not permit provider evaluation, or a usable context cannot be formed, `getAssignments` returns an empty/non-provider assignment snapshot (or locally deterministic privacy-approved assignments where the frozen experiment contract explicitly permits them) and gameplay falls back safely; it never invents identity fields or blocks boot.
+`ExperimentContext` is allowlisted and privacy-bounded. `approved_cohort_attributes` follows canonical scalar/type discipline, max **16 attributes**, each max **128 UTF-8 bytes**; no direct PII or unbounded identifiers. If policy/consent prevents provider evaluation or context is unavailable, the provider gets no invented identity and gameplay uses empty/local privacy-approved assignments according to the frozen experiment contract.
 
-For `CaptureResult`, `drop_reason` is **mandatory exactly when `status=dropped`** and omitted for `accepted`/`disabled`. `other_bounded` requires a project-owned bounded diagnostic subcode and may not become free-form text.
+`drop_reason` is mandatory exactly for `status=dropped` and omitted for accepted/disabled. `other_bounded` requires a project-owned bounded subcode.
 
-Gameplay systems receive domain events, typed configuration snapshots or immutable experiment assignments. They do not import provider SDKs directly.
+## Canonical experiment exposure boundary
+
+The project owns **one exposure boundary: first eligible product/gameplay use of the assigned variant**, not assignment fetch, flag download, config activation, or provider callback. Every adapter suppresses its own automatic “exposure” semantics where possible or maps them so the canonical layer remains authoritative.
+
+Canonical exposure identity is derived from:
+
+```text
+experiment_id
+experiment_version
+assignment_id
+exposure_boundary_id = first_eligible_feature_use
+```
+
+The resulting `exposure_key` is persisted for the lifetime of that assignment after the canonical exposure event has been accepted into the project queue. Retries/replay reuse the same canonical `event_id`; restart does not create a second exposure for an already-recorded key. Provider sinks that cannot accept a dedupe/idempotency identifier are explicitly scored with weaker guarantees.
+
+Consent governs emission. If exposure telemetry is not permitted when the first feature use occurs, **no exposure event is emitted and no retroactive event is fabricated**. If consent later permits telemetry and the assigned feature is used again while the assignment is still valid, that later eligible use becomes the first emit-capable boundary and records the exposure once. Assignment fetch alone never counts as exposure.
+
+Gameplay receives domain events, typed config snapshots or immutable assignments; provider SDKs are not imported directly into game rules.
 
 ## Failure semantics
 
-- `capture()` is non-blocking with respect to gameplay; it either accepts to a bounded queue, drops with a mandatory bounded reason, or reports disabled collection.
-- `flush()` accepts a deadline and never blocks shutdown indefinitely.
-- queues have frozen count/byte bounds and deterministic overflow policy;
-- retries use capped exponential backoff with jitter and a maximum retention age;
-- retries preserve canonical `event_id`;
-- analytics failure never blocks gameplay;
-- crash reporting must not cause a second crash;
-- missing/invalid remote config yields a validated source-controlled local default snapshot;
-- a feature flag cannot grant purchases, entitlements or server authority by itself;
-- assignment persistence scope is explicit;
-- experiment exposure is emitted once per defined boundary with a canonical event ID;
-- every production SDK has an operational kill switch/collection policy where practical;
-- duplicate simultaneous sinks must prove value and overhead before production use.
+- capture is non-blocking and returns accepted/dropped/disabled;
+- flush has a deadline and cannot block shutdown indefinitely;
+- queues have frozen count/byte bounds and deterministic overflow;
+- retries use capped exponential backoff+jitter and max retention age;
+- retries preserve canonical IDs;
+- analytics/crash infrastructure cannot block or crash gameplay;
+- missing/invalid remote config yields validated source defaults;
+- feature flags cannot grant purchases/entitlements/server authority;
+- assignment persistence is explicit;
+- exposure follows the single canonical boundary above;
+- duplicate sinks must prove value/overhead before simultaneous production use.
 
 ---
 
 # 7. Frozen benchmark families
 
-## Benchmark A — game analytics conformance
+## Game analytics conformance
 
-Instrument one identical vertical slice and answer the same retention, onboarding, progression, economy, monetisation, segmentation, release-comparison and raw-export questions. Measure implementation time, event loss, duplicate rate, schema-rejection/drop rate, queue behavior, query latency, usability, exportability, cost, SDK overhead and replacement cost.
+Instrument one identical vertical slice. Measure event loss, duplicate rate, schema rejection/drop, queue behavior, query latency, usability, exportability, cost, overhead and replacement cost. Inject same-ID retries, restart, offline replay, duplicates, queue overflow, oversized payload, excessive cardinality, invalid property type and out-of-order delivery.
 
-Test retries with the same `event_id`, process restart, offline replay, duplicate injection, queue overflow, oversized payload, excessive cardinality, invalid property type and out-of-order delivery.
+## Crash fidelity and privacy
 
-## Benchmark B — crash fidelity and privacy
+Use one release build/failure matrix. Score capture, symbolication, grouping, context, release correlation, health, alerts, privacy and root-cause time across consent, offline/restart and cached-report transitions.
 
-Use the same release build and controlled managed/native failure matrix. Score capture, symbolication, grouping, context, release correlation, crash-free health, alert latency, privacy controls and root-cause time. Repeat across consent states, offline/restart, provider-managed cached reports and re-enable/revocation behavior.
+## Remote config and experiment safety
 
-## Benchmark C — remote config and experiment safety
+Use source-controlled typed defaults. Exercise offline/online, timeout, invalid response, old-client mismatch, stale cache, rollout, rollback, assignment persistence, the **first-eligible-feature-use** exposure boundary and dedupe, missing/denied ExperimentContext, consent transitions, tampering and server-authoritative boundaries. Firebase runs also exercise Realtime API-disabled setup, listener lifecycle and standard-fetch fallback.
 
-Use one typed config schema with source-controlled defaults. Exercise online/offline cold start, fetch timeout, invalid response, old-client/new-config mismatch, stale cache, rollout progression, emergency rollback, assignment persistence, exposure de-duplication, missing/denied `ExperimentContext`, consent transitions, client tampering and server-authoritative boundaries. For Firebase realtime runs, also exercise API-disabled setup, foreground/background listener lifecycle and the documented standard-fetch fallback path.
+## Server observability portability
 
-A provider fails conformance if its absence can make the game unbootable, remove local defaults, silently change entitlement/security authority, or make assignment/config provenance unknowable.
-
-## Benchmark D — server observability portability
-
-One authoritative test server emits OTel traces/metrics/logs through a Collector. Route the same instrumentation to two destinations (or one hosted destination plus an open local stack) without application-instrumentation changes. Measure fidelity, operations, sampling, outage/backpressure, overhead, cost and switch effort.
+Emit OTel signals through Collector to two destinations without changing application instrumentation. Measure fidelity, operations, sampling, outage/backpressure, overhead, cost and switch effort.
 
 ---
 
-# 8. Current recommendation hierarchy
+# 8. Role benchmark matrix — explicitly unranked
 
-This is **research ordering, not production adoption**:
+These are **candidate roles to benchmark, not provider rankings or production recommendations**. Ordering has no meaning.
 
-1. **Sentry Unity** — primary cross-platform crash/error benchmark.
-2. **Firebase Crashlytics + Remote Config** — primary Unity/mobile integrated stability + live-config benchmark, with cached-crash and realtime prerequisites explicitly tested.
-3. **GameAnalytics** — primary game-specific analytics + Remote Config/A-B benchmark.
-4. **PostHog Unity** — first-party Unity plus broad product/agent-operable analytics/flags/error benchmark; not promoted above incumbents until execution evidence proves it.
-5. **OpenTelemetry + Collector** — incumbent vendor-neutral server observability boundary, not a product-analytics replacement.
+| Candidate | Roles under test | Why it belongs in the benchmark | Promotion boundary |
+|---|---|---|---|
+| Sentry Unity | crash/error/release health | source-pinned Unity SDK; cross-platform crash/release-health benchmark | completed crash benchmark only |
+| Firebase Crashlytics + Remote Config | crash + mobile/Unity config/rollout | integrated Unity/mobile benchmark with explicit cached-crash/realtime prerequisites | completed role-specific benchmarks only |
+| GameAnalytics | game analytics + config/A-B | game-oriented event/config/experiment model | completed analytics/config benchmarks only |
+| PostHog Unity | analytics + flags/experiments + error tracking | first-party Unity SDK plus broader product/agent-operable surface | completed role-specific benchmarks only |
+| OpenTelemetry + Collector | backend/server observability boundary | vendor-neutral instrumentation/export model | completed server-observability benchmark only |
 
-A game may legitimately compose providers. Consolidation matters only when it lowers real cost/maintenance without reducing evidence quality, privacy or portability.
+A real game may compose multiple providers. No row is `preferred`, “primary,” a default template, or a recommendation until a completed experiment record makes that decision for the relevant role.
 
 ---
 
 # 9. Promotion gate
 
-No candidate becomes `EXECUTED`, `preferred` or a default template until a completed experiment record contains:
+No candidate becomes `EXECUTED`, `preferred` or default until a completed experiment record contains:
 
 - exact SDK/package/service versions;
 - immutable source revision where available;
-- primary-source evidence IDs and mutable-doc retrieval date;
+- for **every mutable source claim**: live URL, snapshot artifact path, immutable artifact revision, artifact SHA-256, section anchor and retrieval timestamp;
 - platform/build/runtime manifest;
-- consent state-machine configuration and transition evidence;
-- canonical event/config/experiment-context schema revision;
+- consent state-machine evidence;
+- canonical event/config/ExperimentContext revision;
 - queue/retry/drop/idempotency configuration;
-- provider prerequisites (including Firebase Realtime API/listener mode where applicable);
-- synthetic/real workload definition;
-- raw evidence including duplicate/loss/drop counts and bounded drop reasons;
+- canonical exposure-boundary/dedupe configuration;
+- provider prerequisites;
+- frozen workload;
+- raw duplicate/loss/drop evidence;
 - provider cache/deletion/export behavior;
 - cost snapshot;
-- limitations/failures;
+- failures/limitations;
 - rollback/removal path;
-- explicit promotion decision.
+- explicit role-specific promotion decision.
 
-Hosted-service terms and data-processing/privacy terms are reviewed separately from open-source SDK licences.
+Hosted-service and data-processing/privacy terms remain separate from open-source SDK licences.
