@@ -17,13 +17,15 @@ permissions:
   contents: read
 jobs:
   physics-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CANDIDATE: experiments/BYJTT-LAB-001/candidates/lovr
       CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      LOVR_RELEASE_URL: https://github.com/bjornbytes/lovr/releases/download/v0.19.0/lovr-v0.19.0-x86_64.AppImage
+      LOVR_EXPECTED_SHA256: 09ce6f13c90f19c9aa3e40c00e1321ec4b27e00ed2f15e5bb336e349629b5c14
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -48,13 +50,20 @@ jobs:
           set -o pipefail
           luac5.4 -p conf.lua main.lua
           luacheck conf.lua main.lua | tee artifacts/physics-gate/lint.log
-      - name: Acquire official LÖVR 0.19 Linux runtime
+      - name: Acquire verified LÖVR 0.19 Linux runtime
         working-directory: ${{ env.CANDIDATE }}
         run: |
           set -euo pipefail
-          curl -fL --retry 3 https://lovr.org/download/linux -o lovr.AppImage
-          chmod +x lovr.AppImage
+          printf 'release_url=%s\nexpected_sha256=%s\n' \
+            "$LOVR_RELEASE_URL" "$LOVR_EXPECTED_SHA256" \
+            | tee artifacts/physics-gate/lovr-runtime-provenance.txt
+          curl -fL --retry 3 "$LOVR_RELEASE_URL" -o lovr.AppImage
+          printf '%s  lovr.AppImage\n' "$LOVR_EXPECTED_SHA256" \
+            | tee artifacts/physics-gate/lovr-appimage.expected.sha256
+          sha256sum -c artifacts/physics-gate/lovr-appimage.expected.sha256 \
+            | tee artifacts/physics-gate/lovr-appimage.verify.log
           sha256sum lovr.AppImage | tee artifacts/physics-gate/lovr-appimage.sha256
+          chmod +x lovr.AppImage
           file lovr.AppImage | tee artifacts/physics-gate/lovr-appimage.file.txt
           ./lovr.AppImage --appimage-extract > artifacts/physics-gate/appimage-extract.log
           LOVR_BIN="$(find squashfs-root -type f -name lovr -perm -111 | head -n 1)"
@@ -81,7 +90,7 @@ jobs:
             > "$CANDIDATE/artifacts/physics-gate/sha256.txt"
       - name: Upload exact-head evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: byjtt-lab-001-lovr-${{ github.run_id }}
           path: experiments/BYJTT-LAB-001/candidates/lovr/artifacts/physics-gate/**
