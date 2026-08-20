@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const comparisonPath = process.argv[2] ?? 'examples/creator-mode/discovery-comparison-001.json';
-const allowPendingWorker = process.argv.includes('--allow-pending-worker');
+const allowPersistedOrPendingWorker = process.argv.includes('--allow-pending-worker');
 const workerFlagIndex = process.argv.indexOf('--worker-result');
 const workerPath = workerFlagIndex >= 0 ? process.argv[workerFlagIndex + 1] : null;
 
@@ -36,7 +36,7 @@ function validateCandidate(candidate, owner) {
   for (const capability of candidate.capabilities ?? []) {
     assert(comparison.capabilities.includes(capability), `${owner} ${candidate.candidate_id} references unknown capability ${capability}`);
   }
-  if (owner === 'bounded_worker') {
+  if (owner.startsWith('bounded_worker')) {
     assert(!looksLikeGenericIndex(candidate.repository), `${owner} ${candidate.candidate_id} may not count a generic index/resource-list repository as a direct component candidate`);
   }
   if (candidate.screening_status === 'reviewable') {
@@ -84,39 +84,49 @@ assert(baseline.reviewable_candidate_count === baselineMetrics.reviewableCount, 
 assert(baseline.capability_candidate_coverage_pct === baselineMetrics.coveragePct, `interactive baseline capability_candidate_coverage_pct must equal recomputed ${baselineMetrics.coveragePct}`);
 assert(baseline.fully_cleared_capability_coverage_pct === baselineMetrics.clearedCoveragePct, `interactive baseline fully_cleared_capability_coverage_pct must equal recomputed ${baselineMetrics.clearedCoveragePct}`);
 
-const pending = comparison.bounded_worker;
-assert(pending?.mode === 'bounded_discovery_worker', 'bounded worker mode must be bounded_discovery_worker');
-if (allowPendingWorker) {
-  assert(pending.measurement_status === 'pending', 'pre-execution bounded worker state must remain pending');
-  assert((pending.queue ?? []).length === 0, 'pre-execution bounded worker queue must be empty');
+function validateWorker(worker, label, requireRuntimeTelemetry = false) {
+  assert(worker?.mode === 'bounded_discovery_worker', `${label} mode must be bounded_discovery_worker`);
+  assert(worker?.measurement_status === 'instrumented', `${label} must be instrumented`);
+  assert(Number.isInteger(worker?.search_actions) && worker.search_actions === 12, `${label} must execute exactly 12 capability searches`);
+  assert(Number.isInteger(worker?.source_fetches) && worker.source_fetches >= 0 && worker.source_fetches <= 12, `${label} source_fetches must be bounded to at most one revision fetch per capability`);
+  assert(worker?.human_interventions === 0, `${label} must require zero human interventions during execution`);
+  assert(worker?.unsafe_promotions === 0, `${label} must report zero unsafe promotions`);
+  assert(typeof worker?.elapsed_minutes === 'number' && worker.elapsed_minutes >= 0, `${label} elapsed_minutes must be instrumented`);
+  if (requireRuntimeTelemetry) {
+    assert(Number.isInteger(worker.search_hits_seen) && worker.search_hits_seen >= worker.candidate_count, `${label} must report search_hits_seen`);
+    assert(Number.isInteger(worker.rejected_search_hits) && worker.rejected_search_hits >= 0, `${label} must report rejected_search_hits`);
+  }
+  for (const candidate of worker?.queue ?? []) validateCandidate(candidate, label);
+  const metrics = recompute(worker ?? {});
+  assert(worker?.candidate_count === metrics.candidateCount, `${label} candidate_count must equal recomputed ${metrics.candidateCount}`);
+  assert(worker?.reviewable_candidate_count === metrics.reviewableCount, `${label} reviewable_candidate_count must equal recomputed ${metrics.reviewableCount}`);
+  assert(worker?.capability_candidate_coverage_pct === metrics.coveragePct, `${label} capability_candidate_coverage_pct must equal recomputed ${metrics.coveragePct}`);
+  assert(worker?.fully_cleared_capability_coverage_pct === metrics.clearedCoveragePct, `${label} fully_cleared_capability_coverage_pct must equal recomputed ${metrics.clearedCoveragePct}`);
+
+  const baselineActions = baseline.search_actions + baseline.source_fetches;
+  const totalActions = (worker?.search_actions ?? Infinity) + (worker?.source_fetches ?? Infinity);
+  assert(totalActions <= baselineActions * 0.75, `${label} must reduce external actions by at least 25% versus frozen baseline (${baselineActions}); got ${totalActions}`);
+  assert(metrics.coveragePct >= baselineMetrics.coveragePct, `${label} candidate coverage must match or exceed frozen baseline ${baselineMetrics.coveragePct}%; got ${metrics.coveragePct}%`);
+  assert(metrics.clearedCoveragePct >= baselineMetrics.clearedCoveragePct, `${label} fully-cleared coverage must match or exceed frozen baseline ${baselineMetrics.clearedCoveragePct}%; got ${metrics.clearedCoveragePct}%`);
+  return metrics;
+}
+
+const persistedWorker = comparison.bounded_worker;
+assert(persistedWorker?.mode === 'bounded_discovery_worker', 'bounded worker mode must be bounded_discovery_worker');
+if (allowPersistedOrPendingWorker) {
+  if (persistedWorker.measurement_status === 'pending') {
+    assert((persistedWorker.queue ?? []).length === 0, 'pending bounded worker queue must be empty');
+  } else {
+    validateWorker(persistedWorker, 'bounded_worker_persisted', false);
+  }
 }
 
 if (workerPath) {
   const worker = JSON.parse(await readFile(workerPath, 'utf8'));
-  assert(worker.mode === 'bounded_discovery_worker', 'worker result mode must be bounded_discovery_worker');
-  assert(worker.measurement_status === 'instrumented', 'worker result must be instrumented');
-  assert(Number.isInteger(worker.search_actions) && worker.search_actions === 12, 'worker must execute exactly 12 capability searches');
-  assert(Number.isInteger(worker.source_fetches) && worker.source_fetches >= 0 && worker.source_fetches <= 12, 'worker source_fetches must be bounded to at most one revision fetch per capability');
-  assert(worker.human_interventions === 0, 'bounded worker must require zero human interventions during execution');
-  assert(worker.unsafe_promotions === 0, 'bounded worker must report zero unsafe promotions');
-  assert(typeof worker.elapsed_minutes === 'number' && worker.elapsed_minutes >= 0, 'worker elapsed_minutes must be instrumented');
-  assert(Number.isInteger(worker.search_hits_seen) && worker.search_hits_seen >= worker.candidate_count, 'worker must report search_hits_seen');
-  assert(Number.isInteger(worker.rejected_search_hits) && worker.rejected_search_hits >= 0, 'worker must report rejected_search_hits');
-  for (const candidate of worker.queue ?? []) validateCandidate(candidate, 'bounded_worker');
-  const workerMetrics = recompute(worker);
-  assert(worker.candidate_count === workerMetrics.candidateCount, `worker candidate_count must equal recomputed ${workerMetrics.candidateCount}`);
-  assert(worker.reviewable_candidate_count === workerMetrics.reviewableCount, `worker reviewable_candidate_count must equal recomputed ${workerMetrics.reviewableCount}`);
-  assert(worker.capability_candidate_coverage_pct === workerMetrics.coveragePct, `worker capability_candidate_coverage_pct must equal recomputed ${workerMetrics.coveragePct}`);
-  assert(worker.fully_cleared_capability_coverage_pct === workerMetrics.clearedCoveragePct, `worker fully_cleared_capability_coverage_pct must equal recomputed ${workerMetrics.clearedCoveragePct}`);
-
-  const baselineActions = baseline.search_actions + baseline.source_fetches;
-  const totalActions = worker.search_actions + worker.source_fetches;
-  assert(totalActions <= baselineActions * 0.75, `worker must reduce external actions by at least 25% versus frozen baseline (${baselineActions}); got ${totalActions}`);
-  assert(workerMetrics.coveragePct >= baselineMetrics.coveragePct, `worker candidate coverage must match or exceed frozen baseline ${baselineMetrics.coveragePct}%; got ${workerMetrics.coveragePct}%`);
-  assert(workerMetrics.clearedCoveragePct >= baselineMetrics.clearedCoveragePct, `worker fully-cleared coverage must match or exceed frozen baseline ${baselineMetrics.clearedCoveragePct}%; got ${workerMetrics.clearedCoveragePct}%`);
+  validateWorker(worker, 'bounded_worker_fresh', true);
 }
 
-assert(comparison.decision?.agent_deployment_approved === false, 'comparison may not pre-approve agent deployment');
+assert(comparison.decision?.agent_deployment_approved === false, 'comparison may not approve continuous agent deployment');
 assert(comparison.decision?.public_library_deployment_approved === false, 'comparison may not pre-approve public library deployment');
 
 if (errors.length) {
@@ -125,4 +135,5 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; worker=${workerPath ? 'instrumented result validated against >=25% efficiency + coverage parity gates' : 'pending'}; deployment gates remain closed.`);
+const persistedState = persistedWorker?.measurement_status ?? 'missing';
+console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; persisted_worker=${persistedState}; fresh_worker=${workerPath ? 'validated against >=25% efficiency + coverage parity gates' : 'not requested'}; continuous/public deployment gates remain closed.`);
