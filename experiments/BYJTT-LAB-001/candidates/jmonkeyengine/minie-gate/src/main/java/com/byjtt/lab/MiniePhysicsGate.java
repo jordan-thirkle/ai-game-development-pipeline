@@ -32,7 +32,7 @@ public final class MiniePhysicsGate {
         Locale.setDefault(Locale.ROOT);
         Path output = args.length == 1 ? Path.of(args[0]) : Path.of("target", "minie-gate-result.json");
 
-        PhysicsSpace space = new PhysicsSpace();
+        PhysicsSpace space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         space.setGravity(Vector3f.ZERO);
         space.setAccuracy(DT);
         space.setMaxSubSteps(1);
