@@ -26,23 +26,26 @@ function repo(fullName, description, { stars = 1, spdx = 'MIT' } = {}) {
 const awesome = repo('popular/awesome-godot-resources', 'Awesome list of Godot inventory system resources', { stars: 50000 });
 const inventory = repo('example/inventory-direct', 'Godot inventory item system', { stars: 4 });
 const controller = repo('example/controller-direct', 'Godot character controller camera', { stars: 3 });
+const unlicensedInventory = repo('example/inventory-no-license', 'Godot inventory item system', { stars: 8, spdx: null });
 
 function response(body, status = 200) { return { ok: status >= 200 && status < 300, status, statusText: status === 200 ? 'OK' : 'ERROR', async json() { return body; }, async text() { return JSON.stringify(body); } }; }
-function fakeFetch(input) {
-  const url = new URL(input);
-  if (url.pathname === '/search/repositories') {
-    const q = url.searchParams.get('q') ?? '';
-    if (q.includes('inventory')) return Promise.resolve(response({ items: [awesome, inventory] }));
-    if (q.includes('controller')) return Promise.resolve(response({ items: [controller] }));
-  }
-  if (url.pathname === '/repos/example/inventory-direct/branches/main' || url.pathname === '/repos/example/controller-direct/branches/main') return Promise.resolve(response({ commit: { sha: SHA } }));
-  return Promise.resolve(response({ message: 'not found' }, 404));
+function makeFetch({ noLicense = false, invalidRevision = false } = {}) {
+  return async (input) => {
+    const url = new URL(input);
+    if (url.pathname === '/search/repositories') {
+      const q = url.searchParams.get('q') ?? '';
+      if (q.includes('inventory')) return response({ items: [awesome, noLicense ? unlicensedInventory : inventory] });
+      if (q.includes('controller')) return response({ items: [controller] });
+    }
+    if (url.pathname.includes('/branches/main')) return response({ commit: { sha: invalidRevision ? 'placeholder' : SHA } });
+    return response({ message: 'not found' }, 404);
+  };
 }
 
-async function result() {
+async function result(options = {}) {
   let clock = 0; const times = [new Date('2026-08-20T00:00:00Z'), new Date('2026-08-20T00:00:06Z')];
   let perf = 0; const perfTimes = [0, 6000];
-  return runExternalDiscoveryV2({ brief, canonicalRecords, fetchImpl: fakeFetch, apiBase: 'https://api.github.test', now: () => times[Math.min(clock++, 1)], perfNow: () => perfTimes[Math.min(perf++, 1)] });
+  return runExternalDiscoveryV2({ brief, canonicalRecords, fetchImpl: makeFetch(options), apiBase: 'https://api.github.test', now: () => times[Math.min(clock++, 1)], perfNow: () => perfTimes[Math.min(perf++, 1)] });
 }
 
 test('generic popularity cannot override direct task fit', () => {
@@ -65,6 +68,19 @@ test('new permissive discoveries cannot self-promote while canonical state is pr
     assert.notEqual(candidate.screening_status, 'canonical_qualified');
     assert.match(candidate.revision, /^[0-9a-f]{40}$/);
   }
+});
+
+test('missing repository licence stays blocked and unpublished', async () => {
+  const queue = await result({ noLicense: true });
+  const candidate = queue.queue.find((item) => item.repository === 'example/inventory-no-license');
+  assert.ok(candidate);
+  assert.equal(candidate.license_spdx, null);
+  assert.equal(candidate.screening_status, 'blocked_license');
+  assert.equal(candidate.publication_eligible, false);
+});
+
+test('placeholder or non-immutable GitHub revision fails closed', async () => {
+  await assert.rejects(() => result({ invalidRevision: true }), /returned invalid revision/);
 });
 
 test('queue and brief satisfy v2 schemas', async () => {
