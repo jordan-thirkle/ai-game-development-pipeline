@@ -1,0 +1,119 @@
+import { createHash } from 'node:crypto';
+import { lstat, readFile, readdir } from 'node:fs/promises';
+import { relative, resolve, sep } from 'node:path';
+import { gzipSync } from 'node:zlib';
+
+export class StudioBundleError extends Error {
+  constructor(message, code = 'STUDIO_BUNDLE_ERROR') {
+    super(message);
+    this.name = 'StudioBundleError';
+    this.code = code;
+  }
+}
+
+const MAX_FILES = 256;
+const MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024;
+const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
+
+function pathContains(basePath, candidatePath) {
+  const rest = relative(resolve(basePath), resolve(candidatePath));
+  return rest === '' || (rest !== '..' && !rest.startsWith(`..${sep}`));
+}
+
+function safeArchivePath(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {
+    throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
+  }
+  const normalized = value.replaceAll('\\', '/');
+  if (normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
+  }
+  return normalized;
+}
+
+function writeOctal(buffer, offset, length, value) {
+  const encoded = Math.max(0, value).toString(8).padStart(length - 1, '0').slice(-(length - 1));
+  buffer.write(encoded, offset, length - 1, 'ascii');
+  buffer[offset + length - 1] = 0;
+}
+
+function tarHeader(name, size) {
+  const path = safeArchivePath(name);
+  if (Buffer.byteLength(path) > 100) throw new StudioBundleError(`Archive path is too long: ${path}`, 'PATH_TOO_LONG');
+  const header = Buffer.alloc(512, 0);
+  header.write(path, 0, 100, 'utf8');
+  writeOctal(header, 100, 8, 0o644);
+  writeOctal(header, 108, 8, 0);
+  writeOctal(header, 116, 8, 0);
+  writeOctal(header, 124, 12, size);
+  writeOctal(header, 136, 12, 0);
+  header.fill(0x20, 148, 156);
+  header[156] = '0'.charCodeAt(0);
+  header.write('ustar\0', 257, 6, 'ascii');
+  header.write('00', 263, 2, 'ascii');
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  const checksumText = checksum.toString(8).padStart(6, '0').slice(-6);
+  header.write(checksumText, 148, 6, 'ascii');
+  header[154] = 0;
+  header[155] = 0x20;
+  return header;
+}
+
+async function collectFiles(root, archiveRoot, { excludeNames = new Set(), excludePaths = [] } = {}) {
+  const files = [];
+  async function visit(current, relativePath) {
+    if (excludePaths.some((excluded) => pathContains(excluded, current))) return;
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink()) throw new StudioBundleError(`Refusing symbolic link in local bundle: ${relativePath || '.'}`, 'SYMLINK_REFUSED');
+    if (stat.isDirectory()) {
+      const names = (await readdir(current)).sort((a, b) => Buffer.from(a).compare(Buffer.from(b)));
+      for (const name of names) {
+        if (excludeNames.has(name)) continue;
+        await visit(resolve(current, name), relativePath ? `${relativePath}/${name}` : name);
+      }
+      return;
+    }
+    if (!stat.isFile()) throw new StudioBundleError(`Unsupported filesystem entry in local bundle: ${relativePath}`, 'UNSUPPORTED_ENTRY');
+    const body = await readFile(current);
+    files.push({ path: safeArchivePath(`${archiveRoot}/${relativePath}`), body });
+    if (files.length > MAX_FILES) throw new StudioBundleError(`Local bundle exceeds ${MAX_FILES} files`, 'BUNDLE_TOO_LARGE');
+    const total = files.reduce((sum, file) => sum + file.body.length, 0);
+    if (total > MAX_UNCOMPRESSED_BYTES) throw new StudioBundleError(`Local bundle exceeds ${MAX_UNCOMPRESSED_BYTES} uncompressed bytes`, 'BUNDLE_TOO_LARGE');
+  }
+  await visit(resolve(root), '');
+  return files;
+}
+
+export async function createStudioBundle({ projectDir, outputDir, projectId = 'starter' }) {
+  const project = resolve(projectDir);
+  const output = resolve(outputDir);
+  const projectFiles = await collectFiles(project, 'starter', {
+    excludeNames: EXCLUDED_PROJECT_NAMES,
+    excludePaths: pathContains(project, output) ? [output] : []
+  });
+  const evidenceFiles = await collectFiles(output, 'evidence');
+  const files = [...projectFiles, ...evidenceFiles].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
+  if (files.length === 0) throw new StudioBundleError('Local bundle would be empty', 'EMPTY_BUNDLE');
+  if (files.length > MAX_FILES) throw new StudioBundleError(`Local bundle exceeds ${MAX_FILES} files`, 'BUNDLE_TOO_LARGE');
+  const totalBytes = files.reduce((sum, file) => sum + file.body.length, 0);
+  if (totalBytes > MAX_UNCOMPRESSED_BYTES) throw new StudioBundleError(`Local bundle exceeds ${MAX_UNCOMPRESSED_BYTES} uncompressed bytes`, 'BUNDLE_TOO_LARGE');
+
+  const chunks = [];
+  for (const file of files) {
+    chunks.push(tarHeader(file.path, file.body.length), file.body);
+    const padding = (512 - (file.body.length % 512)) % 512;
+    if (padding) chunks.push(Buffer.alloc(padding, 0));
+  }
+  chunks.push(Buffer.alloc(1024, 0));
+  const bytes = gzipSync(Buffer.concat(chunks), { level: 9, mtime: 0 });
+  const safeProjectId = String(projectId).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'starter';
+  return {
+    bytes,
+    filename: `${safeProjectId}-verified-local-starter.tar.gz`,
+    contentType: 'application/gzip',
+    sizeBytes: bytes.length,
+    fileCount: files.length,
+    uncompressedBytes: totalBytes,
+    sha256: `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+  };
+}

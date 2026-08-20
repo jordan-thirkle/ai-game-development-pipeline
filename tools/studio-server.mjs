@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile, realpath, rm } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
@@ -6,9 +7,13 @@ import { mkdtemp } from 'node:fs/promises';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { runPipeline, scaffoldSampleProject } from './run-pipeline.mjs';
+import { applyStudioBrief, BriefError, normalizeStudioBrief } from './studio-brief.mjs';
+import { createStudioBundle } from './studio-bundle.mjs';
 
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOOPBACK_HOST = '127.0.0.1';
+const MAX_BRIEF_BYTES = 4096;
+const BRIEF_BODY_TIMEOUT_MS = 1000;
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -40,24 +45,59 @@ async function readEvidence(outputDir) {
   return Object.fromEntries(entries.filter(Boolean));
 }
 
-export async function executeSampleRun({ run = runPipeline, scaffold = scaffoldSampleProject } = {}) {
+async function readBriefBody(request) {
+  if (request.headers['transfer-encoding']) throw new BriefError('Chunked brief requests are not accepted');
+  const contentType = String(request.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json') throw new BriefError('Brief requests must use application/json');
+  const contentLength = Number(request.headers['content-length']);
+  if (!Number.isInteger(contentLength) || contentLength < 2 || contentLength > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be between 2 and ${MAX_BRIEF_BYTES} bytes`);
+  const chunks = [];
+  let bytes = 0;
+  const deadline = setTimeout(() => request.destroy(new BriefError('Brief body was not received within the local intake deadline')), BRIEF_BODY_TIMEOUT_MS);
+  try {
+    for await (const chunk of request) {
+      bytes += chunk.length;
+      if (bytes > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be ${MAX_BRIEF_BYTES} bytes or fewer`);
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (error instanceof BriefError) throw error;
+    throw new BriefError('Brief body could not be read completely');
+  } finally {
+    clearTimeout(deadline);
+  }
+  if (bytes !== contentLength) throw new BriefError('Brief body length did not match Content-Length');
+  let parsed;
+  try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+  catch { throw new BriefError('Brief body must contain valid JSON'); }
+  normalizeStudioBrief(parsed);
+  return parsed;
+}
+
+export async function executeSampleRun({ brief, run = runPipeline, scaffold = scaffoldSampleProject, applyBrief = applyStudioBrief, createBundle = createStudioBundle } = {}) {
   const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-studio-'));
   try {
     const projectDir = resolve(workspace, 'sample-game');
     const outputDir = resolve(workspace, 'evidence');
     await scaffold(projectDir);
+    const normalizedBrief = brief ? await applyBrief(projectDir, brief) : null;
     const result = await run({ projectDir, outputDir, dryRun: true });
     const evidence = await readEvidence(outputDir);
+    const bundle = result.status === 'pass'
+      ? await createBundle({ projectDir, outputDir, projectId: normalizedBrief?.projectId || evidence.intake?.projectId || 'sample-game' })
+      : null;
     return {
       status: result.status,
       error: result.status === 'pass' ? null : result.record?.summary || 'Pipeline evidence did not pass.',
+      brief: normalizedBrief,
       safety: evidence.publishing ? {
         dryRun: evidence.publishing.dryRun,
         publicationExecuted: evidence.publishing.executed,
         secretsUsed: evidence.publishing.secretsUsed,
         destination: evidence.publishing.destination
       } : null,
-      evidence
+      evidence,
+      bundle
     };
   } finally {
     await rm(workspace, { recursive: true, force: true });
@@ -81,27 +121,84 @@ async function staticFileFor(url) {
   return file;
 }
 
+function validLocalRequest(request) {
+  const origin = request.headers.origin;
+  const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
+  const expectedOrigin = `http://${expectedHost}`;
+  return request.headers.host === expectedHost && (!origin || origin === expectedOrigin);
+}
+
+function exposeBundle(result, storeBundle) {
+  const { bundle, ...payload } = result;
+  if (!bundle?.bytes) return payload;
+  const token = randomUUID();
+  storeBundle({ token, ...bundle });
+  return {
+    ...payload,
+    download: {
+      url: `/api/pipeline/downloads/${token}`,
+      filename: bundle.filename,
+      sizeBytes: bundle.sizeBytes,
+      fileCount: bundle.fileCount,
+      uncompressedBytes: bundle.uncompressedBytes,
+      sha256: bundle.sha256
+    }
+  };
+}
+
 export function createStudioServer({ execute = executeSampleRun } = {}) {
   let running = false;
+  let downloadableBundle = null;
   return createServer(async (request, response) => {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false });
+        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
+      }
+      const downloadMatch = request.url?.match(/^\/api\/pipeline\/downloads\/([0-9a-f-]+)$/i);
+      if (downloadMatch) {
+        if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin starter downloads are not allowed.' });
+        if (!downloadableBundle || downloadableBundle.token !== downloadMatch[1]) return sendJson(response, 404, { error: 'Starter download is no longer available. Run the pipeline again.' });
+        response.writeHead(200, {
+          'content-type': downloadableBundle.contentType,
+          'content-length': String(downloadableBundle.bytes.length),
+          'content-disposition': `attachment; filename="${downloadableBundle.filename}"`,
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+          'x-byjtt-bundle-sha256': downloadableBundle.sha256
+        });
+        return response.end(request.method === 'HEAD' ? undefined : downloadableBundle.bytes);
       }
       if (request.url === '/api/pipeline/runs') {
         if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
-        const origin = request.headers.origin;
-        const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
-        const expectedOrigin = `http://${expectedHost}`;
-        if (request.headers.host !== expectedHost || (origin && origin !== expectedOrigin)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
         const contentLength = request.headers['content-length'];
         if (request.headers['transfer-encoding'] || (contentLength !== undefined && contentLength !== '0')) return sendJson(response, 400, { error: 'The sample run accepts no request body.' });
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;
+        downloadableBundle = null;
         try {
           const result = await execute();
-          return sendJson(response, result.status === 'pass' ? 201 : 422, result);
+          const payload = exposeBundle(result, (bundle) => { downloadableBundle = bundle; });
+          return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
+        }
+        catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
+        finally { running = false; }
+      }
+      if (request.url === '/api/pipeline/brief-runs') {
+        if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
+        if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
+        running = true;
+        downloadableBundle = null;
+        try {
+          let brief;
+          try { brief = await readBriefBody(request); }
+          catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
+          const result = await execute({ brief });
+          const payload = exposeBundle(result, (bundle) => { downloadableBundle = bundle; });
+          return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
         finally { running = false; }
