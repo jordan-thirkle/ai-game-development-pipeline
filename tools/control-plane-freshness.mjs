@@ -1,6 +1,6 @@
 export const DEFAULT_CONTROL_PLANE_MAX_AGE_HOURS=6;
 
-const RFC3339=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
+const RFC3339=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
 
 function daysInMonth(year,month){
   if(month===2){
@@ -14,7 +14,7 @@ function parseStrictTimestamp(value){
   if(typeof value!=='string') return NaN;
   const match=RFC3339.exec(value);
   if(!match) return NaN;
-  const [,yearText,monthText,dayText,hourText,minuteText,secondText,,offset]=match;
+  const [,yearText,monthText,dayText,hourText,minuteText,secondText,fraction,offset]=match;
   const year=Number(yearText),month=Number(monthText),day=Number(dayText);
   const hour=Number(hourText),minute=Number(minuteText),second=Number(secondText);
   if(month<1||month>12||day<1||day>daysInMonth(year,month)||hour>23||minute>59||second>59) return NaN;
@@ -23,12 +23,22 @@ function parseStrictTimestamp(value){
     const offsetMinute=Number(offset.slice(4,6));
     if(offsetHour>23||offsetMinute>59) return NaN;
   }
-  const parsed=Date.parse(value);
+  // RFC3339 permits arbitrary fractional-second precision. JavaScript Date has
+  // millisecond precision, so normalize only the fraction before comparison.
+  const normalized=fraction
+    ? `${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}.${fraction.slice(0,3).padEnd(3,'0')}${offset}`
+    : value;
+  const parsed=Date.parse(normalized);
   return Number.isFinite(parsed)?parsed:NaN;
 }
 
 export function evaluateControlPlaneFreshness(state,{now=Date.now(),maxAgeHours=DEFAULT_CONTROL_PLANE_MAX_AGE_HOURS}={}){
-  const limit=Number(maxAgeHours);
+  const limit=
+    typeof maxAgeHours==='number'
+      ? maxAgeHours
+      : typeof maxAgeHours==='string'&&maxAgeHours.trim()!==''
+        ? Number(maxAgeHours)
+        : NaN;
   if(!Number.isFinite(limit)||limit<=0){
     return {ok:false,status:'invalid-config',classification:'configuration',ageHours:null,maxAgeHours:limit,message:'max age must be a positive number'};
   }
