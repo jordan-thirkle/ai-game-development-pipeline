@@ -106,13 +106,14 @@ if (!isValidOffsetTimestamp(index.last_verified_at)) failures.push(`${indexPath}
 if (!isValidIanaTimezone(index.verification_timezone)) failures.push(`${indexPath} requires a valid IANA verification_timezone`);
 if (!nonEmptyString(index.policy_shard)) failures.push(`${indexPath} requires policy_shard`);
 if (!Array.isArray(index.shards) || index.shards.length < 2) failures.push(`${indexPath} requires core plus at least one non-core shard`);
+const shards = Array.isArray(index.shards) ? index.shards : [];
 
 const shardIds = new Set();
 const shardPaths = new Set();
 const shardNamespaces = new Set();
 let policyMeta = null;
 let nonCoreShardCount = 0;
-for (const shard of index.shards ?? []) {
+for (const shard of shards) {
   if (!isPlainObject(shard)) {
     failures.push(`${indexPath} shard records must be objects`);
     continue;
@@ -154,8 +155,8 @@ if (!evidenceLabelsArray || evidenceLabels.size === 0) failures.push(`Policy sha
 if (!adoptionMapValid || adoptionTokens.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose non-empty string adoption_status_map values`);
 
 const loadedShards = [];
-for (const shard of index.shards ?? []) {
-  if (!nonEmptyString(shard?.path)) continue;
+for (const shard of shards) {
+  if (!isPlainObject(shard) || !nonEmptyString(shard.path)) continue;
   const data = await readJson(shard.path);
   if (data === undefined) continue;
   if (!isPlainObject(data)) {
@@ -169,6 +170,7 @@ const benchmarkIds = new Set();
 const entryIds = new Set();
 
 for (const { meta, data } of loadedShards) {
+  const benchmarks = Array.isArray(data.benchmarks) ? data.benchmarks : [];
   if (!Array.isArray(data.benchmarks)) failures.push(`${meta.path} requires a benchmarks array`);
   if (!Array.isArray(data.entries)) failures.push(`${meta.path} requires an entries array`);
   if (!nonEmptyString(data.schema_version) || !/^\d+\.\d+\.\d+$/.test(data.schema_version)) failures.push(`${meta.path} requires semantic-version schema_version`);
@@ -180,7 +182,7 @@ for (const { meta, data } of loadedShards) {
     if (!immutableRevision.test(data.research_revision ?? '')) failures.push(`${meta.path} requires immutable research_revision`);
   }
 
-  for (const benchmark of data.benchmarks ?? []) {
+  for (const benchmark of benchmarks) {
     if (!isPlainObject(benchmark)) {
       failures.push(`${meta.path} benchmark records must be objects`);
       continue;
@@ -197,7 +199,8 @@ for (const { meta, data } of loadedShards) {
 }
 
 for (const { meta, data } of loadedShards) {
-  for (const entry of data.entries ?? []) {
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  for (const entry of entries) {
     if (!isPlainObject(entry)) {
       failures.push(`${meta.path} entry records must be objects`);
       continue;
