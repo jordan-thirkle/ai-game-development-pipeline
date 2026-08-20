@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs && node tools/check-reuse-registry-freshness.mjs && node tools/validate-github-config.mjs && npm run test:reuse && npm run test:governor && npm run test:control-plane-freshness && npm run test:pipeline-run-scaffold && npm run test:run-pipeline && npm run test:studio-server",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs && node tools/check-reuse-registry-freshness.mjs && node tools/validate-github-config.mjs && npm run test:reuse && npm run test:external-discovery && npm run test:governor && npm run test:control-plane-freshness && npm run test:pipeline-run-scaffold && npm run test:run-pipeline && npm run test:studio-server",
     "validate:registry": "node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs",
     "validate:reuse": "node tools/validate-reuse-registry.mjs",
     "gate:reuse-freshness": "node tools/check-reuse-registry-freshness.mjs",
@@ -25,6 +25,8 @@
     "test:studio-server": "node --test tools/test-studio-server.mjs",
     "studio": "node tools/studio-server.mjs",
     "test:reuse": "node --test tools/test-reuse-registry.mjs tools/test-public-reuse-export.mjs",
+    "test:external-discovery": "node --test tools/test-external-discovery-v2.mjs",
+    "discover:external": "node tools/external-reuse-discover-v2.mjs",
     "test:governor": "node --test tools/test-lifecycle-status.mjs"
   },
   "dependencies": {
