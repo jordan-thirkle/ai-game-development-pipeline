@@ -22,11 +22,11 @@ jobs:
       CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
       CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '26'
       - name: Verify exact execution revision
@@ -51,15 +51,23 @@ jobs:
             echo "checked_out_head=$(git rev-parse HEAD)"
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
           } | tee "$CANDIDATE/artifacts/phase-a/environment.txt"
-      - name: Install pinned candidate dependencies
-        run: npm --prefix "$CANDIDATE" ci --ignore-scripts --no-audit --no-fund
+      - name: Materialize and verify pinned dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" install --package-lock-only --ignore-scripts --no-audit --no-fund
+          (
+            cd "$CANDIDATE"
+            sha256sum --check package-lock.sha256
+          )
+          npm --prefix "$CANDIDATE" ci --ignore-scripts --no-audit --no-fund
       - name: Build Three.js candidate
         run: npm --prefix "$CANDIDATE" run build
       - name: Run shared Phase A playtest in Chrome
         run: npm --prefix "$CANDIDATE" run test:phase-a
       - name: Upload Phase A execution evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: byjtt-lab-001-three-webgpu-${{ github.run_id }}
           path: |
