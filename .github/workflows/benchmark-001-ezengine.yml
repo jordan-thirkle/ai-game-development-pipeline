@@ -1,0 +1,134 @@
+name: Benchmark 001 ezEngine Jolt gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/ezengine/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-ezengine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physics-gate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/ezengine
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EZENGINE_REVISION: 9d6f053f1fa0637e420dc1d06a692b7bc5f27d1e
+      EVIDENCE: experiments/BYJTT-LAB-001/candidates/ezengine/artifacts/physics-gate
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "expected_ezengine_revision=$EZENGINE_REVISION"
+            echo "os=$(uname -a)"
+            echo "compiler=$(c++ --version | head -n 1)"
+            echo "cmake=$(cmake --version | head -n 1)"
+            echo "ninja=$(ninja --version)"
+          } | tee "$EVIDENCE/environment.txt"
+
+      - name: Acquire exact ezEngine release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/ezEngine/ezEngine.git "$RUNNER_TEMP/ezengine" 2>&1 | tee "$EVIDENCE/upstream-clone.log"
+          git -C "$RUNNER_TEMP/ezengine" checkout --detach "$EZENGINE_REVISION" 2>&1 | tee -a "$EVIDENCE/upstream-clone.log"
+          test "$(git -C "$RUNNER_TEMP/ezengine" rev-parse HEAD)" = "$EZENGINE_REVISION"
+          git -C "$RUNNER_TEMP/ezengine" submodule update --init --recursive 2>&1 | tee "$EVIDENCE/submodules.log"
+          {
+            echo "upstream_revision=$(git -C "$RUNNER_TEMP/ezengine" rev-parse HEAD)"
+            echo "upstream_describe=$(git -C "$RUNNER_TEMP/ezengine" describe --tags --always --dirty)"
+            git -C "$RUNNER_TEMP/ezengine" submodule status --recursive
+          } | tee "$EVIDENCE/upstream-provenance.txt"
+
+      - name: Configure exact ezEngine graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake \
+            -S "$RUNNER_TEMP/ezengine" \
+            -B "$RUNNER_TEMP/ezengine-build" \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Dev \
+            -DEZ_EXTERNAL_PROJECT_1="$GITHUB_WORKSPACE/$CANDIDATE" \
+            2>&1 | tee "$EVIDENCE/configure.log"
+
+      - name: Strictly build candidate and native Jolt dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "$RUNNER_TEMP/ezengine-build" --target ByJttEzEngineJoltGate 2>&1 | tee "$EVIDENCE/build.log"
+
+      - name: Execute bundled Jolt arena proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="$(find "$RUNNER_TEMP/ezengine-build" "$RUNNER_TEMP/ezengine" -type f -name ByJttEzEngineJoltGate -perm -111 -print -quit)"
+          test -n "$BINARY"
+          BINARY="$(realpath "$BINARY")"
+          echo "binary=$BINARY" | tee "$EVIDENCE/binary.txt"
+          (
+            cd "$EVIDENCE"
+            "$BINARY"
+          ) 2>&1 | tee "$EVIDENCE/runtime.log"
+          test -f "$EVIDENCE/byjtt-ezengine-result.json"
+
+      - name: Assert machine-readable evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = process.env.EVIDENCE + '/byjtt-ezengine-result.json';
+          const r = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const expected = {
+            candidate_id: 'ezengine',
+            ezengine_release: 'release-26.3',
+            ezengine_revision: process.env.EZENGINE_REVISION,
+            physics_backend: 'ezEngine-bundled-Jolt'
+          };
+          for (const [key, value] of Object.entries(expected)) {
+            if (r[key] !== value) throw new Error(`${key}: expected ${value}, got ${r[key]}`);
+          }
+          if (!r.passed || !r.ezengine_jolt_plugin_linked || !r.native_wall_stop_observed || !r.observation_copy_isolated) {
+            throw new Error('native execution evidence did not pass');
+          }
+          if (r.post_physics_arena_clamp || r.external_input_executed || r.ezengine_character_component_executed) {
+            throw new Error('evidence boundary was overstated or clamp shortcut was introduced');
+          }
+          if (r.arena_width_m !== 24 || r.arena_depth_m !== 32 || r.walk_speed_mps !== 3.5) {
+            throw new Error('shared benchmark constants drifted');
+          }
+          NODE
+          sha256sum \
+            "$CANDIDATE/CMakeLists.txt" \
+            "$CANDIDATE/EzEngineJoltGate.cpp" \
+            "$CANDIDATE/provenance.json" \
+            "$EVIDENCE/upstream-provenance.txt" \
+            "$EVIDENCE/byjtt-ezengine-result.json" \
+            > "$EVIDENCE/sha256.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-ezengine-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/ezengine/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
