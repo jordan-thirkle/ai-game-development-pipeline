@@ -21,10 +21,14 @@ function pathContains(basePath, candidatePath) {
 }
 
 function safeArchivePath(value) {
-  if (typeof value !== 'string' || value.length === 0 || value.includes('\0') || value.startsWith('/') || value.split('/').includes('..')) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {
     throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
   }
-  return value.replaceAll('\\', '/');
+  const normalized = value.replaceAll('\\', '/');
+  if (normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
+  }
+  return normalized;
 }
 
 function writeOctal(buffer, offset, length, value) {
