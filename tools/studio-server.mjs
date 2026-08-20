@@ -13,6 +13,7 @@ import { createStudioBundle } from './studio-bundle.mjs';
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOOPBACK_HOST = '127.0.0.1';
 const MAX_BRIEF_BYTES = 4096;
+const BRIEF_BODY_TIMEOUT_MS = 1000;
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -52,10 +53,18 @@ async function readBriefBody(request) {
   if (!Number.isInteger(contentLength) || contentLength < 2 || contentLength > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be between 2 and ${MAX_BRIEF_BYTES} bytes`);
   const chunks = [];
   let bytes = 0;
-  for await (const chunk of request) {
-    bytes += chunk.length;
-    if (bytes > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be ${MAX_BRIEF_BYTES} bytes or fewer`);
-    chunks.push(chunk);
+  const deadline = setTimeout(() => request.destroy(new BriefError('Brief body was not received within the local intake deadline')), BRIEF_BODY_TIMEOUT_MS);
+  try {
+    for await (const chunk of request) {
+      bytes += chunk.length;
+      if (bytes > MAX_BRIEF_BYTES) throw new BriefError(`Brief body must be ${MAX_BRIEF_BYTES} bytes or fewer`);
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (error instanceof BriefError) throw error;
+    throw new BriefError('Brief body could not be read completely');
+  } finally {
+    clearTimeout(deadline);
   }
   if (bytes !== contentLength) throw new BriefError('Brief body length did not match Content-Length');
   let parsed;
