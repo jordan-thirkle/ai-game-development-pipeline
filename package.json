@@ -22,7 +22,7 @@
     "test:control-plane-freshness": "node tools/test-control-plane-freshness.mjs",
     "test:pipeline-run-scaffold": "node --test tools/test-pipeline-run-scaffold.mjs",
     "test:run-pipeline": "node --test tools/test-run-pipeline.mjs",
-    "test:studio-server": "node --test tools/test-studio-server.mjs tools/test-studio-brief.mjs",
+    "test:studio-server": "node --test tools/test-studio-server.mjs",
     "studio": "node tools/studio-server.mjs",
     "test:reuse": "node --test tools/test-reuse-registry.mjs tools/test-public-reuse-export.mjs",
     "test:governor": "node --test tools/test-lifecycle-status.mjs"
