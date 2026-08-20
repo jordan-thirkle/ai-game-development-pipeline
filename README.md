@@ -38,6 +38,10 @@ Its job is to improve or challenge the pipeline rather than defend previous deci
 - `tools/` — experiment, validation, evidence, and automation utilities;
 - `.github/` — CI, issue intake, ownership, dependency maintenance, and review rules.
 
+## Try the local pipeline
+
+The dependency-free sample project can run end to end locally—intake, registry selection, build, QA, release-candidate generation, and a safe dry-run publishing receipt. Start with the [local pipeline quickstart](docs/QUICKSTART.md); it requires no secrets and performs no store publication.
+
 ## First benchmark
 
 [`BYJTT-LAB-001`](experiments/BYJTT-LAB-001/spec.md) is the Mobile 3D Action Slice. It will implement the same playable path across multiple serious runtimes, initially including Three.js/WebGPU, PlayCanvas, Babylon.js, Godot, Unity, and Defold where technically appropriate.
