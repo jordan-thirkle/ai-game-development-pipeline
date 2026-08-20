@@ -127,7 +127,7 @@ func _run() -> void:
     )
     _check(navigation_synchronized, "NavigationServer3D map and region must synchronize normally")
 
-    var initial_player_position := player.global_position
+    var initial_player_position: Vector3 = player.global_position
     var initial_distance := _horizontal_distance(enemy.global_position, player.global_position)
     _check(initial_distance > acquire_range, "shared spawns must begin outside the 12 m acquisition range")
 
@@ -145,7 +145,7 @@ func _run() -> void:
     Input.action_release("move_forward")
     await physics_frame
 
-    var player_after_input := player.global_position
+    var player_after_input: Vector3 = player.global_position
     var player_input_distance := _horizontal_distance(initial_player_position, player_after_input)
     _check(acquired, "normal move_forward action input must legitimately cross the enemy acquisition range")
     _check(player_input_distance > 3.0, "player must move materially through the existing CharacterBody3D input path")
@@ -163,8 +163,8 @@ func _run() -> void:
 
     for frame in range(MAX_CHASE_FRAMES):
         chase_frames = frame + 1
-        var player_position := player.global_position
-        var enemy_position := enemy.global_position
+        var player_position: Vector3 = player.global_position
+        var enemy_position: Vector3 = enemy.global_position
         var distance_to_player := _horizontal_distance(enemy_position, player_position)
         if distance_to_player > lose_target_range:
             target_retained = false
@@ -203,7 +203,7 @@ func _run() -> void:
 
     var final_distance := _horizontal_distance(enemy.global_position, player.global_position)
     var health_after_attack := player_health
-    var authoritative_enemy_position := enemy.global_position
+    var authoritative_enemy_position: Vector3 = enemy.global_position
     var observation := {
         "player_health": health_after_attack,
         "enemy_position": [authoritative_enemy_position.x, authoritative_enemy_position.y, authoritative_enemy_position.z],
