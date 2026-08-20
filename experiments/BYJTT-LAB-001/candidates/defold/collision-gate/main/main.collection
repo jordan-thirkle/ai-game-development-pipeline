@@ -1,0 +1,15 @@
+name: "main"
+scale_along_z: 0
+instances {
+  id: "walls"
+  prototype: "/main/walls.go"
+}
+instances {
+  id: "player"
+  prototype: "/main/player.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 10.0
+  }
+}
