@@ -120,8 +120,11 @@ int main(int argc, char** argv) {
   copy.x = -9999.0f;
   copy.y = -9999.0f;
   copy.z = -9999.0f;
+  const bool copy_was_mutated =
+      copy.x == -9999.0f && copy.y == -9999.0f && copy.z == -9999.0f;
   const Observation after_copy_mutation = Observe(player);
   const bool observation_isolated =
+      copy_was_mutated &&
       std::abs(after_copy_mutation.x - final_observation.x) < 0.0001f &&
       std::abs(after_copy_mutation.y - final_observation.y) < 0.0001f &&
       std::abs(after_copy_mutation.z - final_observation.z) < 0.0001f;
