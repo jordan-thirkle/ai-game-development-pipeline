@@ -1,0 +1,55 @@
+{
+  "id": "kenney-game-assets",
+  "name": "Kenney game assets",
+  "description": "Large cross-genre catalogue of reusable 2D/3D game assets.",
+  "kind": "asset-pack",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://kenney.nl/assets",
+    "provider": "Kenney"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "CC0-1.0",
+    "evidenceUrl": "https://kenney.nl/support",
+    "attributionRequired": false,
+    "notice": "Kenney states game assets on asset pages are CC0 and may be used commercially; verify any specific pack's included licence before promotion."
+  },
+  "commercialUse": "verified-allowed",
+  "provenance": {
+    "confidence": "high",
+    "notes": "Licence evidence is from the creator's official support page."
+  },
+  "compatibility": {
+    "engines": ["engine-agnostic"],
+    "platforms": ["web", "desktop", "mobile", "console"],
+    "notes": "Compatibility and performance remain pack/project specific."
+  },
+  "assessment": {
+    "integrationEffort": "low",
+    "lifecycleRisk": "low",
+    "scores": {
+      "licenceCommercialCompatibility": 5,
+      "provenanceConfidence": 5,
+      "integrationEffort": 5,
+      "ecosystemUtility": 5
+    },
+    "recommendation": "benchmark",
+    "notes": "Qualified as a discovery source; individual packs still require project-fit and asset-quality validation before promotion."
+  },
+  "evidence": [
+    {
+      "type": "official-licence",
+      "url": "https://kenney.nl/support",
+      "checkedAt": "2026-08-20T02:30:00Z",
+      "notes": "Official support page confirms CC0, commercial use, and no attribution requirement for game assets."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "kenney-game-assets",
+    "notes": "Publish only factual licence/source metadata and By JTT's independently generated evaluation."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T02:30:00Z"
+}
