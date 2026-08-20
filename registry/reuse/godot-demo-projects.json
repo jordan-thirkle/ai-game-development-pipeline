@@ -1,0 +1,57 @@
+{
+  "id": "godot-demo-projects",
+  "name": "Godot demo projects",
+  "description": "Official demonstration and template projects covering reusable Godot mechanics, rendering techniques, UI, networking, and engine patterns.",
+  "kind": "reference",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://github.com/godotengine/godot-demo-projects",
+    "provider": "Godot Engine",
+    "repositoryUrl": "https://github.com/godotengine/godot-demo-projects"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT",
+    "evidenceUrl": "https://github.com/godotengine/godot-demo-projects/blob/master/LICENSE.md",
+    "attributionRequired": true,
+    "notice": "The official repository states its demos are MIT licensed. Preserve required MIT notice; verify any third-party asset notices within the selected demo."
+  },
+  "commercialUse": "verified-allowed",
+  "provenance": {
+    "confidence": "high",
+    "notes": "Official Godot Engine repository. Individual bundled third-party assets may carry additional notices and must be checked before reuse."
+  },
+  "compatibility": {
+    "engines": ["Godot"],
+    "platforms": ["web", "desktop", "mobile"],
+    "notes": "Use a branch/tag compatible with the target stable Godot release rather than blindly using master."
+  },
+  "assessment": {
+    "integrationEffort": "low",
+    "lifecycleRisk": "low",
+    "scores": {
+      "licenceCommercialCompatibility": 4.5,
+      "provenanceConfidence": 5,
+      "maintenanceUpstreamHealth": 5,
+      "ecosystemUtility": 5,
+      "integrationEffort": 5
+    },
+    "recommendation": "benchmark",
+    "notes": "Strong first-party reference source for solved mechanics and engine patterns; project-specific execution is still required before promotion into production code."
+  },
+  "evidence": [
+    {
+      "type": "official-repository",
+      "url": "https://github.com/godotengine/godot-demo-projects",
+      "checkedAt": "2026-08-20T02:30:00Z",
+      "notes": "Repository README identifies the demos as MIT licensed and documents version branches."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "godot-demo-projects",
+    "notes": "Publication may summarize By JTT evaluation and link upstream; do not republish third-party assets without checking their notices."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T02:30:00Z"
+}
