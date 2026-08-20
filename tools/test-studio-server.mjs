@@ -113,6 +113,7 @@ test('bounded brief inputs shape the playable artifact and mobile controls', asy
   assert.match(playable, /Avoid red hazards for 10 seconds/);
   assert.match(playable, /Touch movement controls/);
   assert.match(playable, /\.touch\{display:grid/);
+  assert.match(playable, /goal\.x=Math\.max\(80,innerWidth-60\)/);
 });
 
 test('expected build and QA failures preserve partial evidence and clean workspaces', async () => {
