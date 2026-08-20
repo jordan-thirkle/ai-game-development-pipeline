@@ -16,12 +16,13 @@ Official repository: https://github.com/ace-step/ACE-Step-1.5
 Pinned code revision: `14c0211d5a0653b0f63e27686f4c3f151b4d8629`  
 Repository licence at pinned revision: MIT  
 Official model repository: https://huggingface.co/ACE-Step/Ace-Step1.5  
-Pinned model-repository revision inspected: `e491069bd696ec53bae96986197b24ffc2d8692c`  
+Pinned current model-repository revision: `19671f406d603126926c1b7e2adc169acbcade22`  
+Earlier model-card revision independently inspected: `e491069bd696ec53bae96986197b24ffc2d8692c`  
 Model-card licence: MIT  
 Evidence: **SOURCE-VERIFIED**  
-Disposition: **BENCHMARK NOW as open/local commercial-music candidate**
+Disposition: **BENCHMARK NOW as open/local commercial-music candidate, pending exact component hash inventory**
 
-Current official project/model material describes text-to-music plus reference/editing workflows and a 10+ GB multi-component model repository. The model card explicitly labels the released model family MIT.
+Current official project/model material describes text-to-music plus reference/editing workflows and a multi-component model repository containing components such as `Qwen3-Embedding-0.6B`, `acestep-5Hz-lm-1.7B`, `acestep-v15-turbo`, and `vae`. The model card labels the released model family MIT, but repository-level licensing does not substitute for an inventory of every concrete component downloaded by a benchmark run.
 
 ### Important boundary
 
@@ -30,10 +31,10 @@ MIT code/model licensing does not guarantee that any requested/generated song is
 - reference-audio rights;
 - generated-output hash;
 - originality/similarity review appropriate to the release context;
-- exact model-component revisions;
+- exact model-component revisions and local file hashes;
 - human/legal escalation for material ambiguity.
 
-Generated-output use as downstream model-training data is also not assumed merely from the model licence; upstream community discussion shows this has required clarification. That question is irrelevant to ordinary game use unless we actually train on outputs, at which point it becomes a separate licence/provenance decision.
+Generated-output use as downstream model-training data is also not assumed merely from the model licence. That question is irrelevant to ordinary game use unless we actually train on outputs, at which point it becomes a separate licence/provenance decision.
 
 ### Benchmark
 
@@ -65,27 +66,37 @@ Measure:
 
 Official announcement: https://stability.ai/news-updates/meet-stable-audio-3-the-model-family-built-for-artistic-experimentation-with-open-weight-models  
 Current licence authority: https://stability.ai/license  
-Evidence: **SOURCE-VERIFIED vendor/model-family terms; exact downloadable artifact revision not yet pinned**  
-Disposition: **BENCHMARK NOW after exact model artifact is pinned**
+Official model collection: https://huggingface.co/collections/stabilityai/stable-audio-3  
+Current artifacts surfaced by that collection:
+- https://huggingface.co/stabilityai/stable-audio-3-small-music
+- https://huggingface.co/stabilityai/stable-audio-3-small-sfx
+- https://huggingface.co/stabilityai/stable-audio-3-medium
 
-Stability AI's current official material describes Stable Audio 3.0 Small/Medium as open-weight models trained on fully licensed data, with longer music-generation capabilities than the older 1.0 generation. The current Stability AI Community License page states free commercial use of covered Core Models for creators/organizations under USD $1M annual revenue, with Enterprise licensing required above that threshold; the 3.0 announcement states creators own and may commercialize outputs under the applicable licence.
+Evidence: **SOURCE-VERIFIED vendor/model-family terms; exact downloadable file revisions/hashes still required before execution**  
+Disposition: **BENCHMARK NOW only after artifact-level and transitive licence clearance**
+
+Stability AI's current official material describes Stable Audio 3.0 Small/Medium as open-weight models and states the family was trained on fully licensed data, with longer music-generation capabilities than the older 1.0 generation. The current Stability AI Community License page states free commercial use of covered Core Models for eligible creators/organizations under its current revenue threshold, with Enterprise licensing required above that threshold; the 3.0 announcement states creators may commercialize outputs under the applicable licence.
+
+That is **not the whole licence picture for every downloadable artifact**. The current gated Hugging Face Stable Audio 3 Small repositories also disclose components redistributed under the **Gemma Terms of Use**, including their own use restrictions. Access itself requires accepting the model gate and sharing contact information. Therefore a project cannot infer production eligibility from the Stability Community License alone.
 
 ### Why it matters
 
-This materially changes our candidate set. We should not evaluate obsolete Stable Audio Open 1.0 as if it represented Stability's 2026 audio frontier.
+This materially changes our candidate set. We should not evaluate obsolete Stable Audio Open 1.0 as if it represented Stability's 2026 audio frontier, but we also must not convert a permissive top-level commercial tier into blanket clearance of transitive model components.
 
 ### Required pre-execution work
 
-Before benchmarking:
-- identify the exact Small/Medium Hugging Face artifact URL;
-- pin model/repository revision and all relevant component hashes;
-- retain the exact Community License snapshot/registration requirement applicable to the run;
-- record organization revenue/licence tier eligibility at execution time;
-- capture model/training-data provenance statements without converting vendor statements into independent proof.
+Before benchmarking any Stable Audio 3.0 artifact:
+- choose the exact Small Music / Small SFX / Medium artifact;
+- pin the exact Hugging Face repository revision and every relevant LFS/file hash;
+- retain the exact Stability Community/Enterprise licence snapshot and account/registration requirements applicable to the run;
+- separately capture and review Gemma Terms or any other transitive component terms disclosed by that exact artifact;
+- record organization revenue/licence-tier eligibility at execution time;
+- block automatic commercial use if the top-level and transitive terms cannot both be cleared;
+- capture model/training-data provenance statements as vendor/model documentation, not independent proof.
 
 ### Benchmark
 
-Run the same frozen game-music cue set as ACE-Step 1.5 and compare accepted-cue quality, controllability, local compute requirements, edit/variation workflow, licence friction and total game-ready cost.
+Run the same frozen game-music cue set as ACE-Step 1.5 and compare accepted-cue quality, controllability, local compute requirements, edit/variation workflow, licence friction and total game-ready cost. For SFX, use a separate frozen cue manifest rather than treating music results as evidence for one-shot game effects.
 
 ---
 
@@ -106,7 +117,7 @@ AudioCraft remains technically useful research, but its commonly released MusicG
 Official model card: https://huggingface.co/stabilityai/stable-audio-open-1.0  
 Disposition: **HISTORICAL/REFERENCE; do not use as the primary Stability benchmark**
 
-The model card points commercial users to Stability's licence. The current Community License can permit covered Stability models commercially below the revenue threshold, but Stable Audio 3.0 is the more relevant 2026 benchmark. Keep 1.0 only for historical/reproducibility comparisons where useful.
+The model card points commercial users to Stability's licence. The current licence framework may permit covered Stability models commercially for eligible users, but Stable Audio 3.0 is the more relevant 2026 benchmark. Keep 1.0 only for historical/reproducibility comparisons where useful, and apply the exact artifact/transitive-term review to any actual use.
 
 ---
 
@@ -114,10 +125,11 @@ The model card points commercial users to Stability's licence. The current Commu
 
 Every compared system uses the same frozen cue manifest and the same post-processing acceptance criteria. No cherry-picking the easiest song per provider.
 
-Before any paid/cloud run:
-- human-approved spend ceiling;
-- exact model/provider/service version;
-- licence tier eligibility;
+Before any paid/cloud or gated-model run:
+- human-approved spend ceiling where spend exists;
+- exact model/provider/service and repository revision;
+- exact downloaded component hashes;
+- licence tier eligibility and transitive component terms;
 - input/reference rights;
 - output provenance record.
 
@@ -131,7 +143,8 @@ Before any shipped cue:
 
 ## Current disposition
 
-1. **ACE-Step 1.5** — first open/local executable music benchmark once proof-capable GPU environment is available.
-2. **Stable Audio 3.0 Small/Medium** — co-primary benchmark after exact downloadable artifact/revision is pinned.
-3. **AudioCraft MusicGen/AudioGen** — research baseline and licence-negative test, not commercial default.
-4. Continue searching for a strong **open SFX/text-to-audio** model whose current model weights and outputs are commercially eligible; do not assume music models are optimal for one-shot game SFX.
+1. **ACE-Step 1.5** — first open/local executable music benchmark once exact component hashes are frozen and a proof-capable GPU environment is available.
+2. **Stable Audio 3.0 Small/Medium** — co-primary technical benchmark after exact artifact hashes **and all Stability/Gemma/transitive terms** are cleared for the intended use.
+3. **Stable Audio 3.0 Small SFX** — serious SFX candidate, but evaluated with a distinct frozen SFX manifest and the same transitive-term gate.
+4. **AudioCraft MusicGen/AudioGen** — research baseline and licence-negative test, not commercial default.
+5. Continue searching for additional strong **commercially eligible open SFX/text-to-audio** systems; do not assume one model family should own both music and effects.
