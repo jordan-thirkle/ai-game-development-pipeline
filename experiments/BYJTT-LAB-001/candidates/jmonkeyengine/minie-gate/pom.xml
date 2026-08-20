@@ -21,6 +21,11 @@
       <version>${jme.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.jmonkeyengine</groupId>
+      <artifactId>jme3-desktop</artifactId>
+      <version>${jme.version}</version>
+    </dependency>
+    <dependency>
       <groupId>com.github.stephengold</groupId>
       <artifactId>Minie</artifactId>
       <version>${minie.version}</version>
