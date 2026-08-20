@@ -19,7 +19,7 @@ const capabilities = [
   { id: 'inventory-economy', query: 'godot inventory system', requireGodot: true, requiredAny: ['inventory'], secondaryAny: ['system', 'item', 'equipment'] },
   { id: 'crafting-recipes', query: 'godot crafting system', requireGodot: true, requiredAny: ['crafting', 'craft'], secondaryAny: ['system', 'recipe'] },
   { id: 'save-progression', query: 'godot save system', requireGodot: true, requiredAny: ['save', 'savedata', 'persistence'], secondaryAny: ['system', 'plugin', 'addon'] },
-  { id: 'ui-touch-accessibility', query: 'godot mobile joystick accessibility', requireGodot: true, requiredAny: ['joystick', 'mobile', 'touch', 'accessibility'], secondaryAny: ['virtual', 'input', 'ui', 'control'] },
+  { id: 'ui-touch-accessibility', query: 'godot virtual joystick', requireGodot: true, requiredAny: ['joystick', 'mobile', 'touch', 'accessibility'], secondaryAny: ['virtual', 'input', 'ui', 'control'] },
   { id: 'environment-character-animation-assets', query: 'godot low poly assets cc0', requireGodot: false, requiredAny: ['asset', 'model', 'low poly', 'low-poly', 'cc0'], secondaryAny: ['godot', '3d', 'character', 'environment'] },
   { id: 'audio-music', query: 'godot audio sfx cc0', requireGodot: false, requiredAny: ['audio', 'sfx', 'sound', 'music'], secondaryAny: ['godot', 'cc0', 'game'] },
   { id: 'multiplayer-networking-social', query: 'godot multiplayer netcode', requireGodot: true, requiredAny: ['multiplayer', 'netcode', 'network'], secondaryAny: ['addon', 'plugin', 'online', 'synchronization'] },
