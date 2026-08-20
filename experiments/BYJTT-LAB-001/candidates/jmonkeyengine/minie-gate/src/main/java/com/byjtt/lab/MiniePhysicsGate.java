@@ -6,6 +6,7 @@ import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.objects.PhysicsCharacter;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.jme3.math.Vector3f;
+import com.jme3.system.NativeLibraryLoader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +33,7 @@ public final class MiniePhysicsGate {
         Locale.setDefault(Locale.ROOT);
         Path output = args.length == 1 ? Path.of(args[0]) : Path.of("target", "minie-gate-result.json");
 
+        NativeLibraryLoader.loadNativeLibrary("bulletjme", true);
         PhysicsSpace space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         space.setGravity(Vector3f.ZERO);
         space.setAccuracy(DT);
