@@ -23,10 +23,11 @@
     "source_registry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "revision", "dependency_pr"],
+      "required": ["path", "revision", "git_blob_sha", "dependency_pr"],
       "properties": {
         "path": {"const": "registry/open-source-game-reuse.v1.json"},
         "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_blob_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "dependency_pr": {"type": "integer", "minimum": 1}
       }
     },
