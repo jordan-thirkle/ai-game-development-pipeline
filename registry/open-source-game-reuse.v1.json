@@ -1,0 +1,137 @@
+{
+  "schema_version": "1.0.0",
+  "last_verified_at": "2026-08-20T03:27:26+01:00",
+  "verification_timezone": "Europe/London",
+  "policy": {
+    "external_discovery_required_before_bespoke": true,
+    "popularity_never_overrides_fit_or_licence": true,
+    "code_and_asset_licences_are_separate": true,
+    "rechallenge_days": 30
+  },
+  "entries": [
+    {
+      "entry_id": "reuse.godot-demo-projects",
+      "name": "Godot demo projects",
+      "category": "official_template_collection",
+      "canonical_url": "https://github.com/godotengine/godot-demo-projects",
+      "source_type": "github_repository",
+      "source_revision_status": "immutable_commit",
+      "version_or_revision": "34fc99545fc41520a958248f607101e7d0b95b05",
+      "last_verified_at": "2026-08-20T03:27:26+01:00",
+      "evidence_status": "SOURCE-VERIFIED",
+      "licensing": {
+        "code_license": "MIT",
+        "asset_license": "Repository demos are distributed under the repository MIT licence; imported/externally substituted assets still require separate provenance.",
+        "license_class": "permissive",
+        "boundary_status": "code_and_assets_separated",
+        "commercial_use_status": "allowed_with_conditions"
+      },
+      "adoption_status": "drop_in_candidate",
+      "fit": {
+        "engine_or_stack": "Godot 4.x; branch/version compatibility must match the target engine",
+        "platforms": ["desktop", "web", "mobile where the selected demo supports it"],
+        "maintenance_signal": "active",
+        "integration_effort": "low"
+      },
+      "risk": {
+        "dependency_burden": "low",
+        "supply_chain": "low",
+        "licence": "low"
+      },
+      "notes": "Official solved-system source for controllers, rendering, physics, navigation, UI and template patterns before bespoke Godot implementation. Select individual demos by exact path and re-check their asset provenance before production reuse."
+    },
+    {
+      "entry_id": "reuse.dialogic",
+      "name": "Dialogic 2",
+      "category": "mechanic_framework",
+      "canonical_url": "https://github.com/dialogic-godot/dialogic",
+      "source_type": "github_repository",
+      "source_revision_status": "immutable_commit",
+      "version_or_revision": "fd0fa22c335c72583b89b35699f9fb19dd1b4eae",
+      "last_verified_at": "2026-08-20T03:27:26+01:00",
+      "evidence_status": "SOURCE-VERIFIED",
+      "licensing": {
+        "code_license": "MIT",
+        "asset_license": "Roboto may be used under Apache-2.0; project/game assets authored around Dialogic remain separate.",
+        "license_class": "permissive",
+        "boundary_status": "code_and_assets_separated",
+        "commercial_use_status": "allowed_with_conditions"
+      },
+      "adoption_status": "drop_in_candidate",
+      "fit": {
+        "engine_or_stack": "Godot 4.3+ according to current upstream documentation",
+        "platforms": ["Godot-supported targets subject to project validation"],
+        "maintenance_signal": "active",
+        "integration_effort": "medium"
+      },
+      "risk": {
+        "dependency_burden": "medium",
+        "supply_chain": "medium",
+        "licence": "low"
+      },
+      "notes": "Mature dialogue/visual-novel/character framework candidate. Upstream warns public APIs may change during alpha/beta, so production adoption still requires version pinning and project-level regression tests."
+    },
+    {
+      "entry_id": "reuse.openttd",
+      "name": "OpenTTD",
+      "category": "whole_game_reference",
+      "canonical_url": "https://github.com/OpenTTD/OpenTTD",
+      "source_type": "github_repository",
+      "source_revision_status": "immutable_commit",
+      "version_or_revision": "4d4f8bff38d200fbcfda11789bd69259ebbefd17",
+      "last_verified_at": "2026-08-20T03:27:26+01:00",
+      "evidence_status": "SOURCE-VERIFIED",
+      "licensing": {
+        "code_license": "GPL-2.0 with documented third-party exceptions",
+        "asset_license": "Game/base-set content and third-party components have their own licence boundaries; inspect exact reused material.",
+        "license_class": "copyleft",
+        "boundary_status": "mixed_requires_per_item_review",
+        "commercial_use_status": "blocked_for_drop_in"
+      },
+      "adoption_status": "architecture_reference",
+      "fit": {
+        "engine_or_stack": "C++ whole-game architecture",
+        "platforms": ["desktop", "server", "multiple packaged platforms"],
+        "maintenance_signal": "active",
+        "integration_effort": "reference_only"
+      },
+      "risk": {
+        "dependency_burden": "high",
+        "supply_chain": "medium",
+        "licence": "high"
+      },
+      "notes": "High-value complete-game reference for simulation, networking, save/load, content/mod systems and long-lived operations. GPL-2.0 means it is not silently promoted as a proprietary drop-in component."
+    },
+    {
+      "entry_id": "reuse.kenney",
+      "name": "Kenney game assets",
+      "category": "asset_library",
+      "canonical_url": "https://www.kenney.nl/assets",
+      "source_type": "official_website",
+      "source_revision_status": "mutable_web_snapshot",
+      "version_or_revision": "support-and-asset-pages-retrieved@2026-08-20T03:27:26+01:00",
+      "last_verified_at": "2026-08-20T03:27:26+01:00",
+      "evidence_status": "SOURCE-VERIFIED",
+      "licensing": {
+        "code_license": "N/A",
+        "asset_license": "CC0/public domain on current Kenney asset pages; preserve exact asset-page provenance and included licence files.",
+        "license_class": "public_domain",
+        "boundary_status": "single_asset_licence_reviewed",
+        "commercial_use_status": "allowed_with_conditions"
+      },
+      "adoption_status": "asset_source_candidate",
+      "fit": {
+        "engine_or_stack": "engine-neutral 2D/3D/audio asset source",
+        "platforms": ["desktop", "web", "mobile"],
+        "maintenance_signal": "active",
+        "integration_effort": "low"
+      },
+      "risk": {
+        "dependency_burden": "low",
+        "supply_chain": "low",
+        "licence": "low"
+      },
+      "notes": "Current Kenney support documentation says game assets on asset pages are CC0 and may be used commercially without attribution. Production intake must still record the exact pack URL/version/files rather than treating the mutable library homepage as immutable provenance."
+    }
+  ]
+}
