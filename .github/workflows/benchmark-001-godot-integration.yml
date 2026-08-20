@@ -95,6 +95,7 @@ jobs:
           grep '"native_path_found":true' /tmp/integration-result-line.txt
           grep '"enemy_attack_count":1' /tmp/integration-result-line.txt
           grep '"observation_mutation_isolated":true' /tmp/integration-result-line.txt
+          grep '"test_only_gameplay_mutation_shortcut":false' /tmp/integration-result-line.txt
           grep '"post_navigation_position_clamp":false' /tmp/integration-result-line.txt
           grep '"post_physics_arena_clamp":false' /tmp/integration-result-line.txt
           grep '"player_attack_executed":false' /tmp/integration-result-line.txt
