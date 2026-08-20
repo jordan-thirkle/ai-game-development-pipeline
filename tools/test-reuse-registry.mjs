@@ -165,3 +165,34 @@ test('public exporter includes safe qualified records, excludes rejected records
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('actual registry public export excludes quarantined entries and internal risk/provenance fields', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'reuse-real-export-'));
+  const output = path.join(dir, 'public.json');
+  try {
+    const result = spawnSync(process.execPath, [exporter], {
+      cwd: process.cwd(),
+      env: { ...process.env, REUSE_REGISTRY_DIR: path.resolve('registry/reuse'), PUBLIC_REUSE_OUTPUT: output },
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const exported = JSON.parse(await readFile(output, 'utf8'));
+    const ids = new Set(exported.records.map((record) => record.id));
+    assert.equal(ids.has('godot-ui-components-quarantined'), false);
+    assert.equal(ids.has('playcanvas-third-person-controller'), true);
+    assert.equal(ids.has('ecctrl'), true);
+    assert.equal(ids.has('recast-navigation-js'), true);
+    assert.equal(ids.has('godot-shaders'), true);
+
+    for (const record of exported.records) {
+      assert.equal(['qualified', 'benchmarking', 'promoted'].includes(record.state), true);
+      assert.equal(Object.hasOwn(record, 'risk'), false);
+      assert.equal(Object.hasOwn(record, 'provenance'), false);
+      assert.equal(typeof record.licence.checkedAt, 'string');
+      assert.equal(typeof record.maintenance.checkedAt, 'string');
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
