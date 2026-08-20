@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libasound2-dev libudev-dev pkg-config \
-            xvfb openbox xdotool imagemagick \
+            xvfb openbox xdotool wmctrl imagemagick \
             libgl1-mesa-dri libglx-mesa0 mesa-utils
       - name: Record exact execution environment
         run: |
@@ -69,10 +69,30 @@ jobs:
           set -euo pipefail
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > evidence/xvfb.log 2>&1 &
           XVFB_PID=$!
+          OPENBOX_PID=''
+          trap 'if [ -n "$OPENBOX_PID" ]; then kill "$OPENBOX_PID" 2>/dev/null || true; fi; kill "$XVFB_PID" 2>/dev/null || true' EXIT
+
+          DISPLAY_READY=false
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              DISPLAY_READY=true
+              break
+            fi
+            sleep 0.1
+          done
+          test "$DISPLAY_READY" = true
+
           openbox > evidence/openbox.log 2>&1 &
           OPENBOX_PID=$!
-          trap 'kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true' EXIT
-          sleep 2
+          WM_READY=false
+          for _ in $(seq 1 50); do
+            if wmctrl -m > evidence/window-manager.txt 2>&1 && grep -q '^Name: Openbox$' evidence/window-manager.txt; then
+              WM_READY=true
+              break
+            fi
+            sleep 0.1
+          done
+          test "$WM_READY" = true
           glxinfo -B > evidence/glxinfo.txt
 
           # GitHub-hosted runners have no physical ALSA device. Give Fyrox/cpal an
