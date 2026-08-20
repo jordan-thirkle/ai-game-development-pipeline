@@ -6,23 +6,44 @@ export function analyzeIntegrationRisk({ currentPr, compare, peerFiles }) {
   const currentNumber = currentPr.number;
   const currentFiles = new Set(currentPr.files ?? []);
   const overlaps = [];
+  const incompleteFileInventories = [];
+
+  if (currentPr.files_complete !== true) {
+    incompleteFileInventories.push({
+      number: currentNumber,
+      expected: Number.isInteger(currentPr.changed_files) ? currentPr.changed_files : null,
+      retrieved: currentFiles.size
+    });
+  }
 
   for (const peer of peerFiles ?? []) {
     if (peer.number === currentNumber) continue;
-    const shared = [...new Set(peer.files ?? [])].filter((path) => currentFiles.has(path)).sort();
+    const peerFileSet = new Set(peer.files ?? []);
+    if (peer.files_complete !== true) {
+      incompleteFileInventories.push({
+        number: peer.number,
+        expected: Number.isInteger(peer.changed_files) ? peer.changed_files : null,
+        retrieved: peerFileSet.size
+      });
+    }
+    const shared = [...peerFileSet].filter((path) => currentFiles.has(path)).sort();
     if (shared.length > 0) {
       overlaps.push({ number: peer.number, title: peer.title ?? '', files: shared });
     }
   }
 
   overlaps.sort((a, b) => a.number - b.number);
+  incompleteFileInventories.sort((a, b) => a.number - b.number);
   const behindBy = Number.isInteger(compare?.behind_by) ? compare.behind_by : null;
   const aheadBy = Number.isInteger(compare?.ahead_by) ? compare.ahead_by : null;
   const staleBase = behindBy !== null && behindBy > 0;
   const knownMergeConflict = currentPr.mergeable === false;
+  const mergeabilityUnknown = currentPr.mergeable !== true && currentPr.mergeable !== false;
 
   const blockers = [];
   if (knownMergeConflict) blockers.push('github-reports-merge-conflict');
+  if (mergeabilityUnknown) blockers.push('github-mergeability-unknown');
+  if (incompleteFileInventories.length > 0) blockers.push('incomplete-pr-file-inventory');
   if (overlaps.length > 0) blockers.push('open-pr-file-overlap');
 
   return {
@@ -33,11 +54,12 @@ export function analyzeIntegrationRisk({ currentPr, compare, peerFiles }) {
     ahead_by: aheadBy,
     stale_base: staleBase,
     mergeable: currentPr.mergeable ?? null,
+    incomplete_file_inventories: incompleteFileInventories,
     overlaps,
     blockers,
     safe_to_continue: blockers.length === 0,
     evidence_boundary:
-      'This preflight detects GitHub-visible base drift, known merge conflicts, and exact changed-file overlap with open PRs. It does not prove semantic independence, runtime correctness, or merge readiness.'
+      'This preflight detects GitHub-visible base drift, known merge conflicts, and exact changed-file overlap only when GitHub mergeability is resolved and every inspected PR file inventory is complete. Unknown mergeability or incomplete API inventories fail closed. It does not prove semantic independence, runtime correctness, or merge readiness.'
   };
 }
 
@@ -78,6 +100,14 @@ async function requestAll(url, token) {
   return all;
 }
 
+function summarizeFileInventory(pr, files) {
+  const changedFiles = Number.isInteger(pr.changed_files) ? pr.changed_files : null;
+  return {
+    changed_files: changedFiles,
+    files_complete: changedFiles !== null && files.length === changedFiles
+  };
+}
+
 export async function loadLiveState({ repository, prNumber, token, apiBase = 'https://api.github.com' }) {
   const repoUrl = `${apiBase}/repos/${repository}`;
   const { data: pr } = await requestJson(`${repoUrl}/pulls/${prNumber}`, token);
@@ -92,7 +122,12 @@ export async function loadLiveState({ repository, prNumber, token, apiBase = 'ht
       .filter((peer) => peer.number !== prNumber)
       .map(async (peer) => {
         const changed = await requestAll(`${repoUrl}/pulls/${peer.number}/files?per_page=100`, token);
-        return { number: peer.number, title: peer.title, files: changed.map((file) => file.filename) };
+        return {
+          number: peer.number,
+          title: peer.title,
+          files: changed.map((file) => file.filename),
+          ...summarizeFileInventory(peer, changed)
+        };
       })
   );
 
@@ -102,7 +137,8 @@ export async function loadLiveState({ repository, prNumber, token, apiBase = 'ht
       base: pr.base.ref,
       head: pr.head.sha,
       mergeable: pr.mergeable,
-      files: files.map((file) => file.filename)
+      files: files.map((file) => file.filename),
+      ...summarizeFileInventory(pr, files)
     },
     compare: compareResponse.data,
     peerFiles
@@ -116,6 +152,11 @@ function renderSummary(result) {
     `behind_by=${result.behind_by ?? 'unknown'} ahead_by=${result.ahead_by ?? 'unknown'} mergeable=${String(result.mergeable)}`,
     `stale_base=${result.stale_base} blockers=${result.blockers.length}`
   ];
+  for (const inventory of result.incomplete_file_inventories) {
+    lines.push(
+      `incomplete file inventory PR #${inventory.number}: retrieved=${inventory.retrieved} expected=${inventory.expected ?? 'unknown'}`
+    );
+  }
   if (result.overlaps.length > 0) {
     for (const overlap of result.overlaps) {
       lines.push(`overlap PR #${overlap.number}: ${overlap.files.join(', ')}`);
