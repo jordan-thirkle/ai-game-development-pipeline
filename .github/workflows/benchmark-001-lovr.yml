@@ -39,6 +39,23 @@ jobs:
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
             echo "os=$(uname -a)"
           } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
+      - name: Record pinned dependency provenance
+        run: |
+          cat <<'EOF' | tee "$CANDIDATE/artifacts/physics-gate/dependency-provenance.txt"
+          lovr_version=0.19.0
+          lovr_release_asset=https://github.com/bjornbytes/lovr/releases/download/v0.19.0/lovr-v0.19.0-x86_64.AppImage
+          lovr_expected_sha256=09ce6f13c90f19c9aa3e40c00e1321ec4b27e00ed2f15e5bb336e349629b5c14
+          lovr_license=MIT
+          lovr_license_source=https://github.com/bjornbytes/lovr/blob/v0.19.0/LICENSE
+          lovr_validation=sha256-must-match-before-chmod-extraction-or-execution
+          checkout_version=v7.0.1
+          checkout_commit=3d3c42e5aac5ba805825da76410c181273ba90b1
+          checkout_license=MIT
+          upload_artifact_version=v7.0.1
+          upload_artifact_commit=043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+          upload_artifact_license=MIT
+          license_compatibility_note=permissive-commercial-use; retain required copyright-and-permission notices
+          EOF
       - name: Install Lua static checks
         run: |
           sudo apt-get update
