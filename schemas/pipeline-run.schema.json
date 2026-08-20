@@ -81,13 +81,13 @@
             }
           }
         },
-        "toolCalls": { "type": "integer", "minimum": 0 },
-        "failedToolCalls": { "type": "integer", "minimum": 0 },
-        "humanInterventions": { "type": "integer", "minimum": 0 },
+        "toolCalls": { "type": ["integer", "null"], "minimum": 0 },
+        "failedToolCalls": { "type": ["integer", "null"], "minimum": 0 },
+        "humanInterventions": { "type": ["integer", "null"], "minimum": 0 },
         "humanMinutes": { "type": ["number", "null"], "minimum": 0 },
         "elapsedSeconds": { "type": ["number", "null"], "minimum": 0 },
-        "iterations": { "type": "integer", "minimum": 0 },
-        "bespokeLinesChanged": { "type": "integer", "minimum": 0 },
+        "iterations": { "type": ["integer", "null"], "minimum": 0 },
+        "bespokeLinesChanged": { "type": ["integer", "null"], "minimum": 0 },
         "reusedComponents": { "type": "array", "items": { "type": "string" } },
         "estimatedReuseRatio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
         "externalServiceCostUsd": { "type": ["number", "null"], "minimum": 0 }
