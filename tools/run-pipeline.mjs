@@ -260,6 +260,43 @@ async function hashPath(path) {
   return `sha256:${hash.digest('hex')}`;
 }
 
+function pathContains(basePath, candidatePath) {
+  const rest = relative(resolve(basePath), resolve(candidatePath));
+  return rest === '' || (rest !== '..' && !rest.startsWith(`..${sep}`) && !isAbsolute(rest));
+}
+
+async function hashProjectSource(projectDir, excludedPaths) {
+  const exclusions = excludedPaths.map((path) => resolve(path));
+  const hash = createHash('sha256');
+
+  async function visit(current, relativePath) {
+    if (exclusions.some((excluded) => pathContains(excluded, current))) return;
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink()) {
+      throw new PipelineError(`Project source contains a symbolic link: ${relativePath}`, 'SOURCE_IDENTITY_ERROR');
+    }
+    if (stat.isDirectory()) {
+      hash.update(`directory\0${relativePath}\0`);
+      const names = (await readdir(current)).sort((a, b) => Buffer.from(a).compare(Buffer.from(b)));
+      for (const name of names) await visit(resolve(current, name), relativePath ? `${relativePath}/${name}` : name);
+      return;
+    }
+    if (stat.isFile()) {
+      hash.update(`file\0${relativePath}\0${stat.size}\0`);
+      hash.update(await readFile(current));
+      return;
+    }
+    throw new PipelineError(`Project source contains unsupported filesystem entry: ${relativePath}`, 'SOURCE_IDENTITY_ERROR');
+  }
+
+  await visit(projectDir, '');
+  return `sha256:${hash.digest('hex')}`;
+}
+
+async function hashFile(path) {
+  return `sha256:${createHash('sha256').update(await readFile(path)).digest('hex')}`;
+}
+
 function expandArgv(argv, replacements) {
   return argv.map((arg) => replacements[arg] ?? arg);
 }
@@ -288,13 +325,16 @@ async function runArgv(argv, { cwd, stdoutPath, stderrPath, replacements = {}, t
   try {
     child = spawn(expanded[0], expanded.slice(1), { cwd, shell: false, windowsHide: true, detached: process.platform !== 'win32' });
   } catch (error) {
-    throw new PipelineError(`Unable to start ${expanded[0]}: ${error.message}`, 'COMMAND_ERROR');
+    await writeFile(stdoutPath, Buffer.alloc(0));
+    await writeFile(stderrPath, Buffer.alloc(0));
+    return { argv: expanded, executed: false, status: null, signal: null, timedOut: false, error: error.message };
   }
   child.stdout?.on('data', (chunk) => stdout.push(chunk));
   child.stderr?.on('data', (chunk) => stderr.push(chunk));
   const result = await new Promise((resolveResult) => {
     let settled = false;
     let timer;
+    let started = false;
     let timeoutTriggered = false;
     const finish = (value) => {
       if (settled) return;
@@ -302,30 +342,31 @@ async function runArgv(argv, { cwd, stdoutPath, stderrPath, replacements = {}, t
       clearTimeout(timer);
       resolveResult(value);
     };
-    child.on('error', (error) => finish({ error, timedOut: timeoutTriggered }));
-    child.on('close', (status, signal) => finish({ status, signal, timedOut: timeoutTriggered }));
+    child.once('spawn', () => { started = true; });
+    child.on('error', (error) => finish({ error, started, timedOut: timeoutTriggered }));
+    child.on('close', (status, signal) => finish({ status, signal, started, timedOut: timeoutTriggered }));
     timer = setTimeout(() => {
       timeoutTriggered = true;
-      terminateProcessTree(child).finally(() => finish({ status: null, signal: 'SIGTERM', timedOut: true }));
+      terminateProcessTree(child).finally(() => finish({ status: null, signal: 'SIGTERM', started, timedOut: true }));
     }, timeoutMs);
   });
   await writeFile(stdoutPath, Buffer.concat(stdout));
   await writeFile(stderrPath, Buffer.concat(stderr));
-  if (result.error) return { argv: expanded, status: null, signal: null, timedOut: false, error: result.error.message };
-  if (result.timedOut) return { argv: expanded, status: null, signal: result.signal, timedOut: true, error: `Command timed out after ${timeoutMs}ms` };
-  return { argv: expanded, status: result.status, signal: result.signal, timedOut: false, error: null };
+  if (result.error) return { argv: expanded, executed: result.started === true, status: null, signal: null, timedOut: false, error: result.error.message };
+  if (result.timedOut) return { argv: expanded, executed: result.started === true, status: null, signal: result.signal, timedOut: true, error: `Command timed out after ${timeoutMs}ms` };
+  return { argv: expanded, executed: result.started === true, status: result.status, signal: result.signal, timedOut: false, error: null };
 }
 
-async function getSourceRevision(projectDir, manifest, explicitRevision) {
+async function getSourceRevision(projectDir, manifest, explicitRevision, sourceTreeSha256) {
   if (nonEmptyString(explicitRevision)) return explicitRevision;
   if (nonEmptyString(manifest.sourceRevision)) return manifest.sourceRevision;
   try {
     const result = await execFile('git', ['rev-parse', 'HEAD'], { cwd: projectDir, shell: false, encoding: 'utf8' });
     if (nonEmptyString(result.stdout)) return result.stdout.trim();
   } catch {
-    // A standalone sample copy need not be a Git checkout. The manifest hash is an honest fallback.
+    // A standalone sample copy need not be a Git checkout. The project source-tree hash is the fallback identity.
   }
-  return `sha256:${createHash('sha256').update(jsonString(manifest)).digest('hex')}`;
+  return sourceTreeSha256;
 }
 
 function relativeOutput(outputDir, path) {
@@ -356,12 +397,12 @@ function createPipelineRun({ runId, startedAt, endedAt, manifest, sourceRevision
     },
     execution: {
       models: [],
-      toolCalls: 0,
-      failedToolCalls: status === 'pass' ? 0 : 1,
-      humanInterventions: 0,
-      humanMinutes: 0,
+      toolCalls: null,
+      failedToolCalls: null,
+      humanInterventions: null,
+      humanMinutes: null,
       elapsedSeconds: Math.max(0, (Date.parse(endedAt) - Date.parse(startedAt)) / 1000),
-      iterations: 1,
+      iterations: null,
       bespokeLinesChanged: null,
       reusedComponents: [],
       estimatedReuseRatio: null,
@@ -423,12 +464,21 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const localDestination = validateLocalPublishingPolicy(manifest, destination);
   const output = await ensureEmptyDirectory(resolve(outputDir || resolve(REPOSITORY_ROOT, 'artifacts', manifest.projectId)), 'output directory');
   const declaredArtifactPath = resolveContained(project, manifest.build.artifact, 'build artifact');
+  if (declaredArtifactPath === project) {
+    throw new PipelineError('build artifact must not be the project root', 'PATH_CONTAINMENT');
+  }
   if (relative(declaredArtifactPath, output) === '' || !relative(declaredArtifactPath, output).startsWith(`..${sep}`)) {
     throw new PipelineError('output directory must not be inside the declared build artifact path', 'PATH_CONTAINMENT');
   }
   const runId = `run-${manifest.projectId}-${randomUUID()}`;
   const startedAt = new Date().toISOString();
-  const source = await getSourceRevision(project, manifest, sourceRevision);
+  const sourceTreeSha256 = await hashProjectSource(project, [
+    resolve(project, '.git'),
+    resolve(project, 'node_modules'),
+    declaredArtifactPath,
+    output
+  ]);
+  const source = await getSourceRevision(project, manifest, sourceRevision, sourceTreeSha256);
   const artifacts = [];
   const logs = [];
 
@@ -442,6 +492,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
     manifestPath: manifestFile,
     manifestSha256: `sha256:${createHash('sha256').update(manifestBytes).digest('hex')}`,
     sourceRevision: source,
+    sourceTreeSha256,
     validation: { status: 'pass', checked: ['manifestVersion', 'projectId', 'build.argv', 'build.artifact', 'qa.argv', 'registry.entryIds', 'local-publishing-policy'] },
     createdAt: startedAt
   });
@@ -470,7 +521,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const buildPassed = Boolean(buildResult.status === 0 && !buildResult.error && artifactHash);
   const buildPath = resolveContained(output, PHASE_FILES.build, 'build result');
   await writeJson(buildPath, {
-    schemaVersion: '1.0.0', type: 'build-result', projectId: manifest.projectId, executed: true,
+    schemaVersion: '1.0.0', type: 'build-result', projectId: manifest.projectId, executed: buildResult.executed,
     status: buildPassed ? 'pass' : 'fail', argv: buildResult.argv, exitStatus: buildResult.status,
     signal: buildResult.signal, timedOut: buildResult.timedOut, error: buildResult.error, artifactPath: artifactPath ? relative(project, artifactPath) : null,
     artifactSha256: artifactHash || null, stdoutPath: relativeOutput(output, buildStdout), stderrPath: relativeOutput(output, buildStderr), completedAt: new Date().toISOString()
@@ -496,7 +547,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const qaPath = resolveContained(output, PHASE_FILES.qa, 'QA result');
   await writeJson(qaPath, {
     schemaVersion: '1.0.0', type: 'qa-result', projectId: manifest.projectId, status: qaPassed ? 'pass' : 'fail', passed: qaPassed,
-    executed: true, argv: qaResult.argv, exitStatus: qaResult.status, signal: qaResult.signal, timedOut: qaResult.timedOut, error: qaResult.error,
+    executed: qaResult.executed, argv: qaResult.argv, exitStatus: qaResult.status, signal: qaResult.signal, timedOut: qaResult.timedOut, error: qaResult.error,
     artifactPath: relative(project, artifactPath), artifactSha256: artifactHash,
     evidencePaths: [relativeOutput(output, qaStdout), relativeOutput(output, qaStderr), relativeOutput(output, buildPath)], completedAt: new Date().toISOString()
   });
@@ -510,7 +561,10 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
   const candidatePath = resolveContained(output, PHASE_FILES.releaseCandidate, 'release candidate');
   await writeJson(candidatePath, {
     schemaVersion: '1.0.0', type: 'release-candidate', candidateId: `${manifest.projectId}-${runId}`,
-    projectId: manifest.projectId, sourceRevision: source, build: { artifactPath: relative(project, artifactPath), outputSha256: artifactHash },
+    projectId: manifest.projectId, sourceRevision: source, sourceTreeSha256,
+    intake: { resultPath: PHASE_FILES.intake, resultSha256: await hashFile(intakePath), manifestSha256: `sha256:${createHash('sha256').update(manifestBytes).digest('hex')}` },
+    registrySelection: { resultPath: PHASE_FILES.registry, resultSha256: await hashFile(registryPath), registryRevision: registrySelection.registryRevision },
+    build: { artifactPath: relative(project, artifactPath), outputSha256: artifactHash },
     qa: { resultPath: PHASE_FILES.qa, resultSha256: qaHash, status: 'pass' }, destination: { kind: 'local', target: localDestination }, dryRunOnly: true,
     createdAt: new Date().toISOString()
   });
