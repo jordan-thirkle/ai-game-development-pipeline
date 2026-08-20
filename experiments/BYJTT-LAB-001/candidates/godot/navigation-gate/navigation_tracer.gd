@@ -15,17 +15,6 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    # Use a dedicated engine-native NavigationServer3D map so this headless
-    # tracer owns map activation and can prove region attachment/synchronization
-    # directly instead of relying on World3D scene lifecycle side effects.
-    var navigation_map: RID = NavigationServer3D.map_create()
-    NavigationServer3D.map_set_up(navigation_map, Vector3.UP)
-    NavigationServer3D.map_set_active(navigation_map, true)
-
-    var region: RID = NavigationServer3D.region_create()
-    NavigationServer3D.region_set_enabled(region, true)
-    NavigationServer3D.region_set_map(region, navigation_map)
-
     var navigation_mesh := NavigationMesh.new()
     var half_width := ARENA_WIDTH * 0.5
     var half_depth := ARENA_DEPTH * 0.5
@@ -36,7 +25,21 @@ func _run() -> void:
         Vector3(-half_width, 0.0, -half_depth),
     ]))
     navigation_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+
+    # Build the dedicated map fully before activation. Godot requires the map
+    # rasterization settings to match every NavigationMesh assigned to it.
+    var navigation_map: RID = NavigationServer3D.map_create()
+    NavigationServer3D.map_set_up(navigation_map, Vector3.UP)
+    NavigationServer3D.map_set_cell_size(navigation_map, navigation_mesh.cell_size)
+    NavigationServer3D.map_set_cell_height(navigation_map, navigation_mesh.cell_height)
+    NavigationServer3D.map_set_use_async_iterations(navigation_map, false)
+
+    var region: RID = NavigationServer3D.region_create()
+    NavigationServer3D.region_set_enabled(region, true)
+    NavigationServer3D.region_set_navigation_layers(region, 1)
     NavigationServer3D.region_set_navigation_mesh(region, navigation_mesh)
+    NavigationServer3D.region_set_map(region, navigation_map)
+    NavigationServer3D.map_set_active(navigation_map, true)
 
     var initial_map_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
     var initial_region_iteration_id := NavigationServer3D.region_get_iteration_id(region)
@@ -50,6 +53,12 @@ func _run() -> void:
         sync_frames += 1
         await physics_frame
 
+    # Give the map one additional normal synchronization frame after the region
+    # reports its first synchronized revision. This preserves normal engine
+    # lifecycle semantics rather than using deprecated map_force_update().
+    await physics_frame
+    sync_frames += 1
+
     var map_iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
     var region_iteration_id := NavigationServer3D.region_get_iteration_id(region)
     var map_active := NavigationServer3D.map_is_active(navigation_map)
@@ -57,6 +66,12 @@ func _run() -> void:
     var region_attached := NavigationServer3D.region_get_map(region) == navigation_map
     var map_contains_region := NavigationServer3D.map_get_regions(navigation_map).has(region)
     var region_bounds := NavigationServer3D.region_get_bounds(region)
+    var map_cell_size := NavigationServer3D.map_get_cell_size(navigation_map)
+    var map_cell_height := NavigationServer3D.map_get_cell_height(navigation_map)
+    var raster_settings_match := (
+        is_equal_approx(map_cell_size, navigation_mesh.cell_size)
+        and is_equal_approx(map_cell_height, navigation_mesh.cell_height)
+    )
 
     var closest_enemy_point := NavigationServer3D.map_get_closest_point(navigation_map, ENEMY_SPAWN)
     var closest_player_point := NavigationServer3D.map_get_closest_point(navigation_map, PLAYER_SPAWN)
@@ -114,6 +129,7 @@ func _run() -> void:
         and region_enabled
         and region_attached
         and map_contains_region
+        and raster_settings_match
     )
     var query_ownership_proven := closest_enemy_owner_matches and closest_player_owner_matches
     var result_passed := (
@@ -147,6 +163,11 @@ func _run() -> void:
         "region_enabled": region_enabled,
         "region_attached": region_attached,
         "map_contains_region": map_contains_region,
+        "navigation_mesh_cell_size": navigation_mesh.cell_size,
+        "navigation_mesh_cell_height": navigation_mesh.cell_height,
+        "map_cell_size": map_cell_size,
+        "map_cell_height": map_cell_height,
+        "raster_settings_match": raster_settings_match,
         "region_bounds_position": [region_bounds.position.x, region_bounds.position.y, region_bounds.position.z],
         "region_bounds_size": [region_bounds.size.x, region_bounds.size.y, region_bounds.size.z],
         "closest_enemy_point": [closest_enemy_point.x, closest_enemy_point.y, closest_enemy_point.z],
