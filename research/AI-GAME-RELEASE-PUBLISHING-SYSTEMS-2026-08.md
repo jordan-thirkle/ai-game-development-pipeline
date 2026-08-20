@@ -42,6 +42,9 @@ ReleaseCandidate
   platform_build_number
   artifact_path
   artifact_sha256
+  final_artifact_path_optional
+  final_artifact_sha256_optional
+  transformation_chain[]
   symbols_path_optional
   symbols_sha256_optional
   sbom_path_optional
@@ -74,6 +77,22 @@ ReleaseReceipt
   provider_receipt_ids[]
   logs_or_evidence_paths[]
 ```
+
+Every external mutation also carries a stable logical operation identity:
+
+```text
+ReleaseOperation
+  operation_id
+  release_id
+  operation_type = upload | commit | promote | rollout | halt
+  provider
+  request_fingerprint
+  attempt
+  provider_receipt_id_optional
+  readback_required
+```
+
+Retries reuse `operation_id` and `request_fingerprint`; they must reconcile provider state before issuing a new mutation. A transport timeout is `unknown`, never implicit success or permission to create a second mutation.
 
 No provider may mutate the source artifact between checksum and upload. If a platform requires post-build signing/notarisation/package transformation, the transformed artifact receives its own checksum and provenance step before store upload.
 
@@ -152,7 +171,7 @@ notarisation_request_id_optional
 notarisation_status_optional
 ```
 
-For macOS, modern notarisation tooling is benchmarked; deprecated legacy upload/signing flows must not become new defaults simply because an old CI recipe still works.
+For macOS, modern notarisation tooling is benchmarked; deprecated legacy notarisation tooling must not become a new default simply because an old CI recipe still works. This does not erase the separately documented App Store Connect upload paths.
 
 ## Apple frozen benchmark
 
@@ -211,6 +230,8 @@ halt_rollout
 ```
 
 Production rollout requires an explicit release policy decision. Internal/test-track upload can be fully automatic after bootstrap; production promotion is governed independently.
+
+Each Google Play edit is bound to `release_id` and recorded with its provider `editId`. If the edit is expired or invalidated by a Console/concurrent change, the adapter must create a new edit, reapply the unchanged release manifest, validate it, and commit only the replacement edit. It must never reuse an invalid edit or report the old edit as committed.
 
 ## Google frozen benchmark
 
@@ -281,7 +302,7 @@ butler push <directory-or-zip> <user>/<game>:<channel>
 
 Channels map naturally to platform/build lanes such as Windows, macOS, Linux, web, beta or bonus content. Butler uploads incrementally, so unchanged data can make subsequent pushes substantially cheaper/faster.
 
-The current install docs explicitly recommend fixed `broth` URLs for CI/CD because normal download links expire. Authentication remains an external credential step and must be handled as a secret/bootstrap concern.
+The current install docs explicitly recommend fixed `broth` URLs for CI/CD because normal download links expire. `/LATEST/` is not an immutable dependency: the selected semantic-versioned archive URL and expected SHA-256 must be recorded and checked before extraction. Authentication remains an external credential step and must be handled as a secret/bootstrap concern.
 
 ## itch frozen benchmark
 
@@ -325,7 +346,7 @@ However, Fastfile/lane semantics must remain an adapter over the canonical relea
 - upgrade burden;
 - removal/replacement cost versus thin first-party API adapters.
 
-Fastlane’s own optional usage metrics are explicitly disabled in controlled benchmark/production automation unless separately approved.
+Fastlane’s own optional usage metrics are explicitly disabled in controlled benchmark/production automation unless separately approved. The controlled run must set `FASTLANE_OPT_OUT_USAGE` (or invoke the equivalent `opt_out_usage` action), record that setting in evidence, and fail preflight when the opt-out is absent.
 
 ---
 
@@ -358,15 +379,15 @@ BuildService.build(BuildRequest) -> BuiltArtifact
 SigningService.sign(BuiltArtifact, SigningPolicy) -> SignedArtifact
 SigningService.notarise(SignedArtifact, NotarisationPolicy) -> NotarisedArtifact
 StorePublisher.validate(ReleaseCandidate) -> ValidationReport
-StorePublisher.upload(ReleaseCandidate) -> UploadReceipt
-StorePublisher.assignTestingChannel(UploadReceipt, channel) -> ReleaseReceipt
+StorePublisher.upload(ReleaseCandidate) -> ReleaseReceipt
+StorePublisher.assignTestingChannel(ReleaseReceipt, channel) -> ReleaseReceipt
 StorePublisher.stageRollout(ReleaseReceipt, fraction) -> ReleaseReceipt
 StorePublisher.haltRollout(ReleaseReceipt) -> ReleaseReceipt
-StorePublisher.promote(ReleaseReceipt, target) -> ReleaseReceipt
+StorePublisher.promote(ReleaseReceipt, target, PromotionApproval) -> ReleaseReceipt
 StorePublisher.getStatus(receipt) -> ReleaseStatus
 ```
 
-`promote()` is policy-gated. The fact that a provider SDK exposes a production mutation does not imply an AI agent may call it autonomously.
+`promote()` is policy-gated. `PromotionApproval` is a typed record bound to `release_id`, target, final artifact hash, policy revision, accountable approver, decision timestamp and expiry. Production targets are rejected when that evidence is absent, expired or mismatched. The fact that a provider SDK exposes a production mutation does not imply an AI agent may call it autonomously.
 
 ## Release state machine
 
@@ -385,6 +406,26 @@ planned
 ```
 
 Failure/cancel paths include `rejected`, `failed`, `halted`, `superseded` and `rolled_back`. State transitions are append-only evidence; provider dashboards do not replace the project release ledger.
+
+The ledger uses a versioned, idempotent event contract:
+
+```text
+ReleaseTransitionEvent
+  event_schema_version
+  event_id
+  release_id
+  from_state
+  to_state
+  occurred_at_utc
+  actor
+  reason
+  manifest_or_receipt_reference
+  approval_reference_optional
+  provider_evidence[]
+  duplicate_of_event_id_optional
+```
+
+`event_id` is unique per logical transition. Replayed delivery is acknowledged as a duplicate and does not create a second state transition; invalid state edges fail closed.
 
 ---
 
