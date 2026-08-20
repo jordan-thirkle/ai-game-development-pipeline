@@ -40,8 +40,11 @@ test('briefed sample executes the real build and QA while publication stays loca
   assert.equal(result.evidence.intake.name, goodBrief.name);
   assert.equal(result.evidence.run.scope.objective, goodBrief.objective);
   assert.deepEqual(result.evidence.run.scope.targetPlatforms, ['web']);
+  assert.equal(result.evidence.run.scope.mechanic, 'dodge');
+  assert.equal(result.evidence.releaseCandidate.starter.mechanic, 'dodge');
   assert.match(result.playable.bytes.toString('utf8'), /Mechanic: dodge/);
   assert.match(result.playable.bytes.toString('utf8'), /Reach the green exit while avoiding red hazards/);
+  assert.match(result.playable.bytes.toString('utf8'), /Collision — returned to start/);
   assert.equal(result.evidence.registry.entries.length > 0, true);
   assert.equal(result.evidence.build.executed, true);
   assert.equal(result.evidence.build.status, 'pass');

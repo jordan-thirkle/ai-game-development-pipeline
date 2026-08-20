@@ -92,6 +92,7 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   assert.equal(Buffer.isBuffer(result.bundle.bytes), true);
   assert.equal(Buffer.isBuffer(result.playable.bytes), true);
   assert.match(result.playable.bytes.toString('utf8'), /<canvas id="game">/);
+  assert.match(result.playable.bytes.toString('utf8'), /Time expired — beacon reset/);
   assert.equal(result.playable.artifactSha256, result.evidence.build.artifactSha256);
   assert.deepEqual(result.safety, {
     dryRun: true,
@@ -111,6 +112,7 @@ test('bounded brief inputs shape the playable artifact and mobile controls', asy
   assert.match(playable, /Target: mobile/);
   assert.match(playable, /Mechanic: survive/);
   assert.match(playable, /Avoid red hazards for 10 seconds/);
+  assert.match(playable, /Round failed — three lives lost/);
   assert.match(playable, /Touch movement controls/);
   assert.match(playable, /\.touch\{display:grid/);
   assert.match(playable, /goal\.x=Math\.max\(80,innerWidth-60\)/);

@@ -23,7 +23,8 @@
         },
         "objective": { "type": "string", "minLength": 1 },
         "candidate": { "type": ["string", "null"] },
-        "targetPlatforms": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        "targetPlatforms": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "mechanic": { "type": ["string", "null"], "enum": [null, "collect", "dodge", "survive"] }
       }
     },
     "inputs": {
