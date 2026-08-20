@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startStudioServer } from './studio-server.mjs';
 
 const MIN_NODE_MAJOR = 26;
@@ -50,7 +52,7 @@ export async function launchStudio({
   const server = await startServer({ port: 0 });
   const address = server.address();
   if (!address || typeof address === 'string') {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((done) => server.close(done));
     throw new Error('Studio launcher could not resolve the loopback port.');
   }
   const url = `http://127.0.0.1:${address.port}/apps/studio/`;
@@ -63,17 +65,17 @@ export async function launchStudio({
       catch (error) { log(`Could not open the browser automatically: ${error?.message || error}`); }
     }
     if (!keepAlive) {
-      await new Promise((resolve) => server.close(resolve));
+      await new Promise((done) => server.close(done));
       return { url, server: null };
     }
     return { url, server };
   } catch (error) {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((done) => server.close(done));
     throw error;
   }
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === new URL(`file://${process.argv[1]}`).pathname) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const checkOnly = process.argv.includes('--check');
   const noOpen = process.argv.includes('--no-open') || checkOnly;
   const { server } = await launchStudio({ shouldOpen: !noOpen, keepAlive: !checkOnly });
