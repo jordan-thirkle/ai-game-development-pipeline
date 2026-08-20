@@ -70,6 +70,7 @@ local function emit(passed, reason)
   local external_input_executed = key_pressed and key_released
   local window_open = lovr.system.isWindowOpen()
   local window_visible = lovr.system.isWindowVisible()
+  local window_focused = lovr.system.isWindowFocused()
   local window_width, window_height = lovr.system.getWindowDimensions()
 
   local result = '{'
@@ -92,6 +93,7 @@ local function emit(passed, reason)
     .. '"max_draws_per_frame":' .. max_draws .. ','
     .. '"window_open":' .. bool(window_open) .. ','
     .. '"window_visible":' .. bool(window_visible) .. ','
+    .. '"window_focused":' .. bool(window_focused) .. ','
     .. '"window_dimensions":[' .. window_width .. ',' .. window_height .. '],'
     .. '"rendered_window_path_executed":' .. bool(rendered) .. ','
     .. '"external_input_executed":' .. bool(external_input_executed) .. ','
@@ -119,6 +121,7 @@ function lovr.load()
   local window_width, window_height = lovr.system.getWindowDimensions()
   print('BYJTT_WINDOW_OPEN=' .. bool(lovr.system.isWindowOpen()))
   print('BYJTT_WINDOW_VISIBLE=' .. bool(lovr.system.isWindowVisible()))
+  print('BYJTT_WINDOW_FOCUSED=' .. bool(lovr.system.isWindowFocused()))
   print('BYJTT_WINDOW_DIMENSIONS=' .. window_width .. 'x' .. window_height)
 
   lovr.graphics.setBackgroundColor(.04, .05, .07)
@@ -161,6 +164,7 @@ end
 function lovr.keypressed(key)
   if key == 'd' then
     key_pressed = true
+    print('BYJTT_KEY_PRESSED=d')
   end
 end
 
@@ -169,6 +173,7 @@ function lovr.keyreleased(key)
     key_released = true
     release_started_at = lovr.timer.getTime()
     release_started_x = player:getPosition()
+    print('BYJTT_KEY_RELEASED=d')
   end
 end
 
