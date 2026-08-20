@@ -42,11 +42,11 @@ QAResult
   status: passed | failed | blocked | invalid, required
   failure_class_optional: enum
   assertions: Assertion[], required, minItems=1
-  artifacts: Artifact[], required
+  artifacts: Artifact[], required, minItems=1, unique artifact_id
   metrics: Metric[], required
 ```
 
-`Assertion` requires `assertion_id`, `status`, `observation`, and `artifact_ids[]`; every referenced artifact must exist in `artifacts[]`. `Metric` requires `name`, numeric `value`, `unit`, `aggregation`, and a declared threshold/result where the metric is gated. `Artifact` requires `artifact_id`, `kind`, immutable `sha256`, sensitivity class, redaction status, and retention policy. The `passed` status requires every non-deviation assertion to pass and every required artifact to be current and redaction-valid.
+`Assertion` requires `assertion_id`, `status`, `observation`, and a non-empty, unique `artifact_ids[]`; every referenced artifact must exist in `artifacts[]`. `Metric` requires `name`, numeric `value`, `unit`, `aggregation`, and a declared threshold/result where the metric is gated. `Artifact` requires a unique `artifact_id`, `kind`, immutable `sha256`, `required = true | false`, sensitivity class, redaction status, and retention policy. A passed result requires at least one artifact, every non-deviation assertion to pass, and every `required=true` artifact to be current and redaction-valid.
 
 `AccessPhase` records `mode = normal-player-input | privileged-setup | privileged-journey`, `actor`, `actions[]`, and `privileged_operations[]`. `normal_player_input` is derived, not authored: it is true only when `access.journey.mode=normal-player-input` and the journey has no privileged operation. Privileged setup may create a fixture, but privileged journey access is separately recorded and makes the player-input claim false.
 
@@ -317,7 +317,6 @@ BlackBoxJourney
   expected_observable_checkpoints[]
   max_duration_ms
   recovery_policy
-  normal_player_input = true
 ```
 
 Examples:
@@ -330,7 +329,7 @@ Examples:
 - multiplayer join → spawn → move → action → leave;
 - save → exit → relaunch → continue.
 
-Privileged setup is allowed **before** the journey to create a fixture, but the evidence must make that explicit. A journey claiming user accessibility cannot use hidden mutation to complete the actual interaction under test. A timeout at `max_duration_ms` is `failed` when the journey was runnable but exceeded its bound, `blocked` when the runtime never became ready, and `invalid` when the timer or manifest is not trustworthy.
+Privileged setup is allowed **before** the journey to create a fixture, but the evidence must make that explicit. A journey claiming user accessibility cannot use hidden mutation to complete the actual interaction under test. `normal_player_input` is never authored in a journey record; adapters derive it from `access.journey.mode` and reject any conflicting supplied value. A timeout at `max_duration_ms` is `failed` when the journey was runnable but exceeded its bound, `blocked` when the runtime never became ready, and `invalid` when the timer or manifest is not trustworthy.
 
 ## Sensitive evidence and publication policy
 
