@@ -1,0 +1,100 @@
+name: Benchmark 001 Godot navigation gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/godot/navigation-gate/**'
+      - '.github/workflows/benchmark-001-godot-navigation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  navigation-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GODOT_URL: https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      EXPECTED_GODOT_SHA256: BOOTSTRAP_REQUIRED
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          EXPECTED_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'checked_out_sha=%s\nexpected_sha=%s\n' "$HEAD_SHA" "$EXPECTED_SHA" | tee /tmp/revision.txt
+          test "$HEAD_SHA" = "$EXPECTED_SHA"
+
+      - name: Download and verify pinned Godot runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output /tmp/godot.zip "$GODOT_URL"
+          OBSERVED_SHA="$(sha256sum /tmp/godot.zip | awk '{print $1}')"
+          printf 'url=%s\nexpected_sha256=%s\nobserved_sha256=%s\n' "$GODOT_URL" "$EXPECTED_GODOT_SHA256" "$OBSERVED_SHA" | tee /tmp/godot-provenance.txt
+          if [ "$EXPECTED_GODOT_SHA256" = "BOOTSTRAP_REQUIRED" ]; then
+            echo 'Refusing to execute an unverified engine binary; pin the observed SHA-256 first.' >&2
+            exit 42
+          fi
+          test "$OBSERVED_SHA" = "$EXPECTED_GODOT_SHA256"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/godot-version.txt
+
+      - name: Parse project and navigation tracer
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --editor --quit 2>&1 | tee /tmp/godot-parse.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script' /tmp/godot-parse.log
+
+      - name: Execute native NavigationServer3D tracer
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script navigation-gate/navigation_tracer.gd 2>&1 | tee /tmp/godot-navigation.log
+          grep '^BYJTT_RESULT=' /tmp/godot-navigation.log | tee /tmp/result-line.txt
+          grep '"result":"pass"' /tmp/result-line.txt
+          grep '"engine_system":"NavigationServer3D"' /tmp/result-line.txt
+          grep '"path_found":true' /tmp/result-line.txt
+          grep '"observation_mutation_isolated":true' /tmp/result-line.txt
+          grep '"post_navigation_position_clamp":false' /tmp/result-line.txt
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          : > /tmp/evidence-sha256.txt
+          for file in /tmp/revision.txt /tmp/godot-provenance.txt /tmp/godot-version.txt /tmp/godot-parse.log /tmp/godot-navigation.log /tmp/result-line.txt; do
+            if [ -f "$file" ]; then sha256sum "$file" >> /tmp/evidence-sha256.txt; fi
+          done
+          cat /tmp/evidence-sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: godot-navigation-gate-${{ github.run_id }}
+          path: |
+            /tmp/revision.txt
+            /tmp/godot-provenance.txt
+            /tmp/godot-version.txt
+            /tmp/godot-parse.log
+            /tmp/godot-navigation.log
+            /tmp/result-line.txt
+            /tmp/evidence-sha256.txt
+          if-no-files-found: warn
