@@ -35,8 +35,10 @@ jobs:
           npm run new:record -- pipeline-run /tmp/byjtt-records/pipeline.json scaffold-pipeline
           npm run new:record -- game-graduation /tmp/byjtt-records/graduation.json scaffold-game
           npm run new:record -- game-status /tmp/byjtt-records/status.json scaffold-game
+          npm run new:record -- reuse-candidate /tmp/byjtt-records/reuse.json scaffold-reuse
       - name: Validate generated scaffolds
         run: |
           npm run validate:record -- pipeline-run /tmp/byjtt-records/pipeline.json
           npm run validate:record -- game-graduation /tmp/byjtt-records/graduation.json
           npm run validate:record -- game-status /tmp/byjtt-records/status.json
+          npm run validate:record -- reuse-candidate /tmp/byjtt-records/reuse.json
