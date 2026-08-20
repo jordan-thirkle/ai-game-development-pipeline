@@ -8,8 +8,9 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Stride.BepuPhysics" Version="4.3.0.2507" />
+    <PackageReference Include="Stride.BepuPhysics" Version="[4.3.0.2507]" />
   </ItemGroup>
 </Project>
