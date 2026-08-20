@@ -1,0 +1,73 @@
+name: Benchmark 001 Bevy Avian proof
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/bevy-avian/**'
+      - '.github/workflows/benchmark-001-bevy-avian.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/bevy-avian
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Record exact revision
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/checked-out-sha.txt
+          printf 'trigger_sha=%s\n' '${{ github.sha }}' | tee evidence/github-trigger.txt
+          printf 'pr_head_sha=%s\n' '${{ github.event.pull_request.head.sha }}' | tee -a evidence/github-trigger.txt
+
+      - name: Install current stable Rust
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version | tee evidence/rustc-version.txt
+          cargo --version | tee evidence/cargo-version.txt
+
+      - name: Resolve and capture exact dependency graph
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile
+          cargo tree --locked | tee evidence/cargo-tree.txt
+          cp Cargo.lock evidence/Cargo.lock
+
+      - name: Strict compile and tests
+        run: |
+          set -euo pipefail
+          cargo check --locked 2>&1 | tee evidence/cargo-check.log
+          cargo test --locked 2>&1 | tee evidence/cargo-test.log
+          cargo build --release --locked 2>&1 | tee evidence/cargo-build-release.log
+
+      - name: Execute native physics tracer
+        env:
+          BYJTT_EVIDENCE_JSON: evidence/bevy-avian-proof.json
+        run: |
+          set -euo pipefail
+          cargo run --release --locked 2>&1 | tee evidence/runtime.log
+          test -s evidence/bevy-avian-proof.json
+          grep -q '"native_wall_stop_observed": true' evidence/bevy-avian-proof.json
+          grep -q '"post_physics_arena_clamp": false' evidence/bevy-avian-proof.json
+
+      - name: Upload proof evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-bevy-avian-${{ github.event.pull_request.head.sha || github.sha }}
+          path: experiments/BYJTT-LAB-001/candidates/bevy-avian/evidence/
+          if-no-files-found: error
+          retention-days: 30
