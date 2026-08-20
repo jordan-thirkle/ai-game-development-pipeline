@@ -4,13 +4,14 @@
   "title": "By JTT Creator Mode external-first reuse plan",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "plan_id", "created_at", "brief", "source_registry", "discovery", "capabilities", "metrics", "evidence_boundary"],
+  "required": ["schema_version", "plan_id", "created_at", "brief", "source_registry", "discovery", "discovery_effort", "capabilities", "metrics", "evidence_boundary"],
   "properties": {
     "schema_version": {"const": "1.0.0"},
     "plan_id": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]+$"},
     "created_at": {"type": "string", "format": "date-time"},
     "brief": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["title", "platform_priority", "player_fantasy", "core_loop"],
       "properties": {
         "title": {"type": "string", "minLength": 3},
@@ -20,7 +21,8 @@
       }
     },
     "source_registry": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["path", "revision", "dependency_pr"],
       "properties": {
         "path": {"const": "registry/open-source-game-reuse.v1.json"},
@@ -29,7 +31,8 @@
       }
     },
     "discovery": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["whole_starter_search_completed", "mechanic_search_completed", "free_asset_search_completed", "internal_incumbent_checked_after_external"],
       "properties": {
         "whole_starter_search_completed": {"const": true},
@@ -38,10 +41,25 @@
         "internal_incumbent_checked_after_external": {"const": true}
       }
     },
+    "discovery_effort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measurement_status", "method", "search_actions", "source_fetches", "observed_elapsed_minutes", "notes"],
+      "properties": {
+        "measurement_status": {"enum": ["instrumented", "not_instrumented"]},
+        "method": {"enum": ["interactive_manual_agent", "dedicated_discovery_agent", "mixed"]},
+        "search_actions": {"type": ["integer", "null"], "minimum": 0},
+        "source_fetches": {"type": ["integer", "null"], "minimum": 0},
+        "observed_elapsed_minutes": {"type": ["number", "null"], "minimum": 0},
+        "notes": {"type": "string", "minLength": 8}
+      }
+    },
     "capabilities": {
-      "type": "array", "minItems": 6,
+      "type": "array",
+      "minItems": 6,
       "items": {
-        "type": "object", "additionalProperties": false,
+        "type": "object",
+        "additionalProperties": false,
         "required": ["capability_id", "requirement", "kind", "external_search_completed", "candidates_considered", "decision", "selected_entry_id", "clearance_snapshot", "rationale", "remaining_evidence", "estimated_generic_work_avoided"],
         "properties": {
           "capability_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
@@ -52,7 +70,8 @@
           "decision": {"enum": ["reuse_unchanged", "adapt", "blocked_review", "reference_only", "discovery_gap", "generate_gap", "bespoke_last_resort"]},
           "selected_entry_id": {"type": ["string", "null"], "pattern": "^reuse\\.[a-z0-9._-]+$"},
           "clearance_snapshot": {
-            "type": "object", "additionalProperties": false,
+            "type": "object",
+            "additionalProperties": false,
             "required": ["evidence_status", "code", "assets", "dependencies"],
             "properties": {
               "evidence_status": {"enum": ["SOURCE-VERIFIED", "EXECUTED", "UNKNOWN"]},
@@ -69,8 +88,23 @@
       }
     },
     "metrics": {
-      "type": "object", "additionalProperties": false,
-      "required": ["generic_capabilities", "planned_reuse_or_adapt", "blocked_review", "discovery_gaps", "generation_decisions", "bespoke_decisions", "whole_starters_considered", "realized_time_savings_claimed"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generic_capabilities",
+        "planned_reuse_or_adapt",
+        "blocked_review",
+        "discovery_gaps",
+        "generation_decisions",
+        "bespoke_decisions",
+        "whole_starters_considered",
+        "external_candidate_coverage_pct",
+        "eligible_candidate_coverage_pct",
+        "no_reuse_baseline_generic_custom_capabilities",
+        "planned_generic_custom_capabilities_after_reuse",
+        "planned_generic_surface_reduction_pct",
+        "realized_time_savings_claimed"
+      ],
       "properties": {
         "generic_capabilities": {"type": "integer", "minimum": 1},
         "planned_reuse_or_adapt": {"type": "integer", "minimum": 0},
@@ -79,6 +113,11 @@
         "generation_decisions": {"type": "integer", "minimum": 0},
         "bespoke_decisions": {"type": "integer", "minimum": 0},
         "whole_starters_considered": {"type": "integer", "minimum": 1},
+        "external_candidate_coverage_pct": {"type": "integer", "minimum": 0, "maximum": 100},
+        "eligible_candidate_coverage_pct": {"type": "integer", "minimum": 0, "maximum": 100},
+        "no_reuse_baseline_generic_custom_capabilities": {"type": "integer", "minimum": 1},
+        "planned_generic_custom_capabilities_after_reuse": {"type": "integer", "minimum": 0},
+        "planned_generic_surface_reduction_pct": {"type": "integer", "minimum": 0, "maximum": 100},
         "realized_time_savings_claimed": {"const": false}
       }
     },
