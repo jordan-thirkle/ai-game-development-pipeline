@@ -30,6 +30,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
           python3 -m json.tool "$CANDIDATE/runtime-manifest.json" >/dev/null
+          python3 -m json.tool "$CANDIDATE/smoke/Content/GameSettings.json" >/dev/null
           python3 "$CANDIDATE/verify_contract.py"
 
       - name: Record environment
@@ -85,9 +86,17 @@ jobs:
             | tee "$CANDIDATE/artifacts/runtime/tool-inventory.txt"
           timeout 90s "$EDITOR" -project "$PROJECT" -headless -null -mute -std -exit \
             2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-headless.log"
+          grep -F 'Version 1.12.6912' "$CANDIDATE/artifacts/runtime/flax-headless.log"
+          grep -F 'Engine services are ready!' "$CANDIDATE/artifacts/runtime/flax-headless.log"
+          grep -F 'Loaded project BYJTT Flax Smoke, version 1.0' "$CANDIDATE/artifacts/runtime/flax-headless.log"
+          if grep -E 'error CS[0-9]+|Exception: Failed to build assembly|Failed to run build tool' "$CANDIDATE/artifacts/runtime/flax-headless.log"; then
+            echo 'Flax script/build failure detected despite editor process exit status.' >&2
+            exit 43
+          fi
           python3 - <<'PY'
           import json, os
           from pathlib import Path
+          log = (Path(os.environ['CANDIDATE']) / 'artifacts/runtime/flax-headless.log').read_text(errors='replace')
           out = Path(os.environ['CANDIDATE']) / 'artifacts/runtime/result.json'
           out.write_text(json.dumps({
               'candidate_head_sha': os.environ['CANDIDATE_HEAD_SHA'],
@@ -95,6 +104,8 @@ jobs:
               'official_binary_verified': True,
               'headless_engine_executed': True,
               'committed_project_opened': True,
+              'scripts_build_failure_detected': False,
+              'editor_error_line_count': sum('[Error]' in line for line in log.splitlines()),
               'character_controller_executed': False,
               'external_input_executed': False,
               'phase_a_executed': False,
@@ -104,6 +115,7 @@ jobs:
           sha256sum \
             "$CANDIDATE/runtime-manifest.json" \
             "$CANDIDATE/smoke/Smoke.flaxproj" \
+            "$CANDIDATE/smoke/Content/GameSettings.json" \
             "$CANDIDATE/artifacts/runtime/environment.txt" \
             "$CANDIDATE/artifacts/runtime/flax-package-sha256.txt" \
             "$CANDIDATE/artifacts/runtime/tool-inventory.txt" \

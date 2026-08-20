@@ -1,4 +1,5 @@
 using Flax.Build;
+using Flax.Build.NativeCpp;
 
 public class Game : GameModule
 {
