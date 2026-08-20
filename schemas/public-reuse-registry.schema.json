@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opensource.byjtt.com/schemas/public-reuse-registry.schema.json",
+  "title": "BYJTT Public Reuse Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "sourceOfTruth", "publicationRule", "count", "records"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "sourceOfTruth": { "const": "registry/reuse" },
+    "publicationRule": { "type": "string", "minLength": 1 },
+    "count": { "type": "integer", "minimum": 0 },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/publicRecord" }
+    }
+  },
+  "$defs": {
+    "publicRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "description", "kind", "state", "source", "licence", "commercialUse", "maintenance", "compatibility", "recommendation", "publication", "lastVerified"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "kind": { "type": "string", "minLength": 1 },
+        "state": { "enum": ["qualified", "benchmarking", "promoted"] },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canonicalUrl", "provider"],
+          "properties": {
+            "canonicalUrl": { "type": "string", "format": "uri" },
+            "provider": { "type": "string", "minLength": 1 },
+            "repositoryUrl": { "type": "string", "format": "uri" },
+            "version": { "type": "string" },
+            "commit": { "type": "string" }
+          }
+        },
+        "licence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "identifier", "evidenceUrl", "attributionRequired", "checkedAt"],
+          "properties": {
+            "status": { "type": "string", "minLength": 1 },
+            "identifier": { "type": "string", "minLength": 1 },
+            "evidenceUrl": { "type": "string", "format": "uri" },
+            "attributionRequired": { "type": "boolean" },
+            "checkedAt": { "type": "string", "format": "date-time" },
+            "notice": { "type": "string" }
+          }
+        },
+        "commercialUse": { "type": "string", "minLength": 1 },
+        "maintenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "checkedAt"],
+          "properties": {
+            "status": { "type": "string", "minLength": 1 },
+            "checkedAt": { "type": "string", "format": "date-time" },
+            "notes": { "type": "string" }
+          }
+        },
+        "compatibility": { "type": "object" },
+        "recommendation": { "type": "string", "minLength": 1 },
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slug"],
+          "properties": {
+            "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+            "notes": { "type": "string" }
+          }
+        },
+        "lastVerified": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

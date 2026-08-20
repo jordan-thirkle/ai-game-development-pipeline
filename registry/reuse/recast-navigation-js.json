@@ -1,0 +1,80 @@
+{
+  "id": "recast-navigation-js",
+  "name": "recast-navigation-js",
+  "description": "WebAssembly port of Recast/Detour for runtime navmesh construction, pathfinding, spatial queries and crowd simulation in browser/Node game stacks.",
+  "kind": "library",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://github.com/isaac-mason/recast-navigation-js/tree/8769e8b9995f127033af9f6e6eeac3fad7d66201",
+    "provider": "Isaac Mason",
+    "repositoryUrl": "https://github.com/isaac-mason/recast-navigation-js",
+    "version": "0.43.1",
+    "commit": "8769e8b9995f127033af9f6e6eeac3fad7d66201"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT",
+    "evidenceUrl": "https://github.com/isaac-mason/recast-navigation-js/blob/8769e8b9995f127033af9f6e6eeac3fad7d66201/LICENSE",
+    "attributionRequired": true,
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notice": "Repository and published package metadata identify MIT licensing; preserve required notice."
+  },
+  "commercialUse": "verified-allowed",
+  "provenance": {
+    "confidence": "high",
+    "notes": "Canonical repository for the JS/WASM port, pinned to release 0.43.1."
+  },
+  "maintenance": {
+    "status": "active",
+    "evidence": "Repository is active and release commit 0.43.1 includes current TypeScript compatibility fixes; public examples cover Three.js/browser and worker paths.",
+    "checkedAt": "2026-08-20T03:40:00Z",
+    "notes": "Revalidate WASM/browser bundling behavior and exact package versions at adoption."
+  },
+  "compatibility": {
+    "engines": ["engine-agnostic", "Three.js", "Babylon.js"],
+    "platforms": ["web", "desktop"],
+    "formats": ["WebAssembly", "ESM"],
+    "notes": "Designed for Node/browser JS stacks. Mobile web feasibility depends on scene size, WASM memory, generation frequency and crowd budgets."
+  },
+  "risk": {
+    "supplyChain": "medium",
+    "dependencyBurden": "medium",
+    "legalNotes": "MIT is commercially compatible; validate any example-level assets independently.",
+    "securityNotes": "WASM/npm dependency chain and runtime-generated navigation data require ordinary supply-chain and input-boundary review."
+  },
+  "assessment": {
+    "integrationEffort": "medium",
+    "lifecycleRisk": "low",
+    "scores": {
+      "capabilityCoverage": 5,
+      "licenceCommercialCompatibility": 5,
+      "provenanceConfidence": 5,
+      "maintenanceUpstreamHealth": 4.5,
+      "webPlatformFit": 5,
+      "integrationEffort": 3.5
+    },
+    "recommendation": "benchmark",
+    "notes": "Strong solved-system candidate for browser navmesh/pathfinding before custom A*, navigation mesh generation or crowd code. Benchmark memory/build cost against engine-native navigation where available."
+  },
+  "evidence": [
+    {
+      "type": "official-repository",
+      "url": "https://github.com/isaac-mason/recast-navigation-js/tree/8769e8b9995f127033af9f6e6eeac3fad7d66201",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Pinned v0.43.1 source; repository documents runtime navmesh generation, Detour queries/crowds and browser/Node compatibility."
+    },
+    {
+      "type": "official-licence",
+      "url": "https://github.com/isaac-mason/recast-navigation-js/blob/8769e8b9995f127033af9f6e6eeac3fad7d66201/LICENSE",
+      "checkedAt": "2026-08-20T03:40:00Z",
+      "notes": "Official MIT licence."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "recast-navigation-js",
+    "notes": "Publish as a qualified navigation candidate with WebAssembly/dependency/performance caveats and project-specific benchmark requirement."
+  },
+  "usedIn": [],
+  "lastVerified": "2026-08-20T03:40:00Z"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "freesound",
+  "name": "Freesound",
+  "description": "Large community sound-effects catalogue with per-sound Creative Commons licensing. Useful for prototyping and production audio discovery only when commercial-compatible licences are filtered and exact-sound provenance is preserved.",
+  "kind": "audio",
+  "state": "qualified",
+  "source": {"canonicalUrl":"https://freesound.org/","provider":"Freesound"},
+  "licence": {"status":"verified","identifier":"Mixed per-sound Creative Commons licences (CC0, CC-BY, CC-BY-NC and legacy licences)","evidenceUrl":"https://freesound.org/help/faq/","attributionRequired":true,"checkedAt":"2026-08-20T03:30:00Z","notice":"Commercial By JTT projects must exclude CC-BY-NC/non-commercial sounds and preserve exact licence/attribution for each adopted sound. Prefer CC0 or clearly compatible CC-BY entries when quality is equivalent."},
+  "commercialUse":"conditional",
+  "provenance":{"confidence":"medium","notes":"Community uploads have explicit per-sound licences, but exact recording/source/rightsholder confidence must be assessed per adopted sound."},
+  "maintenance":{"status":"active","evidence":"Official Freesound FAQ documents the current per-sound licence model.","checkedAt":"2026-08-20T03:30:00Z","notes":"Qualification is as a discovery surface only; no sound inherits catalogue-level approval."},
+  "compatibility":{"engines":["engine-agnostic"],"platforms":["web","desktop","mobile","console"],"formats":["audio"],"notes":"Technical suitability depends on exact download format, quality, loudness, loop quality, compression and runtime memory/streaming requirements."},
+  "risk":{"supplyChain":"not-applicable","dependencyBurden":"not-applicable","legalNotes":"CC-BY-NC is unsuitable for commercial releases. Exact sound licence, author, source and attribution must be retained. Do not assume user upload guarantees all underlying rights.","securityNotes":"Community-hosted downloadable files; validate media and conversion pipeline before import."},
+  "assessment":{"integrationEffort":"medium","lifecycleRisk":"medium","scores":{"ecosystemUtility":5,"licenceCommercialCompatibility":3,"provenanceConfidence":3,"integrationEffort":3.5},"recommendation":"benchmark","notes":"Useful audio discovery source when automation filters commercial-compatible licences and exact sounds pass provenance/quality review."},
+  "evidence":[{"type":"official-licence-guidance","url":"https://freesound.org/help/faq/","checkedAt":"2026-08-20T03:30:00Z","notes":"Official FAQ documents CC0, attribution and attribution-noncommercial licence options and states use depends on the selected sound's licence."}],
+  "publication":{"safe":true,"slug":"freesound","notes":"Public page must clearly warn that not all Freesound content is commercially reusable and that exact-sound licence filtering is mandatory."},
+  "usedIn":[],
+  "lastVerified":"2026-08-20T03:30:00Z"
+}

@@ -16,6 +16,8 @@ Before substantial custom implementation, evaluate in order:
 
 Record why the selected option wins when the decision materially affects the experiment or product.
 
+For substantial reusable capabilities, operationalise steps 2-5 with [`agents/EXTERNAL-REUSE-DISCOVERY-GATE.md`](agents/EXTERNAL-REUSE-DISCOVERY-GATE.md). Discovery is not approval: external candidates must be recorded against [`schemas/reuse-candidate.schema.json`](schemas/reuse-candidate.schema.json), fail closed on ambiguous licence/provenance, and earn `promoted` status through project-specific evidence. Rejected candidates should remain recorded so future agents do not repeat the same investigation.
+
 ## Research before framework-specific changes
 
 For fast-moving engines, SDKs, libraries, stores, deployment systems, AI tooling, model APIs, monetisation platforms, and platform requirements, verify current official documentation before relying on remembered APIs or constraints.

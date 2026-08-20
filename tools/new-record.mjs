@@ -3,9 +3,10 @@ import { dirname } from 'node:path';
 import process from 'node:process';
 
 const [recordType, outputPath, id = 'replace-me'] = process.argv.slice(2);
+const supported = ['pipeline-run', 'game-graduation', 'game-status', 'reuse-candidate'];
 
-if (!recordType || !outputPath || !['pipeline-run', 'game-graduation', 'game-status'].includes(recordType)) {
-  console.error('Usage: npm run new:record -- <pipeline-run|game-graduation|game-status> <output.json> [id]');
+if (!recordType || !outputPath || !supported.includes(recordType)) {
+  console.error(`Usage: npm run new:record -- <${supported.join('|')}> <output.json> [id]`);
   process.exit(2);
 }
 
@@ -158,6 +159,66 @@ const templates = {
       date: null,
       action: 'Replace unknown scaffold state with evidence-backed status.'
     }
+  },
+  'reuse-candidate': {
+    id,
+    name: 'Replace with candidate name',
+    description: 'Discovery scaffold only; replace all placeholder evidence before qualification.',
+    kind: 'other',
+    state: 'discovered',
+    source: {
+      canonicalUrl: 'https://example.invalid/replace-with-upstream',
+      provider: 'replace-me'
+    },
+    licence: {
+      status: 'unknown',
+      identifier: 'unknown',
+      evidenceUrl: 'https://example.invalid/replace-with-licence-evidence',
+      attributionRequired: false,
+      checkedAt: iso,
+      notice: 'Unknown until verified from a primary source.'
+    },
+    commercialUse: 'unknown',
+    provenance: {
+      confidence: 'unknown',
+      notes: 'Unknown until source/rightsholder provenance is verified.'
+    },
+    maintenance: {
+      status: 'unclear',
+      evidence: 'No maintenance evidence collected yet.',
+      checkedAt: iso,
+      notes: 'Replace with current upstream evidence.'
+    },
+    compatibility: {
+      notes: 'Not assessed yet.'
+    },
+    risk: {
+      supplyChain: 'unknown',
+      dependencyBurden: 'unknown',
+      legalNotes: 'Not assessed yet.',
+      securityNotes: 'Not assessed yet.'
+    },
+    assessment: {
+      integrationEffort: 'unknown',
+      lifecycleRisk: 'unknown',
+      scores: {},
+      recommendation: 'defer',
+      notes: 'Discovery scaffold cannot be promoted until evidence is collected.'
+    },
+    evidence: [
+      {
+        type: 'discovery-placeholder',
+        url: 'https://example.invalid/replace-with-evidence',
+        checkedAt: iso,
+        notes: 'Replace placeholder with primary-source evidence.'
+      }
+    ],
+    publication: {
+      safe: false,
+      notes: 'Never publish an unqualified scaffold.'
+    },
+    usedIn: [],
+    lastVerified: iso
   }
 };
 

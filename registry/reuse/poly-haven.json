@@ -1,0 +1,19 @@
+{
+  "id":"poly-haven",
+  "name":"Poly Haven",
+  "description":"Open catalogue of HDRIs, textures, and 3D models for game and visual production.",
+  "kind":"asset-pack",
+  "state":"qualified",
+  "source":{"canonicalUrl":"https://polyhaven.com/","provider":"Poly Haven"},
+  "licence":{"status":"verified","identifier":"CC0-1.0","evidenceUrl":"https://polyhaven.com/license","attributionRequired":false,"checkedAt":"2026-08-20T02:30:00Z","notice":"Poly Haven states its assets are CC0 and can be used commercially without attribution."},
+  "commercialUse":"verified-allowed",
+  "provenance":{"confidence":"high","notes":"Official licence page states assets are original work of staff or directly contributed/acquired by Poly Haven."},
+  "maintenance":{"status":"active","evidence":"Official catalogue, licence, and documentation were live and current when checked.","checkedAt":"2026-08-20T02:30:00Z","notes":"Re-check any selected asset and download/source pipeline at adoption."},
+  "compatibility":{"engines":["engine-agnostic"],"platforms":["web","desktop","mobile","console"],"formats":["HDRI","texture","3D-model"],"notes":"Target-device memory, texture resolution, material conversion, and geometry budgets remain project-specific."},
+  "risk":{"supplyChain":"not-applicable","dependencyBurden":"not-applicable","legalNotes":"CC0 provenance statement is strong; verify selected assets if downstream brand/trademark concerns arise.","securityNotes":"Static content source; validate downloaded files and conversion tooling normally."},
+  "assessment":{"integrationEffort":"low","lifecycleRisk":"low","scores":{"licenceCommercialCompatibility":5,"provenanceConfidence":5,"integrationEffort":5,"ecosystemUtility":5},"recommendation":"benchmark","notes":"Strong default discovery source for environment/look-development inputs; individual assets still require technical validation."},
+  "evidence":[{"type":"official-licence","url":"https://polyhaven.com/license","checkedAt":"2026-08-20T02:30:00Z","notes":"Official licence page confirms CC0, commercial use, and attribution not required."}],
+  "publication":{"safe":true,"slug":"poly-haven","notes":"Publish only factual source/licence metadata and independently generated evaluation."},
+  "usedIn":[],
+  "lastVerified":"2026-08-20T02:30:00Z"
+}

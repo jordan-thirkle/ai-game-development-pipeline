@@ -1,0 +1,19 @@
+{
+  "id": "ambientcg",
+  "name": "ambientCG",
+  "description": "Large source of PBR materials, HDRIs and 3D models suitable for game-development environment and look-development workflows.",
+  "kind": "asset-pack",
+  "state": "qualified",
+  "source": {"canonicalUrl":"https://ambientcg.com/","provider":"ambientCG"},
+  "licence": {"status":"verified","identifier":"CC0-1.0","evidenceUrl":"https://ambientcg.com/","attributionRequired":false,"checkedAt":"2026-08-20T03:30:00Z","notice":"ambientCG states all assets are released under CC0 and are free to use without attribution, including commercially. Verify the exact asset page at adoption and preserve source provenance."},
+  "commercialUse":"verified-allowed",
+  "provenance":{"confidence":"high","notes":"Licence statement is published by ambientCG on its official site; exact selected assets still receive per-asset provenance records when adopted."},
+  "maintenance":{"status":"active","evidence":"Official catalogue is active and publishes downloadable PBR materials, HDRIs and models.","checkedAt":"2026-08-20T03:30:00Z","notes":"Treat source catalogue qualification separately from exact production asset validation."},
+  "compatibility":{"engines":["engine-agnostic"],"platforms":["web","desktop","mobile","console"],"formats":["PBR-material","HDRI","3D-model"],"notes":"Resolution, compression, material conversion, geometry and memory budgets remain target/project specific."},
+  "risk":{"supplyChain":"not-applicable","dependencyBurden":"not-applicable","legalNotes":"CC0 is strong for copyright reuse; still avoid assuming trademark/personality/other rights for any unusual depicted subject without review.","securityNotes":"Static downloadable assets; validate archives/files and normal import toolchain."},
+  "assessment":{"integrationEffort":"low","lifecycleRisk":"low","scores":{"licenceCommercialCompatibility":5,"provenanceConfidence":5,"ecosystemUtility":5,"integrationEffort":5},"recommendation":"benchmark","notes":"High-value default discovery source for environment materials/HDRIs/models; exact assets require game-ready technical validation."},
+  "evidence":[{"type":"official-licence","url":"https://ambientcg.com/","checkedAt":"2026-08-20T03:30:00Z","notes":"Official site states all assets are CC0, attribution-free and commercially usable."}],
+  "publication":{"safe":true,"slug":"ambientcg","notes":"Publish factual licence/source metadata and independent By JTT evaluation; link to upstream assets rather than mirroring them."},
+  "usedIn":[],
+  "lastVerified":"2026-08-20T03:30:00Z"
+}

@@ -21,6 +21,7 @@ build/
 coverage/
 .vite/
 .cache/
+generated/
 
 # Godot
 .godot/

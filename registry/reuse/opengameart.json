@@ -1,0 +1,19 @@
+{
+  "id": "opengameart",
+  "name": "OpenGameArt",
+  "description": "Game-focused art catalogue with multiple open licences across 2D, 3D, audio and related content. Commercial reuse is asset/licence specific and requires exact-item checking.",
+  "kind": "asset-pack",
+  "state": "qualified",
+  "source": {"canonicalUrl":"https://opengameart.org/","provider":"OpenGameArt.org"},
+  "licence": {"status":"verified","identifier":"Mixed open licences per asset (including CC0, CC-BY, CC-BY-SA, OGA-BY and GPL families)","evidenceUrl":"https://opengameart.org/content/faq","attributionRequired":true,"checkedAt":"2026-08-20T03:30:00Z","notice":"OpenGameArt permits commercial use under the specific asset licence. Conditions vary materially: attribution, share-alike, DRM/platform compatibility and GPL implications can apply. Exact asset licence must be selected and preserved before adoption."},
+  "commercialUse":"conditional",
+  "provenance":{"confidence":"medium","notes":"The site requires licensing information and provides attribution notices, but community uploads mean exact-asset authorship/source evidence must be reviewed before production adoption."},
+  "maintenance":{"status":"active","evidence":"Official FAQ and catalogue remain live and document current licence handling.","checkedAt":"2026-08-20T03:30:00Z","notes":"Qualification is for discovery only; every exact asset gets independent licence/provenance review."},
+  "compatibility":{"engines":["engine-agnostic"],"platforms":["web","desktop","mobile","console"],"formats":["2D-art","3D-art","audio","other-game-art"],"notes":"Platform compatibility can be constrained by licence terms such as attribution/share-alike/DRM as well as technical format."},
+  "risk":{"supplyChain":"not-applicable","dependencyBurden":"not-applicable","legalNotes":"Mixed licences require exact-item review. CC-BY/CC-BY-SA and GPL-family entries can introduce attribution, redistribution, share-alike, DRM or source/licensing compatibility concerns. Prefer CC0/clearly compatible entries when quality is equivalent.","securityNotes":"Community-hosted downloads; treat archives/files as untrusted inputs and validate before import."},
+  "assessment":{"integrationEffort":"medium","lifecycleRisk":"medium","scores":{"ecosystemUtility":5,"licenceCommercialCompatibility":3,"provenanceConfidence":3.5,"integrationEffort":3},"recommendation":"benchmark","notes":"High-value discovery surface because it is game-specific, but the gate must never lift catalogue-level qualification into asset-level approval."},
+  "evidence":[{"type":"official-licence-guidance","url":"https://opengameart.org/content/faq","checkedAt":"2026-08-20T03:30:00Z","notes":"Official FAQ states commercial projects may use site art subject to the chosen asset licence and explains licence-specific obligations."}],
+  "publication":{"safe":true,"slug":"opengameart","notes":"Public page must prominently explain mixed per-asset licensing and avoid describing the catalogue as uniformly licence-safe."},
+  "usedIn":[],
+  "lastVerified":"2026-08-20T03:30:00Z"
+}
