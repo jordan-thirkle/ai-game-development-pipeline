@@ -19,8 +19,7 @@
         "code_and_asset_licences_are_separate": { "const": true },
         "rechallenge_days": { "type": "integer", "minimum": 1, "maximum": 365 },
         "ranking_weights": {
-          "type": "object",
-          "additionalProperties": false,
+          "type": "object", "additionalProperties": false,
           "required": ["task_fit", "maintenance", "licence_provenance", "integration_cost", "docs_tests", "platform_fit", "popularity"],
           "properties": {
             "task_fit": { "type": "integer", "minimum": 0, "maximum": 100 },
@@ -35,12 +34,10 @@
       }
     },
     "entries": {
-      "type": "array",
-      "minItems": 6,
+      "type": "array", "minItems": 6,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["entry_id", "name", "category", "canonical_url", "source_type", "source_revision_status", "version_or_revision", "last_verified_at", "evidence_status", "licensing", "adoption_status", "fit", "risk", "popularity_snapshot", "notes"],
+        "type": "object", "additionalProperties": false,
+        "required": ["entry_id", "name", "category", "canonical_url", "source_type", "source_revision_status", "version_or_revision", "last_verified_at", "evidence_status", "licensing", "dependency_clearance_status", "adoption_status", "fit", "risk", "popularity_snapshot", "notes"],
         "properties": {
           "entry_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$" },
           "name": { "type": "string", "minLength": 1 },
@@ -52,21 +49,22 @@
           "last_verified_at": { "type": "string", "format": "date-time" },
           "evidence_status": { "const": "SOURCE-VERIFIED" },
           "licensing": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["code_license", "asset_license", "license_class", "boundary_status", "commercial_use_status"],
+            "type": "object", "additionalProperties": false,
+            "required": ["code_license", "asset_license", "license_class", "boundary_status", "commercial_use_status", "code_clearance_status", "asset_clearance_status"],
             "properties": {
               "code_license": { "type": "string", "minLength": 1 },
               "asset_license": { "type": "string", "minLength": 1 },
               "license_class": { "enum": ["permissive", "copyleft", "public_domain", "mixed", "unknown"] },
               "boundary_status": { "enum": ["single_code_licence_reviewed", "single_asset_licence_reviewed", "code_and_assets_separated", "mixed_requires_per_item_review"] },
-              "commercial_use_status": { "enum": ["allowed_with_conditions", "blocked_for_drop_in", "per_item_review_required"] }
+              "commercial_use_status": { "enum": ["allowed_with_conditions", "blocked_for_drop_in", "per_item_review_required"] },
+              "code_clearance_status": { "enum": ["cleared", "requires_review", "not_applicable"] },
+              "asset_clearance_status": { "enum": ["cleared", "requires_review", "not_applicable"] }
             }
           },
+          "dependency_clearance_status": { "enum": ["cleared", "requires_review", "not_applicable"] },
           "adoption_status": { "enum": ["drop_in_candidate", "component_candidate", "asset_source_candidate", "asset_discovery_candidate", "architecture_reference", "discovery_source"] },
           "fit": {
-            "type": "object",
-            "additionalProperties": false,
+            "type": "object", "additionalProperties": false,
             "required": ["engine_or_stack", "platforms", "maintenance_signal", "integration_effort"],
             "properties": {
               "engine_or_stack": { "type": "string", "minLength": 1 },
@@ -76,8 +74,7 @@
             }
           },
           "risk": {
-            "type": "object",
-            "additionalProperties": false,
+            "type": "object", "additionalProperties": false,
             "required": ["dependency_burden", "supply_chain", "licence"],
             "properties": {
               "dependency_burden": { "enum": ["low", "medium", "high", "unknown"] },
@@ -86,8 +83,7 @@
             }
           },
           "popularity_snapshot": {
-            "type": "object",
-            "additionalProperties": false,
+            "type": "object", "additionalProperties": false,
             "required": ["stars", "forks", "observed_at"],
             "properties": {
               "stars": { "type": ["integer", "null"], "minimum": 0 },
