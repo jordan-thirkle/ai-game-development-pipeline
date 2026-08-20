@@ -4,73 +4,19 @@
   "description": "Reusable first-party PlayCanvas third-person character controller with keyboard/mouse, touch, gamepad, camera orbit/collision, jumping, locomotion and animation events.",
   "kind": "controller",
   "state": "qualified",
-  "source": {
-    "canonicalUrl": "https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/scripts/esm/third-person-controller.mjs",
-    "provider": "PlayCanvas",
-    "repositoryUrl": "https://github.com/playcanvas/engine",
-    "commit": "c84daf93a4a8c96cd97d429b17dc5abfb12375ce"
-  },
-  "licence": {
-    "status": "verified",
-    "identifier": "MIT",
-    "evidenceUrl": "https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/LICENSE",
-    "attributionRequired": true,
-    "notice": "Controller is stored in the official PlayCanvas engine repository, whose source is MIT licensed. Preserve the MIT notice for copied/substantial source portions."
-  },
+  "source": {"canonicalUrl":"https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/scripts/esm/third-person-controller.mjs","provider":"PlayCanvas","repositoryUrl":"https://github.com/playcanvas/engine","commit":"c84daf93a4a8c96cd97d429b17dc5abfb12375ce"},
+  "licence": {"status":"verified","identifier":"MIT","evidenceUrl":"https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/LICENSE","attributionRequired":true,"checkedAt":"2026-08-20T03:00:00Z","notice":"Controller is stored in the official PlayCanvas engine repository, whose source is MIT licensed. Preserve the MIT notice for copied/substantial source portions."},
   "commercialUse": "verified-allowed",
-  "provenance": {
-    "confidence": "high",
-    "notes": "First-party source in the official PlayCanvas engine repository, pinned to an exact commit."
-  },
-  "maintenance": {
-    "status": "active",
-    "evidence": "Controller is present in the current official engine repository and uses current PlayCanvas InputFrame input sources.",
-    "notes": "Revalidate against the engine version selected by BYJTT-LAB-001 before promotion."
-  },
-  "compatibility": {
-    "engines": ["PlayCanvas"],
-    "platforms": ["web", "desktop", "mobile"],
-    "notes": "Source explicitly implements keyboard/mouse, DualGesture touch input and gamepad input; execution on the target mobile-shaped viewport is still required."
-  },
-  "risk": {
-    "supplyChain": "low",
-    "dependencyBurden": "low",
-    "legalNotes": "MIT code reuse is commercially compatible; preserve required copyright/licence notice. Any separate model, audio or art used by a consuming example must be licensed independently.",
-    "securityNotes": "First-party engine script with no separate package dependency; still review imported code and engine version normally."
-  },
-  "assessment": {
-    "integrationEffort": "low",
-    "lifecycleRisk": "low",
-    "scores": {
-      "projectFit": 5,
-      "licenceCommercialCompatibility": 5,
-      "provenanceConfidence": 5,
-      "maintenanceUpstreamHealth": 5,
-      "targetPlatformSupport": 5,
-      "integrationEffort": 5
-    },
-    "recommendation": "benchmark",
-    "notes": "Directly overlaps BYJTT-LAB-001 movement/camera/touch requirements and should be benchmarked before bespoke PlayCanvas controller work."
-  },
+  "provenance": {"confidence":"high","notes":"First-party source in the official PlayCanvas engine repository, pinned to an exact commit."},
+  "maintenance": {"status":"active","evidence":"Controller is present in the current official engine repository and uses current PlayCanvas InputFrame input sources.","checkedAt":"2026-08-20T03:00:00Z","notes":"Revalidate against the engine version selected by BYJTT-LAB-001 before promotion."},
+  "compatibility": {"engines":["PlayCanvas"],"platforms":["web","desktop","mobile"],"notes":"Source explicitly implements keyboard/mouse, DualGesture touch input and gamepad input; execution on the target mobile-shaped viewport is still required."},
+  "risk": {"supplyChain":"low","dependencyBurden":"low","legalNotes":"MIT code reuse is commercially compatible; preserve required copyright/licence notice. Any separate model, audio or art used by a consuming example must be licensed independently.","securityNotes":"First-party engine script with no separate package dependency; still review imported code and engine version normally."},
+  "assessment": {"integrationEffort":"low","lifecycleRisk":"low","scores":{"projectFit":5,"licenceCommercialCompatibility":5,"provenanceConfidence":5,"maintenanceUpstreamHealth":5,"targetPlatformSupport":5,"integrationEffort":5},"recommendation":"benchmark","notes":"Directly overlaps BYJTT-LAB-001 movement/camera/touch requirements and should be benchmarked before bespoke PlayCanvas controller work."},
   "evidence": [
-    {
-      "type": "official-repository",
-      "url": "https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/scripts/esm/third-person-controller.mjs",
-      "checkedAt": "2026-08-20T03:00:00Z",
-      "notes": "Pinned first-party controller source documents movement, camera, keyboard/mouse, touch and gamepad support."
-    },
-    {
-      "type": "official-licence",
-      "url": "https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/LICENSE",
-      "checkedAt": "2026-08-20T03:00:00Z",
-      "notes": "Official repository MIT licence."
-    }
+    {"type":"official-repository","url":"https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/scripts/esm/third-person-controller.mjs","checkedAt":"2026-08-20T03:00:00Z","notes":"Pinned first-party controller source documents movement, camera, keyboard/mouse, touch and gamepad support."},
+    {"type":"official-licence","url":"https://github.com/playcanvas/engine/blob/c84daf93a4a8c96cd97d429b17dc5abfb12375ce/LICENSE","checkedAt":"2026-08-20T03:00:00Z","notes":"Official repository MIT licence."}
   ],
-  "publication": {
-    "safe": true,
-    "slug": "playcanvas-third-person-controller",
-    "notes": "May publish factual source/licence data and BYJTT benchmark results after execution; do not imply production promotion before the bake-off."
-  },
+  "publication": {"safe":true,"slug":"playcanvas-third-person-controller","notes":"May publish factual source/licence data and BYJTT benchmark results after execution; do not imply production promotion before the bake-off."},
   "usedIn": ["BYJTT-LAB-001-discovery"],
   "lastVerified": "2026-08-20T03:00:00Z"
 }
