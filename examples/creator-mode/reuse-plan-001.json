@@ -19,6 +19,14 @@
     "free_asset_search_completed": true,
     "internal_incumbent_checked_after_external": true
   },
+  "discovery_effort": {
+    "measurement_status": "not_instrumented",
+    "method": "interactive_manual_agent",
+    "search_actions": null,
+    "source_fetches": null,
+    "observed_elapsed_minutes": null,
+    "notes": "Dogfood 001 predates dedicated discovery-effort instrumentation. Coverage and planned work reduction are measurable, but a future comparison run must record search/fetch counts and elapsed discovery time before #116 can justify a continuously operating agent."
+  },
   "capabilities": [
     {
       "capability_id": "player-controller-camera",
@@ -136,6 +144,11 @@
     "generation_decisions": 0,
     "bespoke_decisions": 0,
     "whole_starters_considered": 1,
+    "external_candidate_coverage_pct": 88,
+    "eligible_candidate_coverage_pct": 50,
+    "no_reuse_baseline_generic_custom_capabilities": 8,
+    "planned_generic_custom_capabilities_after_reuse": 4,
+    "planned_generic_surface_reduction_pct": 50,
     "realized_time_savings_claimed": false
   },
   "evidence_boundary": "This is a source-verified planning experiment stacked on PR #110. It estimates generic work that may be avoided but claims no realized development-time, quality, performance or production-readiness improvement until the selected reuse plan is executed and measured."
