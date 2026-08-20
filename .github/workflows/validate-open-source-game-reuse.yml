@@ -31,9 +31,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '26'
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Validate canonical registry
         run: node tools/validate-open-source-game-reuse.mjs
-      - name: Prove unsafe promotions fail closed
+      - name: Prove unsafe promotions and schema drift fail closed
         shell: bash
         run: |
           set -euo pipefail
@@ -47,7 +49,8 @@ jobs:
             if (!entry) throw new Error(`negative probe missing seed entry ${id}`);
             return entry;
           };
-          byId('reuse.dialogic').entry_id = 'reuse.godot-demo-projects';
+          byId('reuse.dialogic').entry_id = 'INVALID ID';
+          byId('reuse.dialogue-manager').unexpected_field = true;
           byId('reuse.openttd').adoption_status = 'drop_in_candidate';
           byId('reuse.awesome-gamedev').adoption_status = 'drop_in_candidate';
           byId('reuse.kenney-starter-3d-platformer').dependency_clearance_status = 'requires_review';
@@ -61,7 +64,8 @@ jobs:
             exit 1
           fi
           cat /tmp/reuse-negative.log
-          grep -F 'duplicate entry_id: reuse.godot-demo-projects' /tmp/reuse-negative.log
+          grep -F 'must match pattern' /tmp/reuse-negative.log
+          grep -F 'must NOT have additional properties' /tmp/reuse-negative.log
           grep -F 'reuse.openttd drop_in_candidate requires permissive or public_domain licence class' /tmp/reuse-negative.log
           grep -F 'reuse.awesome-gamedev drop_in_candidate requires permissive or public_domain licence class' /tmp/reuse-negative.log
           grep -F 'reuse.kenney-starter-3d-platformer drop_in_candidate requires cleared or not_applicable dependency licences' /tmp/reuse-negative.log
