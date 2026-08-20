@@ -101,8 +101,7 @@ class RenderInputGate(ShowBase):
             return
         self.held_d = True
         self.press_callbacks += 1
-        current = self.player.getLinearVelocity()
-        self.player.setLinearVelocity(Vec3(WALK_SPEED, current.y, current.z))
+        self.player.setActive(True)
 
     def _on_d_up(self) -> None:
         if not self.held_d:
@@ -111,6 +110,7 @@ class RenderInputGate(ShowBase):
         self.release_callbacks += 1
         current = self.player.getLinearVelocity()
         self.player.setLinearVelocity(Vec3(0.0, current.y, current.z))
+        self.player.setActive(True)
         self.release_x = float(self.player_path.getX())
         self.release_steps = 0
 
@@ -118,6 +118,10 @@ class RenderInputGate(ShowBase):
         if self._finished:
             return Task.done
         self.rendered_frames += 1
+        if self.held_d:
+            current = self.player.getLinearVelocity()
+            self.player.setLinearVelocity(Vec3(WALK_SPEED, current.y, current.z))
+            self.player.setActive(True)
         self.world.doPhysics(FIXED_DT, 1, FIXED_DT)
         x = float(self.player_path.getX())
         self.max_x = max(self.max_x, x)
