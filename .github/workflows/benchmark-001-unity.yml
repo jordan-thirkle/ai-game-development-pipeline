@@ -8,6 +8,12 @@ on:
     paths:
       - .github/workflows/benchmark-001-unity.yml
       - experiments/BYJTT-LAB-001/candidates/unity/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/benchmark-001-unity.yml
+      - experiments/BYJTT-LAB-001/candidates/unity/**
 
 permissions:
   contents: read
@@ -18,24 +24,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
     steps:
-      - name: Checkout exact requested revision
+      - name: Checkout exact candidate revision
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
 
       - name: Record exact candidate head
         shell: bash
         run: |
           set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          if [[ "${actual_head}" != "${CANDIDATE_SHA}" ]]; then
+            echo "Exact-head checkout mismatch: expected ${CANDIDATE_SHA}, got ${actual_head}" >&2
+            exit 1
+          fi
           mkdir -p unity-test-artifacts
           {
-            echo "candidate_head=${GITHUB_SHA}"
+            echo "candidate_head=${actual_head}"
             echo "workflow_run_id=${GITHUB_RUN_ID}"
             echo "workflow_run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "expected_editor=6000.3.13f1"
           } | tee unity-test-artifacts/exact-head.txt
+
+      - name: Verify shared-contract source integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/BYJTT-LAB-001/candidates/unity/verify_contract.py \
+            | tee unity-test-artifacts/static-contract-proof.txt
 
       - name: Fail closed when Unity activation is unavailable
         shell: bash
@@ -67,6 +88,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: byjtt-lab-001-unity-proof-${{ github.sha }}
+          name: byjtt-lab-001-unity-proof-${{ env.CANDIDATE_SHA }}
           path: unity-test-artifacts
           if-no-files-found: error
