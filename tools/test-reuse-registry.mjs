@@ -6,8 +6,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const validator = path.resolve('tools/validate-reuse-registry.mjs');
+const freshness = path.resolve('tools/check-reuse-registry-freshness.mjs');
 const exporter = path.resolve('tools/export-public-reuse-registry.mjs');
 const schema = path.resolve('schemas/reuse-candidate.schema.json');
+const checkedAt = '2026-08-20T02:30:00Z';
 
 const baseRecord = {
   id: 'fixture-candidate',
@@ -15,31 +17,52 @@ const baseRecord = {
   kind: 'controller',
   state: 'qualified',
   source: { canonicalUrl: 'https://example.com/controller', provider: 'Fixture' },
-  licence: { status: 'verified', identifier: 'MIT', evidenceUrl: 'https://example.com/license', attributionRequired: true },
+  licence: { status: 'verified', identifier: 'MIT', evidenceUrl: 'https://example.com/license', attributionRequired: true, checkedAt },
   commercialUse: 'verified-allowed',
   provenance: { confidence: 'high', notes: 'Fixture provenance.' },
-  maintenance: { status: 'active', evidence: 'Fixture maintenance evidence.', notes: 'Maintained.' },
+  maintenance: { status: 'active', evidence: 'Fixture maintenance evidence.', checkedAt, notes: 'Maintained.' },
   compatibility: { engines: ['Fixture Engine'], platforms: ['desktop'], notes: 'Fixture compatibility.' },
   risk: { supplyChain: 'low', dependencyBurden: 'low', legalNotes: 'No known fixture issue.', securityNotes: 'No known fixture issue.' },
   assessment: { integrationEffort: 'low', lifecycleRisk: 'low', scores: { projectFit: 4 }, recommendation: 'benchmark' },
-  evidence: [{ type: 'official-repository', url: 'https://example.com/controller', checkedAt: '2026-08-20T02:30:00Z' }],
+  evidence: [{ type: 'official-repository', url: 'https://example.com/controller', checkedAt }],
   publication: { safe: false },
   usedIn: [],
-  lastVerified: '2026-08-20T02:30:00Z'
+  lastVerified: checkedAt
 };
 
-async function validateRecord(record) {
+async function withRegistry(records, callback) {
   const dir = await mkdtemp(path.join(tmpdir(), 'reuse-registry-'));
   try {
-    await writeFile(path.join(dir, 'candidate.json'), JSON.stringify(record, null, 2));
-    return spawnSync(process.execPath, [validator], {
-      cwd: process.cwd(),
-      env: { ...process.env, REUSE_REGISTRY_DIR: dir, REUSE_SCHEMA_PATH: schema },
-      encoding: 'utf8'
-    });
+    for (const [name, record] of Object.entries(records)) {
+      await writeFile(path.join(dir, `${name}.json`), JSON.stringify(record, null, 2));
+    }
+    return await callback(dir);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function validateRecord(record) {
+  return withRegistry({ candidate: record }, async (dir) => spawnSync(process.execPath, [validator], {
+    cwd: process.cwd(),
+    env: { ...process.env, REUSE_REGISTRY_DIR: dir, REUSE_SCHEMA_PATH: schema },
+    encoding: 'utf8'
+  }));
+}
+
+function runFreshness(dir, extraEnv = {}) {
+  return spawnSync(process.execPath, [freshness], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      REUSE_REGISTRY_DIR: dir,
+      REUSE_FRESHNESS_NOW: '2026-08-20T12:00:00Z',
+      REUSE_REGISTRY_MAX_AGE_DAYS: '90',
+      REUSE_PROMOTED_MAX_AGE_DAYS: '45',
+      ...extraEnv
+    },
+    encoding: 'utf8'
+  });
 }
 
 test('qualified candidate with verified evidence passes', async () => {
@@ -60,11 +83,7 @@ test('qualified candidate fails closed on inactive maintenance', async () => {
 });
 
 test('promoted candidate requires execution evidence and a usedIn reference', async () => {
-  const result = await validateRecord({
-    ...baseRecord,
-    state: 'promoted',
-    assessment: { ...baseRecord.assessment, recommendation: 'reuse' }
-  });
+  const result = await validateRecord({ ...baseRecord, state: 'promoted', assessment: { ...baseRecord.assessment, recommendation: 'reuse' } });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /execution or benchmark evidence/);
   assert.match(result.stderr, /usedIn project\/evaluation reference/);
@@ -83,16 +102,34 @@ test('quarantined candidate cannot be publication safe', async () => {
   assert.match(result.stderr, /cannot be publication.safe=true/);
 });
 
+test('freshness fails a stale licence check even when the record and other evidence are recent', async () => {
+  const staleLicence = {
+    ...baseRecord,
+    licence: { ...baseRecord.licence, checkedAt: '2026-04-01T00:00:00Z' },
+    maintenance: { ...baseRecord.maintenance, checkedAt: '2026-08-20T02:30:00Z' },
+    evidence: [{ ...baseRecord.evidence[0], checkedAt: '2026-08-20T02:30:00Z' }],
+    lastVerified: '2026-08-20T02:30:00Z'
+  };
+  const result = await withRegistry({ stale: staleLicence }, async (dir) => runFreshness(dir));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /licence\.checkedAt is .* days old/);
+});
+
+test('freshness fails future-dated evidence', async () => {
+  const futureEvidence = {
+    ...baseRecord,
+    evidence: [{ ...baseRecord.evidence[0], checkedAt: '2026-08-25T00:00:00Z' }]
+  };
+  const result = await withRegistry({ future: futureEvidence }, async (dir) => runFreshness(dir));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /evidence\.checkedAt .* is in the future/);
+});
+
 test('public exporter includes safe qualified records and excludes rejected records even if misflagged safe', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'reuse-export-'));
   const output = path.join(dir, 'public.json');
   try {
-    const safe = {
-      ...baseRecord,
-      id: 'safe-candidate',
-      name: 'Safe Candidate',
-      publication: { safe: true, slug: 'safe-candidate' }
-    };
+    const safe = { ...baseRecord, id: 'safe-candidate', name: 'Safe Candidate', publication: { safe: true, slug: 'safe-candidate' } };
     const rejected = {
       ...baseRecord,
       id: 'rejected-candidate',
