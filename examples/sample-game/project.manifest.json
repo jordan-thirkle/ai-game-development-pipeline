@@ -4,6 +4,7 @@
   "name": "Pipeline Sample Game",
   "objective": "Prove a dependency-free build, QA, release-candidate, and publishing dry run.",
   "targetPlatforms": ["local-node"],
+  "starter": { "mechanic": "collect" },
   "registry": {
     "entryIds": ["system.gdevelop"]
   },

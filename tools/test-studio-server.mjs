@@ -102,13 +102,15 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
 });
 
 test('bounded brief inputs shape the playable artifact and mobile controls', async () => {
-  const result = await executeSampleRun({ brief: { name: 'Pocket <Quest>', objective: 'Collect & escape safely.', targetPlatform: 'mobile' } });
+  const result = await executeSampleRun({ brief: { name: 'Pocket <Quest>', objective: 'Collect & escape safely.', targetPlatform: 'mobile', mechanic: 'survive' } });
   assert.equal(result.status, 'pass');
   const playable = result.playable.bytes.toString('utf8');
   assert.match(playable, /Pocket &lt;Quest&gt;/);
   assert.doesNotMatch(playable, /<b>Pocket <Quest><\/b>/);
   assert.match(playable, /Collect &amp; escape safely\./);
   assert.match(playable, /Target: mobile/);
+  assert.match(playable, /Mechanic: survive/);
+  assert.match(playable, /Avoid red hazards for 10 seconds/);
   assert.match(playable, /Touch movement controls/);
   assert.match(playable, /\.touch\{display:grid/);
 });

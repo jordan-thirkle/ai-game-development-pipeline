@@ -19,6 +19,7 @@ try {
   await page.locator('#brief-name').fill('Harbour Run');
   await page.locator('#brief-objective').fill('Build a small web-first arcade starter with a clear local verification trail.');
   await page.locator('#brief-target').selectOption('web');
+  await page.locator('#brief-mechanic').selectOption('dodge');
   await page.locator('#run-brief').click();
   assert.equal(await page.locator('#run-brief').isDisabled(), true, 'brief control remained active during a visual run');
   assert.equal(await page.locator('#run-sample').isDisabled(), true, 'sample control remained active during a brief run');
@@ -30,6 +31,7 @@ try {
   assert.match(evidence, /Applied brief/);
   assert.match(evidence, /Harbour Run/);
   assert.match(evidence, /Target: web/);
+  assert.match(evidence, /Mechanic: dodge/);
   assert.match(evidence, /Project: brief-harbour-run/);
   assert.match(evidence, /Verified local starter/);
   assert.match(evidence, /Publication executed: false/);
@@ -47,6 +49,8 @@ try {
   assert.match(playableHtml, /Harbour Run/);
   assert.match(playableHtml, /Build a small web-first arcade starter with a clear local verification trail\./);
   assert.match(playableHtml, /Target: web/);
+  assert.match(playableHtml, /Mechanic: dodge/);
+  assert.match(playableHtml, /Reach the green exit while avoiding red hazards/);
 
   const downloadLink = page.getByRole('link', { name: 'Download starter bundle' });
   assert.equal(await downloadLink.count(), 1, 'verified starter download was not exposed in Studio');
