@@ -5,6 +5,7 @@ const failures = [];
 const indexPath = 'registry/ai-game-dev-registry.v1.json';
 
 const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
+const gitRevision = /^[0-9a-f]{40}$/i;
 const immutableRevision = /^(?:[0-9a-f]{40}|sha256:[0-9a-f]{64})$/i;
 
 function isValidOffsetTimestamp(value) {
@@ -40,6 +41,10 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.length > 0;
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 async function readJson(path) {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
@@ -50,9 +55,7 @@ async function readJson(path) {
 }
 
 const index = await readJson(indexPath);
-if (!index) {
-  process.exit(1);
-}
+if (!index) process.exit(1);
 
 if (!nonEmptyString(index.schema_version) || !/^\d+\.\d+\.\d+$/.test(index.schema_version)) failures.push(`${indexPath} requires a semantic-version schema_version`);
 if (!isValidOffsetTimestamp(index.last_verified_at)) failures.push(`${indexPath} requires a calendar-valid offset-aware RFC3339 last_verified_at`);
@@ -63,7 +66,7 @@ if (!Array.isArray(index.shards) || index.shards.length < 2) failures.push(`${in
 const shardIds = new Set();
 const shardPaths = new Set();
 for (const shard of index.shards ?? []) {
-  if (!shard || typeof shard !== 'object') {
+  if (!isPlainObject(shard)) {
     failures.push(`${indexPath} shard records must be objects`);
     continue;
   }
@@ -77,13 +80,17 @@ for (const shard of index.shards ?? []) {
   if (shard.required !== true) failures.push(`Registry shard ${shard.shard_id ?? '<missing>'} must currently be required`);
 }
 if (!shardPaths.has(index.policy_shard)) failures.push(`${indexPath} policy_shard must be listed in shards`);
-if (index.rules?.repository_commit_is_the_atomic_registry_revision !== true) failures.push(`${indexPath} must declare repository commit as the atomic registry revision`);
+for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cross_shard_benchmark_joins_allowed','policy_enums_inherited_from_policy_shard','repository_commit_is_the_atomic_registry_revision']) {
+  if (index.rules?.[rule] !== true) failures.push(`${indexPath} must declare ${rule}=true`);
+}
 
 const policy = await readJson(index.policy_shard);
-const evidenceLabels = new Set(Array.isArray(policy?.evidence_labels) ? policy.evidence_labels : []);
-const adoptionTokens = new Set(policy?.adoption_status_map && typeof policy.adoption_status_map === 'object' && !Array.isArray(policy.adoption_status_map) ? Object.values(policy.adoption_status_map) : []);
-if (evidenceLabels.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose evidence_labels`);
-if (adoptionTokens.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose adoption_status_map values`);
+const evidenceLabelsArray = Array.isArray(policy?.evidence_labels) && policy.evidence_labels.every(nonEmptyString);
+const adoptionMapValid = isPlainObject(policy?.adoption_status_map) && Object.values(policy.adoption_status_map).every(nonEmptyString);
+const evidenceLabels = new Set(evidenceLabelsArray ? policy.evidence_labels : []);
+const adoptionTokens = new Set(adoptionMapValid ? Object.values(policy.adoption_status_map) : []);
+if (!evidenceLabelsArray || evidenceLabels.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose non-empty string evidence_labels`);
+if (!adoptionMapValid || adoptionTokens.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose non-empty string adoption_status_map values`);
 
 const loadedShards = [];
 for (const shard of index.shards ?? []) {
@@ -108,7 +115,7 @@ for (const { meta, data } of loadedShards) {
   }
 
   for (const benchmark of data.benchmarks ?? []) {
-    if (!benchmark || typeof benchmark !== 'object') {
+    if (!isPlainObject(benchmark)) {
       failures.push(`${meta.path} benchmark records must be objects`);
       continue;
     }
@@ -123,7 +130,7 @@ for (const { meta, data } of loadedShards) {
 
 for (const { meta, data } of loadedShards) {
   for (const entry of data.entries ?? []) {
-    if (!entry || typeof entry !== 'object') {
+    if (!isPlainObject(entry)) {
       failures.push(`${meta.path} entry records must be objects`);
       continue;
     }
@@ -140,7 +147,17 @@ for (const { meta, data } of loadedShards) {
     if (new Set(adoptionParts).size !== adoptionParts.length) failures.push(`${meta.path} entry ${id} repeats adoption status tokens`);
     if (adoptionParts.includes('rejected') && adoptionParts.length !== 1) failures.push(`${meta.path} entry ${id} cannot combine rejected with another adoption status`);
     if (!isValidOffsetTimestamp(entry.last_verified_at)) failures.push(`${meta.path} entry ${id} has invalid last_verified_at: ${entry.last_verified_at}`);
-    if (/immutable.*commit/i.test(entry.source_revision_status ?? '') && !/^[0-9a-f]{40}$/i.test(entry.version_or_revision ?? '')) failures.push(`${meta.path} entry ${id} declares an immutable commit but version_or_revision is not a 40-character Git SHA`);
+
+    const revisionStatus = entry.source_revision_status ?? '';
+    if (/immutable.*commit/i.test(revisionStatus) && !gitRevision.test(entry.version_or_revision ?? '')) failures.push(`${meta.path} entry ${id} declares an immutable commit but version_or_revision is not a 40-character Git SHA`);
+    if (/immutable_commit_and_model_revision/i.test(revisionStatus)) {
+      if (!isPlainObject(entry.source_revisions)) failures.push(`${meta.path} entry ${id} requires source_revisions for composite immutable code/model provenance`);
+      else {
+        if (!gitRevision.test(entry.source_revisions.code_commit ?? '')) failures.push(`${meta.path} entry ${id} requires source_revisions.code_commit as a 40-character Git SHA`);
+        if (!gitRevision.test(entry.source_revisions.model_revision ?? '')) failures.push(`${meta.path} entry ${id} requires source_revisions.model_revision as a 40-character Git SHA`);
+        if (entry.source_revisions.code_commit !== entry.version_or_revision) failures.push(`${meta.path} entry ${id} version_or_revision must equal source_revisions.code_commit`);
+      }
+    }
     if (meta.namespace === 'media' && entry.execution_status === 'EXECUTED') failures.push(`${meta.path} entry ${id} cannot be EXECUTED before a separate experiment record is materialized`);
   }
 }
