@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.0.0",
-  "last_verified_at": "2026-08-20T02:51:00+01:00",
+  "schema_version": "1.1.0",
+  "last_verified_at": "2026-08-20T04:08:00+01:00",
   "verification_timezone": "Europe/London",
   "policy_shard": "registry/ai-game-dev-systems.v1.json",
   "shards": [
@@ -15,6 +15,12 @@
       "path": "registry/ai-game-media-systems.v1.json",
       "namespace": "media",
       "required": true
+    },
+    {
+      "shard_id": "networking",
+      "path": "registry/ai-game-networking-systems.v1.json",
+      "namespace": "networking",
+      "required": true
     }
   ],
   "rules": {
@@ -22,6 +28,7 @@
     "global_benchmark_ids_unique": true,
     "cross_shard_benchmark_joins_allowed": true,
     "policy_enums_inherited_from_policy_shard": true,
-    "repository_commit_is_the_atomic_registry_revision": true
+    "repository_commit_is_the_atomic_registry_revision": true,
+    "executed_non_core_entries_require_completed_evidence": true
   }
 }
