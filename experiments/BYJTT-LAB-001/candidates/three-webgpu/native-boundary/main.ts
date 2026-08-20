@@ -105,6 +105,7 @@ const keys = new Set<string>();
 
 window.addEventListener('keydown', (event) => keys.add(event.code));
 window.addEventListener('keyup', (event) => keys.delete(event.code));
+window.addEventListener('blur', () => keys.clear());
 
 let ready = false;
 let accumulator = 0;
