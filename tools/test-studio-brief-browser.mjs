@@ -42,7 +42,11 @@ try {
   const playResponse = await page.request.get(playSrc);
   assert.equal(playResponse.ok(), true, `playable result HTTP ${playResponse.status()}`);
   assert.match(playResponse.headers()['x-byjtt-artifact-sha256'], /^sha256:[a-f0-9]{64}$/);
-  assert.match(await playResponse.text(), /<canvas id="game">/);
+  const playableHtml = await playResponse.text();
+  assert.match(playableHtml, /<canvas id="game">/);
+  assert.match(playableHtml, /Harbour Run/);
+  assert.match(playableHtml, /Build a small web-first arcade starter with a clear local verification trail\./);
+  assert.match(playableHtml, /Target: web/);
 
   const downloadLink = page.getByRole('link', { name: 'Download starter bundle' });
   assert.equal(await downloadLink.count(), 1, 'verified starter download was not exposed in Studio');
