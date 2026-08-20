@@ -1,8 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const ALLOWED_FIELDS = new Set(['name', 'objective', 'targetPlatform']);
+const ALLOWED_FIELDS = new Set(['name', 'objective', 'targetPlatform', 'mechanic']);
 const TARGETS = new Set(['web', 'desktop', 'mobile']);
+const MECHANICS = new Set(['collect', 'dodge', 'survive']);
 
 export class BriefError extends Error {
   constructor(message, code = 'INVALID_BRIEF') {
@@ -34,7 +35,9 @@ export function normalizeStudioBrief(value) {
   const objective = cleanText(value.objective, 'objective', 500);
   const targetPlatform = cleanText(value.targetPlatform, 'targetPlatform', 20).toLowerCase();
   if (!TARGETS.has(targetPlatform)) throw new BriefError('targetPlatform must be web, desktop, or mobile');
-  return { name, objective, targetPlatform, projectId: `brief-${slug(name)}` };
+  const mechanic = cleanText(value.mechanic, 'mechanic', 20).toLowerCase();
+  if (!MECHANICS.has(mechanic)) throw new BriefError('mechanic must be collect, dodge, or survive');
+  return { name, objective, targetPlatform, mechanic, projectId: `brief-${slug(name)}` };
 }
 
 export async function applyStudioBrief(projectDir, value) {
@@ -45,6 +48,7 @@ export async function applyStudioBrief(projectDir, value) {
   manifest.name = brief.name;
   manifest.objective = brief.objective;
   manifest.targetPlatforms = [brief.targetPlatform];
+  manifest.starter = { mechanic: brief.mechanic };
   manifest.publish = { provider: 'local', destination: `local://planned/${brief.projectId}` };
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return brief;

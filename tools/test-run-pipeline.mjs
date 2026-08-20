@@ -66,6 +66,7 @@ test('happy path writes all phases and a schema-valid pipeline run', async () =>
     const record = await json(join(output, 'pipeline-run.json'));
     const receipt = await json(join(output, 'publishing-receipt.json'));
     const candidate = await json(join(output, 'release-candidate.json'));
+    assert.equal(candidate.starter.mechanic, null);
     assert.equal(record.outcome.status, 'pass');
     assert.equal(record.evidence.executionVerified, true);
     assertUnknownTelemetry(record);

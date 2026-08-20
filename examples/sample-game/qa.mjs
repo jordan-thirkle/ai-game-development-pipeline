@@ -6,7 +6,7 @@ const manifest = JSON.parse(await readFile(resolve(artifact, '..', 'project.mani
 const game = await readFile(resolve(artifact, 'game.txt'), 'utf8');
 const metadata = JSON.parse(await readFile(resolve(artifact, 'build.json'), 'utf8'));
 const playable = await readFile(resolve(artifact, 'index.html'), 'utf8');
-if (basename(artifact) !== 'dist' || game !== 'sample-game build artifact\n' || metadata.format !== 'local-demo' || metadata.version !== 2 || metadata.name !== manifest.name || metadata.objective !== manifest.objective || metadata.target !== manifest.targetPlatforms[0] || !playable.includes('<canvas id="game">') || !playable.includes('requestAnimationFrame(frame)') || !playable.includes('<div class="objective">')) {
+if (basename(artifact) !== 'dist' || game !== 'sample-game build artifact\n' || metadata.format !== 'local-demo' || metadata.version !== 3 || metadata.name !== manifest.name || metadata.objective !== manifest.objective || metadata.target !== manifest.targetPlatforms[0] || metadata.mechanic !== manifest.starter.mechanic || !playable.includes('<canvas id="game">') || !playable.includes('requestAnimationFrame(frame)') || !playable.includes('<div class="objective">')) {
   console.error('sample artifact contract failed');
   process.exitCode = 1;
   process.exit();

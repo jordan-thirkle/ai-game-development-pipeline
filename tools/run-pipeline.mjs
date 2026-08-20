@@ -387,7 +387,8 @@ function createPipelineRun({ runId, startedAt, endedAt, manifest, sourceRevision
       taskType: 'prototype',
       objective: manifest.objective || `Run the local pipeline for ${manifest.name}`,
       candidate: manifest.projectId,
-      targetPlatforms: manifest.targetPlatforms || []
+      targetPlatforms: manifest.targetPlatforms || [],
+      mechanic: manifest.starter?.mechanic || null
     },
     inputs: {
       sourceCommit: sourceRevision,
@@ -565,6 +566,7 @@ export async function runPipeline({ projectDir, manifestPath, outputDir, request
     intake: { resultPath: PHASE_FILES.intake, resultSha256: await hashFile(intakePath), manifestSha256: `sha256:${createHash('sha256').update(manifestBytes).digest('hex')}` },
     registrySelection: { resultPath: PHASE_FILES.registry, resultSha256: await hashFile(registryPath), registryRevision: registrySelection.registryRevision },
     build: { artifactPath: relative(project, artifactPath), outputSha256: artifactHash },
+    starter: { mechanic: manifest.starter?.mechanic || null },
     qa: { resultPath: PHASE_FILES.qa, resultSha256: qaHash, status: 'pass' }, destination: { kind: 'local', target: localDestination }, dryRunOnly: true,
     createdAt: new Date().toISOString()
   });
