@@ -1,0 +1,68 @@
+name: Validate on-demand external discovery
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/external-discovery-brief.schema.json'
+      - 'schemas/external-discovery-queue.schema.json'
+      - 'examples/creator-mode/external-discovery-brief-001.json'
+      - 'tools/lib/external-discovery.mjs'
+      - 'tools/external-reuse-discover.mjs'
+      - 'tools/test-external-discovery.mjs'
+      - 'tools/bounded-external-discovery.mjs'
+      - '.github/workflows/validate-on-demand-external-discovery.yml'
+      - '.github/workflows/validate-discovery-mode-comparison.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run bounded discovery unit tests
+        run: node --test tools/test-external-discovery.mjs
+      - name: Exercise reusable CLI on frozen brief
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/external-reuse-discover.mjs examples/creator-mode/external-discovery-brief-001.json /tmp/external-discovery-queue.json
+      - name: Assert CLI autonomy boundary
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const queue = JSON.parse(fs.readFileSync('/tmp/external-discovery-queue.json', 'utf8'));
+          if (queue.mode !== 'bounded_discovery_worker') throw new Error('unexpected mode');
+          if (queue.human_interventions !== 0) throw new Error('worker unexpectedly required intervention');
+          if (queue.unsafe_promotions !== 0) throw new Error('worker reported unsafe promotion');
+          if (!Array.isArray(queue.gaps)) throw new Error('worker must expose honest discovery gaps');
+          for (const candidate of queue.queue) {
+            if (candidate.screening_status === 'reviewable') {
+              if (!['cleared', 'not_applicable'].includes(candidate.asset_boundary)) throw new Error(`reviewable ${candidate.candidate_id} has unresolved asset boundary`);
+              if (!['cleared', 'not_applicable'].includes(candidate.dependency_boundary)) throw new Error(`reviewable ${candidate.candidate_id} has unresolved dependency boundary`);
+            }
+            if (!candidate.license_spdx && candidate.screening_status === 'reviewable') throw new Error(`unlicensed ${candidate.candidate_id} was promoted`);
+          }
+          console.log(JSON.stringify({
+            brief_id: queue.brief_id,
+            actions: queue.search_actions + queue.source_fetches,
+            candidates: queue.candidate_count,
+            candidate_coverage_pct: queue.capability_candidate_coverage_pct,
+            fully_cleared_coverage_pct: queue.fully_cleared_capability_coverage_pct,
+            gaps: queue.gaps,
+          }, null, 2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: on-demand-external-discovery-queue
+          path: /tmp/external-discovery-queue.json
+          if-no-files-found: error
+          retention-days: 7
