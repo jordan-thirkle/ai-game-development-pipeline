@@ -105,6 +105,20 @@ jobs:
             plan.discovery_effort.measurement_status = 'instrumented';
             write('creator-fake-instrumentation', plan);
           }
+
+          // F. The plan cannot point at different registry bytes while keeping the same decisions.
+          {
+            const plan = clone();
+            plan.source_registry.git_blob_sha = '0000000000000000000000000000000000000000';
+            write('creator-stale-blob', plan);
+          }
+
+          // G. Dogfood 001 cannot silently drift to another registry commit.
+          {
+            const plan = clone();
+            plan.source_registry.revision = '1111111111111111111111111111111111111111';
+            write('creator-stale-revision', plan);
+          }
           NODE
 
           expect_reject() {
@@ -125,3 +139,5 @@ jobs:
           expect_reject /tmp/creator-bespoke-shortcut.json 'inventory-run-loot bespoke_last_resort requires at least one external candidate/search path to have been considered'
           expect_reject /tmp/creator-inflated-metrics.json 'metrics.planned_generic_surface_reduction_pct must equal recomputed value 50'
           expect_reject /tmp/creator-fake-instrumentation.json 'discovery_effort.search_actions must be a non-negative number when instrumented'
+          expect_reject /tmp/creator-stale-blob.json 'source_registry.git_blob_sha must match the loaded registry bytes'
+          expect_reject /tmp/creator-stale-revision.json 'source_registry.revision must remain pinned to dogfood dependency revision'
