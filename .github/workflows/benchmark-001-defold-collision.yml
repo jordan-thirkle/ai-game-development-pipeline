@@ -1,0 +1,111 @@
+name: Benchmark 001 Defold Native Collision
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/defold/collision-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-defold-collision.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-collision:
+    name: native-collision
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/defold
+      GATE: experiments/BYJTT-LAB-001/candidates/defold/collision-gate
+      DEFOLD_VERSION: '1.13.0'
+      BOB_URL: https://github.com/defold/defold/releases/download/1.13.0/bob.jar
+      BOB_SHA256: 22e651025834603794ba6873b09924f11412dff66eee0e38aaef8955eb534655
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Verify exact execution revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_HEAD="$(git rev-parse HEAD)"
+          test "$ACTUAL_HEAD" = "$CANDIDATE_HEAD_SHA"
+      - name: Record execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/artifacts/native-collision" .tools/defold
+          {
+            echo "checked_out_sha=$(git rev-parse HEAD)"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "chrome=$(google-chrome --version || true)"
+            echo "os=$(uname -a)"
+            echo "requested_defold_version=$DEFOLD_VERSION"
+            echo "bob_url=$BOB_URL"
+            echo "expected_bob_sha256=$BOB_SHA256"
+          } | tee "$GATE/artifacts/native-collision/environment.txt"
+      - name: Acquire and verify official Defold Bob
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 "$BOB_URL" --output .tools/defold/bob.jar
+          sha256sum .tools/defold/bob.jar | tee "$GATE/artifacts/native-collision/bob.sha256"
+          printf '%s  %s\n' "$BOB_SHA256" '.tools/defold/bob.jar' | sha256sum --check
+          java -jar .tools/defold/bob.jar --version | tee "$GATE/artifacts/native-collision/bob-version.txt"
+      - name: Install locked browser proof dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" ci --ignore-scripts --no-audit --no-fund
+      - name: Build real Defold HTML5 collision gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE"
+          java -jar "$GITHUB_WORKSPACE/.tools/defold/bob.jar" \
+            --platform=wasm-web \
+            --variant=debug \
+            --archive \
+            --bundle-output=bundle \
+            clean build bundle 2>&1 | tee artifacts/native-collision/bob-build.log
+      - name: Execute native collision through normal Chrome input
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$GATE/test/collision-tracer.mjs" | tee "$GATE/artifacts/native-collision/runtime.log"
+      - name: Assert machine-readable evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!r.execution_verified||!r.external_input_executed||!r.dynamic_collision_object_executed||!r.native_wall_stop_observed||r.post_physics_arena_clamp||!r.observation_copy_isolated||r.page_errors.length||r.console_errors.length)process.exit(1);' "$GATE/artifacts/native-collision/result.json"
+          sha256sum \
+            "$GATE/game.project" \
+            "$GATE/input/game.input_binding" \
+            "$GATE/main/main.collection" \
+            "$GATE/main/player.go" \
+            "$GATE/main/player.script" \
+            "$GATE/main/walls.go" \
+            "$GATE/test/collision-tracer.mjs" \
+            "$GATE/artifacts/native-collision/result.json" \
+            > "$GATE/artifacts/native-collision/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: byjtt-lab-001-defold-collision-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/defold/collision-gate/artifacts/native-collision/**
+            experiments/BYJTT-LAB-001/candidates/defold/collision-gate/bundle/**
+          if-no-files-found: warn
+          retention-days: 30

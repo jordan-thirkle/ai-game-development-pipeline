@@ -1,0 +1,75 @@
+local WALK_SPEED = 3.5
+local PUBLISH_INTERVAL = 0.05
+local RIGHT = hash("right")
+local COLLISION_RESPONSE = hash("collision_response")
+local VELOCITY_PROPERTY = "linear_velocity"
+
+local function set_velocity(x)
+  go.set("#collisionobject", VELOCITY_PROPERTY, vmath.vector3(x, 0.0, 0.0))
+end
+
+local function publish(self)
+  self.sequence = self.sequence + 1
+  local position = go.get_position()
+  self.max_x = math.max(self.max_x, position.x)
+  local velocity = go.get("#collisionobject", VELOCITY_PROPERTY)
+  html5.run(string.format([[
+window.__BYJTT_DEFOLD_COLLISION = {
+  seq: %d,
+  runtime: { ready: true },
+  player: {
+    position: [%.9f, %.9f, %.9f],
+    velocity: [%.9f, %.9f, %.9f],
+    max_x: %.9f,
+    collision_count: %d
+  },
+  contract: {
+    arena_width_m: 24.0,
+    arena_depth_m: 32.0,
+    spawn: [0.0, 0.0, 10.0],
+    walk_speed_mps: 3.5,
+    post_physics_arena_clamp: false
+  }
+};
+]], self.sequence, position.x, position.y, position.z,
+    velocity.x, velocity.y, velocity.z, self.max_x, self.collision_count))
+end
+
+function init(self)
+  self.right = false
+  self.sequence = 0
+  self.max_x = go.get_position().x
+  self.collision_count = 0
+  self.publish_elapsed = 0.0
+  msg.post(".", "acquire_input_focus")
+  set_velocity(0.0)
+  publish(self)
+end
+
+function update(self, dt)
+  set_velocity(self.right and WALK_SPEED or 0.0)
+  self.publish_elapsed = self.publish_elapsed + dt
+  if self.publish_elapsed >= PUBLISH_INTERVAL then
+    self.publish_elapsed = 0.0
+    publish(self)
+  end
+end
+
+function on_input(self, action_id, action)
+  if action_id ~= RIGHT then
+    return false
+  end
+  if action.pressed then
+    self.right = true
+  elseif action.released then
+    self.right = false
+    set_velocity(0.0)
+  end
+  return true
+end
+
+function on_message(self, message_id, message)
+  if message_id == COLLISION_RESPONSE then
+    self.collision_count = self.collision_count + 1
+  end
+end
