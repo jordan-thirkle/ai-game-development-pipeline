@@ -1,0 +1,121 @@
+name: Benchmark 001 Flax runtime handoff
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/flax/**'
+      - '.github/workflows/benchmark-001-flax-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flax-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/flax
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout and shared contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+          python3 -m json.tool "$CANDIDATE/runtime-manifest.json" >/dev/null
+          python3 "$CANDIDATE/verify_contract.py"
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/runtime"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "checked_out_sha=$(git rev-parse HEAD)"
+            echo "os=$(uname -a)"
+            echo "python=$(python3 --version 2>&1)"
+            echo "dotnet=$(dotnet --version 2>/dev/null || echo unavailable)"
+          } | tee "$CANDIDATE/artifacts/runtime/environment.txt"
+
+      - name: Download and verify official Flax Linux package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('experiments/BYJTT-LAB-001/candidates/flax/runtime-manifest.json')
+          m = json.loads(p.read_text())
+          Path('/tmp/flax-url').write_text(m['linux_package_url'])
+          Path('/tmp/flax-expected-sha').write_text(m['linux_package_sha256'])
+          PY
+          URL="$(cat /tmp/flax-url)"
+          EXPECTED="$(cat /tmp/flax-expected-sha)"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 \
+            "$URL" -o /tmp/FlaxEditorLinux.zip
+          OBSERVED="$(sha256sum /tmp/FlaxEditorLinux.zip | awk '{print $1}')"
+          printf '%s  %s\n' "$OBSERVED" "$URL" | tee "$CANDIDATE/artifacts/runtime/flax-package-sha256.txt"
+          if [ "$EXPECTED" = "BOOTSTRAP_REQUIRED" ]; then
+            echo "Flax package provenance bootstrap required; refusing to extract or execute unpinned bytes." | tee "$CANDIDATE/artifacts/runtime/blocker.txt"
+            exit 42
+          fi
+          test "$OBSERVED" = "$EXPECTED"
+          printf '%s  /tmp/FlaxEditorLinux.zip\n' "$EXPECTED" | sha256sum -c -
+          touch "$CANDIDATE/artifacts/runtime/binary-verified"
+
+      - name: Execute official Flax headless toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/flax
+          unzip -q /tmp/FlaxEditorLinux.zip -d /tmp/flax
+          EDITOR="/tmp/flax/Binaries/Editor/Linux/Development/FlaxEditor"
+          test -f "$EDITOR"
+          chmod +x "$EDITOR"
+          PROJECT="$RUNNER_TEMP/byjtt-flax-smoke"
+          timeout 180s "$EDITOR" -new -project "$PROJECT" -headless -null -mute -std -exit \
+            2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-new-project.log"
+          test -f "$PROJECT"/*.flaxproj
+          timeout 180s "$EDITOR" -project "$PROJECT" -headless -null -mute -std -genProjectFiles -exit \
+            2>&1 | tee "$CANDIDATE/artifacts/runtime/flax-project-files.log"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          out = Path(os.environ['CANDIDATE']) / 'artifacts/runtime/result.json'
+          out.write_text(json.dumps({
+              'candidate_head_sha': os.environ['CANDIDATE_HEAD_SHA'],
+              'flax_version_pin': '1.12.6912',
+              'official_binary_verified': True,
+              'headless_engine_executed': True,
+              'project_generated': True,
+              'character_controller_executed': False,
+              'external_input_executed': False,
+              'phase_a_executed': False,
+              'shared_contract_mutated': False,
+          }, indent=2) + '\n')
+          PY
+          sha256sum \
+            "$CANDIDATE/runtime-manifest.json" \
+            "$CANDIDATE/artifacts/runtime/environment.txt" \
+            "$CANDIDATE/artifacts/runtime/flax-package-sha256.txt" \
+            "$CANDIDATE/artifacts/runtime/flax-new-project.log" \
+            "$CANDIDATE/artifacts/runtime/flax-project-files.log" \
+            "$CANDIDATE/artifacts/runtime/result.json" \
+            > "$CANDIDATE/artifacts/runtime/SHA256SUMS"
+
+      - name: Upload exact-head Flax evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-flax-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/flax/artifacts/runtime/**
+          if-no-files-found: error
+          retention-days: 30
