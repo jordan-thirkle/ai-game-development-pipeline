@@ -1,0 +1,44 @@
+name: Benchmark 001 Babylon Havok boundary
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary/**'
+      - '.github/workflows/benchmark-001-babylon-havok-boundary.yml'
+permissions:
+  contents: read
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+      - name: Record exact candidate head
+        run: |
+          mkdir -p artifacts/havok-boundary
+          git rev-parse HEAD | tee artifacts/havok-boundary/exact-head.txt
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Install dependencies
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary
+        run: npm install --no-audit --no-fund
+      - name: Strict typecheck
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary
+        run: npm run typecheck
+      - name: Production build
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary
+        run: npm run build
+      - name: Browser runtime proof
+        working-directory: experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary
+        env:
+          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npm run test:runtime
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: babylon-havok-boundary-${{ github.event.pull_request.head.sha }}
+          path: experiments/BYJTT-LAB-001/candidates/babylonjs/havok-boundary/artifacts/havok-boundary
+          retention-days: 30
