@@ -103,13 +103,14 @@ function retryDelayMs(response, attempt, nowMs, fallbackMs) {
     if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
   }
 
+  const remaining = response.headers.get('x-ratelimit-remaining');
   const reset = response.headers.get('x-ratelimit-reset');
-  if (reset !== null) {
+  if (remaining === '0' && reset !== null) {
     const resetSeconds = Number.parseInt(reset, 10);
     if (Number.isInteger(resetSeconds)) return Math.max(0, resetSeconds * 1000 - nowMs);
   }
 
-  return fallbackMs * 2 ** (attempt - 1);
+  return Math.max(60_000, fallbackMs * 2 ** (attempt - 1));
 }
 
 async function requestJson(
