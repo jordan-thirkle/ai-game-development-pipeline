@@ -12,7 +12,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "check:native-boundary": "tsc -p tsconfig.boundary.json --noEmit",
     "test:native-boundary": "node test/native-boundary.mjs",
-    "test:phase-a": "node test/phase-a.mjs && npm run check:native-boundary && npm run test:native-boundary"
+    "test:integrated-boundary": "node test/integrated-boundary.mjs",
+    "test:phase-a": "node test/phase-a.mjs && npm run test:integrated-boundary && npm run check:native-boundary && npm run test:native-boundary"
   },
   "dependencies": {
     "jolt-physics": "1.1.0",
