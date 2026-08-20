@@ -45,6 +45,13 @@ function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function reportFailuresAndExit() {
+  if (failures.length === 0) return false;
+  console.error('Registry shard validation failed:\n');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
 async function readJson(path) {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
@@ -77,7 +84,7 @@ async function validateExecutedMediaEntry(meta, entry, id) {
 }
 
 const index = await readJson(indexPath);
-if (!index) process.exit(1);
+if (!index) reportFailuresAndExit();
 
 if (!nonEmptyString(index.schema_version) || !/^\d+\.\d+\.\d+$/.test(index.schema_version)) failures.push(`${indexPath} requires a semantic-version schema_version`);
 if (!isValidOffsetTimestamp(index.last_verified_at)) failures.push(`${indexPath} requires a calendar-valid offset-aware RFC3339 last_verified_at`);
@@ -96,15 +103,20 @@ for (const shard of index.shards ?? []) {
   for (const field of ['shard_id', 'path', 'namespace']) {
     if (!nonEmptyString(shard[field])) failures.push(`${indexPath} shard requires non-empty string ${field}`);
   }
-  if (shardIds.has(shard.shard_id)) failures.push(`Duplicate registry shard id: ${shard.shard_id}`);
-  if (shardPaths.has(shard.path)) failures.push(`Duplicate registry shard path: ${shard.path}`);
-  shardIds.add(shard.shard_id);
-  shardPaths.add(shard.path);
+  if (nonEmptyString(shard.shard_id)) {
+    if (shardIds.has(shard.shard_id)) failures.push(`Duplicate registry shard id: ${shard.shard_id}`);
+    shardIds.add(shard.shard_id);
+  }
+  if (nonEmptyString(shard.path)) {
+    if (shardPaths.has(shard.path)) failures.push(`Duplicate registry shard path: ${shard.path}`);
+    shardPaths.add(shard.path);
+  }
   if (shard.path === index.policy_shard) policyMeta = shard;
   if (shard.required !== true) failures.push(`Registry shard ${shard.shard_id ?? '<missing>'} must currently be required`);
 }
 if (!shardPaths.has(index.policy_shard)) failures.push(`${indexPath} policy_shard must be listed in shards`);
 if (policyMeta && policyMeta.namespace !== 'core') failures.push(`${indexPath} policy_shard must use namespace=core`);
+// These flags document invariants that this validator enforces unconditionally; they are not runtime feature switches.
 for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cross_shard_benchmark_joins_allowed','policy_enums_inherited_from_policy_shard','repository_commit_is_the_atomic_registry_revision']) {
   if (index.rules?.[rule] !== true) failures.push(`${indexPath} must declare ${rule}=true`);
 }
@@ -130,11 +142,11 @@ const entryIds = new Set();
 for (const { meta, data } of loadedShards) {
   if (!Array.isArray(data.benchmarks)) failures.push(`${meta.path} requires a benchmarks array`);
   if (!Array.isArray(data.entries)) failures.push(`${meta.path} requires an entries array`);
+  if (!nonEmptyString(data.schema_version) || !/^\d+\.\d+\.\d+$/.test(data.schema_version)) failures.push(`${meta.path} requires semantic-version schema_version`);
+  if (!isValidOffsetTimestamp(data.last_verified_at)) failures.push(`${meta.path} requires calendar-valid offset-aware last_verified_at`);
+  if (!isValidIanaTimezone(data.verification_timezone)) failures.push(`${meta.path} requires valid IANA verification_timezone`);
 
   if (meta.path !== index.policy_shard) {
-    if (!nonEmptyString(data.schema_version) || !/^\d+\.\d+\.\d+$/.test(data.schema_version)) failures.push(`${meta.path} requires semantic-version schema_version`);
-    if (!isValidOffsetTimestamp(data.last_verified_at)) failures.push(`${meta.path} requires calendar-valid offset-aware last_verified_at`);
-    if (!isValidIanaTimezone(data.verification_timezone)) failures.push(`${meta.path} requires valid IANA verification_timezone`);
     if (data.inherits_policy_from !== basename(index.policy_shard)) failures.push(`${meta.path} must inherit policy from ${basename(index.policy_shard)}`);
     if (!immutableRevision.test(data.research_revision ?? '')) failures.push(`${meta.path} requires immutable research_revision`);
   }
@@ -148,8 +160,10 @@ for (const { meta, data } of loadedShards) {
       if (!nonEmptyString(benchmark[field])) failures.push(`${meta.path} benchmark ${benchmark.benchmark_id ?? '<missing>'} requires non-empty string ${field}`);
     }
     if (!immutableRevision.test(benchmark.revision ?? '')) failures.push(`${meta.path} benchmark ${benchmark.benchmark_id ?? '<missing>'} requires immutable Git SHA or sha256 revision`);
-    if (benchmarkIds.has(benchmark.benchmark_id)) failures.push(`Duplicate global benchmark id: ${benchmark.benchmark_id}`);
-    benchmarkIds.add(benchmark.benchmark_id);
+    if (nonEmptyString(benchmark.benchmark_id)) {
+      if (benchmarkIds.has(benchmark.benchmark_id)) failures.push(`Duplicate global benchmark id: ${benchmark.benchmark_id}`);
+      benchmarkIds.add(benchmark.benchmark_id);
+    }
   }
 }
 
@@ -159,14 +173,16 @@ for (const { meta, data } of loadedShards) {
       failures.push(`${meta.path} entry records must be objects`);
       continue;
     }
-    const id = entry.entry_id ?? '<missing>';
+    const id = nonEmptyString(entry.entry_id) ? entry.entry_id : '<missing>';
     for (const field of ['entry_id','name','category','canonical_url','source_type','source_revision_status','license','version_or_revision','last_verified_at','execution_status','benchmark_id','adoption_status','replacement_cost','lock_in_risk','license_review_status','redistribution_status']) {
       if (!nonEmptyString(entry[field])) failures.push(`${meta.path} entry ${id} requires non-empty string ${field}`);
     }
-    if (entryIds.has(entry.entry_id)) failures.push(`Duplicate global entry id: ${entry.entry_id}`);
-    entryIds.add(entry.entry_id);
+    if (nonEmptyString(entry.entry_id)) {
+      if (entryIds.has(entry.entry_id)) failures.push(`Duplicate global entry id: ${entry.entry_id}`);
+      entryIds.add(entry.entry_id);
+    }
     if (!evidenceLabels.has(entry.execution_status)) failures.push(`${meta.path} entry ${id} has invalid execution_status: ${entry.execution_status}`);
-    if (!benchmarkIds.has(entry.benchmark_id)) failures.push(`${meta.path} entry ${id} joins unknown benchmark_id: ${entry.benchmark_id}`);
+    if (!nonEmptyString(entry.benchmark_id) || !benchmarkIds.has(entry.benchmark_id)) failures.push(`${meta.path} entry ${id} joins unknown benchmark_id: ${entry.benchmark_id}`);
     const adoptionParts = nonEmptyString(entry.adoption_status) ? entry.adoption_status.split('+').filter(Boolean) : [];
     if (adoptionParts.length === 0 || adoptionParts.some((part) => !adoptionTokens.has(part))) failures.push(`${meta.path} entry ${id} has invalid adoption_status: ${entry.adoption_status}`);
     if (new Set(adoptionParts).size !== adoptionParts.length) failures.push(`${meta.path} entry ${id} repeats adoption status tokens`);
@@ -187,10 +203,5 @@ for (const { meta, data } of loadedShards) {
   }
 }
 
-if (failures.length > 0) {
-  console.error('Registry shard validation failed:\n');
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
-
+reportFailuresAndExit();
 console.log(`Registry index valid: ${loadedShards.length} shards, ${benchmarkIds.size} globally unique benchmarks, ${entryIds.size} globally unique entries.`);
