@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness && npm run test:pipeline-run-scaffold",
     "validate:registry": "node tools/validate-registry-shards.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
@@ -17,6 +17,7 @@
     "gate:lifecycle": "node tools/check-lifecycle-status.mjs",
     "gate:control-plane-freshness": "node tools/check-control-plane-freshness.mjs",
     "test:control-plane-freshness": "node tools/test-control-plane-freshness.mjs",
+    "test:pipeline-run-scaffold": "node --test tools/test-pipeline-run-scaffold.mjs",
     "test:governor": "node --test tools/test-lifecycle-status.mjs"
   },
   "dependencies": {
