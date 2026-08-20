@@ -1,0 +1,69 @@
+name: Benchmark 001 Stride Bepu gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/stride/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-stride.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physics-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/stride
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5.4.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/physics-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "dotnet_sdk=$(dotnet --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
+          dotnet --info >> "$CANDIDATE/artifacts/physics-gate/environment.txt"
+      - name: Restore exact direct package pin
+        working-directory: ${{ env.CANDIDATE }}
+        run: dotnet restore StridePhysicsGate.csproj --use-lock-file | tee artifacts/physics-gate/restore.log
+      - name: Strict release build
+        working-directory: ${{ env.CANDIDATE }}
+        run: dotnet build StridePhysicsGate.csproj -c Release --no-restore /warnaserror | tee artifacts/physics-gate/build.log
+      - name: Freeze resolved dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          cp packages.lock.json artifacts/physics-gate/packages.lock.json
+          dotnet list StridePhysicsGate.csproj package --include-transitive > artifacts/physics-gate/dependency-tree.txt
+      - name: Execute resolved Stride Bepu backend
+        working-directory: ${{ env.CANDIDATE }}
+        run: dotnet run --project StridePhysicsGate.csproj -c Release --no-build -- artifacts/physics-gate/result.json | tee artifacts/physics-gate/runtime.log
+      - name: Assert machine-readable evidence boundary
+        run: |
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.native_wall_stop_observed || r.post_physics_arena_clamp || !r.observation_copy_isolated || r.stride_character_component_executed !== false) process.exit(1);' "$CANDIDATE/artifacts/physics-gate/result.json"
+          sha256sum \
+            "$CANDIDATE/StridePhysicsGate.csproj" \
+            "$CANDIDATE/Program.cs" \
+            "$CANDIDATE/artifacts/physics-gate/packages.lock.json" \
+            "$CANDIDATE/artifacts/physics-gate/dependency-tree.txt" \
+            "$CANDIDATE/artifacts/physics-gate/result.json" \
+            > "$CANDIDATE/artifacts/physics-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-stride-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/stride/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
