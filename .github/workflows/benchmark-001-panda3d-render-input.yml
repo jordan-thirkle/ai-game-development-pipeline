@@ -79,7 +79,7 @@ jobs:
             kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true
           }
           trap cleanup EXIT
-          glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1 || true
+          glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1
 
           timeout --signal=TERM 55s python "$GATE/render_input_gate.py" "$RESULT" >"$ARTIFACTS/runtime.log" 2>&1 &
           APP_PID=$!
@@ -101,11 +101,13 @@ jobs:
           timeout 5s xdotool windowfocus --sync "$WINDOW_ID"
           sleep 0.5
           timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/before-input.png"
+          test -s "$ARTIFACTS/before-input.png"
           timeout 5s xdotool keydown --window "$WINDOW_ID" d
           sleep 5
           timeout 5s xdotool keyup --window "$WINDOW_ID" d
-          sleep 0.4
-          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png" || true
+          sleep 0.25
+          timeout 8s import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png"
+          test -s "$ARTIFACTS/after-release.png"
 
           set +e
           wait "$APP_PID"
@@ -139,8 +141,15 @@ jobs:
             "$GATE/README.md" \
             "$GATE/artifacts/render-input/environment.txt" \
             "$GATE/artifacts/render-input/pip-freeze.txt" \
+            "$GATE/artifacts/render-input/pyright-strict-contract.log" \
+            "$GATE/artifacts/render-input/glxinfo.txt" \
+            "$GATE/artifacts/render-input/xvfb.log" \
+            "$GATE/artifacts/render-input/openbox.log" \
+            "$GATE/artifacts/render-input/window-diagnostics.txt" \
+            "$GATE/artifacts/render-input/runtime.log" \
             "$RESULT" \
             "$GATE/artifacts/render-input/before-input.png" \
+            "$GATE/artifacts/render-input/after-release.png" \
             > "$GATE/artifacts/render-input/SHA256SUMS.txt"
 
       - name: Upload exact-head evidence
