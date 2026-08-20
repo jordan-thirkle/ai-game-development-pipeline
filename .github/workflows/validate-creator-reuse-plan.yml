@@ -37,62 +37,91 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp examples/creator-mode/reuse-plan-001.json /tmp/creator-reuse-plan.json
+
           node <<'NODE'
           const fs = require('fs');
-          const planPath = '/tmp/creator-reuse-plan.json';
-          const registryPath = 'registry/open-source-game-reuse.v1.json';
-          const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
-          const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
-          const byCapability = new Map(plan.capabilities.map((entry) => [entry.capability_id, entry]));
-          const bySource = new Map(registry.entries.map((entry) => [entry.entry_id, entry]));
+          const base = JSON.parse(fs.readFileSync('examples/creator-mode/reuse-plan-001.json', 'utf8'));
+          const registry = JSON.parse(fs.readFileSync('registry/open-source-game-reuse.v1.json', 'utf8'));
+          const sources = new Map(registry.entries.map((entry) => [entry.entry_id, entry]));
 
-          // 1) Attempt to adapt strong-copyleft/reference-only source as production code.
-          const controller = byCapability.get('player-controller-camera');
-          const openttd = bySource.get('reuse.openttd');
-          controller.candidates_considered.push(openttd.entry_id);
-          controller.selected_entry_id = openttd.entry_id;
-          controller.decision = 'adapt';
-          controller.clearance_snapshot = {
-            evidence_status: openttd.evidence_status,
-            code: openttd.licensing.code_clearance_status,
-            assets: openttd.licensing.asset_clearance_status,
-            dependencies: openttd.dependency_clearance_status,
-          };
+          function clone() {
+            return JSON.parse(JSON.stringify(base));
+          }
+          function capability(plan, id) {
+            return plan.capabilities.find((entry) => entry.capability_id === id);
+          }
+          function write(name, plan) {
+            fs.writeFileSync(`/tmp/${name}.json`, JSON.stringify(plan, null, 2));
+          }
 
-          // 2) Soften a blocked review snapshot and pretend it is reusable.
-          const enemy = byCapability.get('enemy-ai');
-          enemy.decision = 'adapt';
-          enemy.clearance_snapshot = {
-            evidence_status: 'SOURCE-VERIFIED',
-            code: 'cleared',
-            assets: 'cleared',
-            dependencies: 'cleared',
-          };
+          // A. Strong-copyleft/reference source may not become production adaptation.
+          {
+            const plan = clone();
+            const controller = capability(plan, 'player-controller-camera');
+            const openttd = sources.get('reuse.openttd');
+            controller.candidates_considered.push(openttd.entry_id);
+            controller.selected_entry_id = openttd.entry_id;
+            controller.decision = 'adapt';
+            controller.clearance_snapshot = {
+              evidence_status: openttd.evidence_status,
+              code: openttd.licensing.code_clearance_status,
+              assets: openttd.licensing.asset_clearance_status,
+              dependencies: openttd.dependency_clearance_status,
+            };
+            write('creator-copyleft', plan);
+          }
 
-          // 3) Jump from an empty discovery result directly to bespoke implementation.
-          const inventory = byCapability.get('inventory-run-loot');
-          inventory.decision = 'bespoke_last_resort';
+          // B. Plan snapshots may not soften canonical review-required evidence.
+          {
+            const plan = clone();
+            const enemy = capability(plan, 'enemy-ai');
+            enemy.decision = 'adapt';
+            enemy.clearance_snapshot = {
+              evidence_status: 'SOURCE-VERIFIED',
+              code: 'cleared',
+              assets: 'cleared',
+              dependencies: 'cleared',
+            };
+            write('creator-softened-clearance', plan);
+          }
 
-          // 4) Inflate the measured benefit.
-          plan.metrics.planned_generic_surface_reduction_pct = 100;
+          // C. Empty discovery cannot jump directly to bespoke implementation.
+          {
+            const plan = clone();
+            capability(plan, 'inventory-run-loot').decision = 'bespoke_last_resort';
+            write('creator-bespoke-shortcut', plan);
+          }
 
-          // 5) Claim discovery was instrumented without measurements.
-          plan.discovery_effort.measurement_status = 'instrumented';
+          // D. Planning benefit metrics may not be inflated.
+          {
+            const plan = clone();
+            plan.metrics.planned_generic_surface_reduction_pct = 100;
+            write('creator-inflated-metrics', plan);
+          }
 
-          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
+          // E. Discovery telemetry cannot be labelled instrumented with missing values.
+          {
+            const plan = clone();
+            plan.discovery_effort.measurement_status = 'instrumented';
+            write('creator-fake-instrumentation', plan);
+          }
           NODE
 
-          if node tools/validate-creator-reuse-plan.mjs /tmp/creator-reuse-plan.json > /tmp/creator-reuse-negative.log 2>&1; then
-            echo 'Negative Creator Mode probe unexpectedly passed'
-            cat /tmp/creator-reuse-negative.log
-            exit 1
-          fi
+          expect_reject() {
+            local file="$1"
+            local needle="$2"
+            local log="${file}.log"
+            if node tools/validate-creator-reuse-plan.mjs "$file" > "$log" 2>&1; then
+              echo "Negative Creator Mode probe unexpectedly passed: $file"
+              cat "$log"
+              exit 1
+            fi
+            cat "$log"
+            grep -F "$needle" "$log"
+          }
 
-          cat /tmp/creator-reuse-negative.log
-          grep -F 'player-controller-camera adapt cannot use reuse.openttd' /tmp/creator-reuse-negative.log
-          grep -F 'enemy-ai clearance_snapshot must exactly match the selected registry entry' /tmp/creator-reuse-negative.log
-          grep -F 'enemy-ai adapt cannot use reuse.limboai' /tmp/creator-reuse-negative.log
-          grep -F 'inventory-run-loot bespoke_last_resort requires at least one external candidate/search path to have been considered' /tmp/creator-reuse-negative.log
-          grep -F 'metrics.planned_generic_surface_reduction_pct must equal recomputed value 50' /tmp/creator-reuse-negative.log
-          grep -F 'discovery_effort.search_actions must be a non-negative number when instrumented' /tmp/creator-reuse-negative.log
+          expect_reject /tmp/creator-copyleft.json 'player-controller-camera adapt cannot use reuse.openttd'
+          expect_reject /tmp/creator-softened-clearance.json 'enemy-ai clearance_snapshot must exactly match the selected registry entry'
+          expect_reject /tmp/creator-bespoke-shortcut.json 'inventory-run-loot bespoke_last_resort requires at least one external candidate/search path to have been considered'
+          expect_reject /tmp/creator-inflated-metrics.json 'metrics.planned_generic_surface_reduction_pct must equal recomputed value 50'
+          expect_reject /tmp/creator-fake-instrumentation.json 'discovery_effort.search_actions must be a non-negative number when instrumented'
