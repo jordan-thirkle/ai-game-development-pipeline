@@ -55,7 +55,7 @@ const physicsSystem = jolt.GetPhysicsSystem();
 const bodyInterface = physicsSystem.GetBodyInterface();
 
 function addStaticBox(halfX: number, halfY: number, halfZ: number, x: number, y: number, z: number): void {
-  const shape = new Jolt.BoxShape(new Jolt.Vec3(halfX, halfY, halfZ), 0.05, null);
+  const shape = new Jolt.BoxShape(new Jolt.Vec3(halfX, halfY, halfZ), 0.05, undefined);
   const bodySettings = new Jolt.BodyCreationSettings(
     shape,
     new Jolt.RVec3(x, y, z),
