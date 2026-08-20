@@ -28,36 +28,31 @@ Every test result must identify exactly what executed and what observation surfa
 
 ```text
 QAResult
-  qa_schema_version
-  test_id
-  test_revision
-  test_layer
-  source_revision
-  build_id
-  artifact_sha256_optional
-  engine
-  engine_version
-  platform
-  device_or_environment_id
-  device_class
-  execution_mode
-  normal_player_input
-  privileged_state_access
-  start_at_utc
-  duration_ms
-  status = passed | failed | blocked | invalid
-  failure_class_optional
-  assertions[]
-  screenshots[]
-  video_optional
-  trace_paths[]
-  log_paths[]
-  metrics[]
-  crash_artifact_paths[]
-  environment_manifest_path
+  qa_schema_version: string, required, currently "1.0.0"
+  test_id: string, required
+  test_revision: immutable revision, required
+  test_layer: enum, required
+  source_revision: immutable revision, required
+  build: { build_id: immutable string, artifact_sha256: sha256 string }, required
+  engine: string, engine_version: string, platform: string, required
+  environment: { manifest_id: immutable string, manifest_sha256: sha256 string }, required
+  device_class: string, execution_mode: enum, required
+  access: { setup: AccessPhase, journey: AccessPhase }, required
+  start_at_utc: RFC3339, duration_ms: non-negative integer, required
+  status: passed | failed | blocked | invalid, required
+  failure_class_optional: enum
+  assertions: Assertion[], required, minItems=1
+  artifacts: Artifact[], required
+  metrics: Metric[], required
 ```
 
-`normal_player_input=true` means the observed behavior was driven only through inputs available to the intended player on that platform. Engine console commands, direct transform mutation, hidden RPCs, editor-only state injection or privileged test controllers must set `normal_player_input=false` even if they are legitimate testing mechanisms.
+`Assertion` requires `assertion_id`, `status`, `observation`, and `artifact_ids[]`; every referenced artifact must exist in `artifacts[]`. `Metric` requires `name`, numeric `value`, `unit`, `aggregation`, and a declared threshold/result where the metric is gated. `Artifact` requires `artifact_id`, `kind`, immutable `sha256`, sensitivity class, redaction status, and retention policy. The `passed` status requires every non-deviation assertion to pass and every required artifact to be current and redaction-valid.
+
+`AccessPhase` records `mode = normal-player-input | privileged-setup | privileged-journey`, `actor`, `actions[]`, and `privileged_operations[]`. `normal_player_input` is derived, not authored: it is true only when `access.journey.mode=normal-player-input` and the journey has no privileged operation. Privileged setup may create a fixture, but privileged journey access is separately recorded and makes the player-input claim false.
+
+The envelope maps to existing repository contracts: `source_revision`, build identity, evidence paths and execution status map to `schemas/pipeline-run.schema.json`; journey step IDs, unknown/pass semantics and deviations map to `experiments/BYJTT-LAB-001/shared/playtest-contract.json` and `shared/evidence-layout.md`. Raw engine/provider evidence is retained as referenced `Artifact` records rather than silently collapsed into the envelope.
+
+Evidence identity is fail-closed: `build_id` is immutable and bound to `artifact_sha256`; `environment.manifest_id` is immutable and its bytes must match `manifest_sha256`. Missing manifests or digest mismatches produce `invalid`, never `passed`.
 
 Both forms are valuable; they answer different questions.
 
@@ -252,7 +247,12 @@ VisualBaseline
   render_pipeline
   locale
   accessibility_state
-  tolerance_policy
+  environment_manifest_id
+  environment_manifest_sha256
+  tolerance_policy_id
+  tolerance_policy_sha256
+  tolerance_algorithm
+  tolerance_thresholds
   image_sha256
 ```
 
@@ -283,7 +283,8 @@ PerformanceRun
   build_id
   platform
   device_id
-  environment_manifest
+  environment_manifest_id
+  environment_manifest_sha256
   warmup_policy
   sample_count
   frame_time_p50
@@ -295,6 +296,8 @@ PerformanceRun
   memory_metrics
   startup_or_load_metrics
   thermal_metrics_where_available
+  metrics[] = { name, value, unit, aggregation, threshold_optional, status }
+  status = passed | failed | blocked | invalid
   trace_artifacts[]
 ```
 
@@ -312,7 +315,7 @@ BlackBoxJourney
   start_state_contract
   input_actions[]
   expected_observable_checkpoints[]
-  max_duration
+  max_duration_ms
   recovery_policy
   normal_player_input = true
 ```
@@ -327,7 +330,13 @@ Examples:
 - multiplayer join → spawn → move → action → leave;
 - save → exit → relaunch → continue.
 
-Privileged setup is allowed **before** the journey to create a fixture, but the evidence must make that explicit. A journey claiming user accessibility cannot use hidden mutation to complete the actual interaction under test.
+Privileged setup is allowed **before** the journey to create a fixture, but the evidence must make that explicit. A journey claiming user accessibility cannot use hidden mutation to complete the actual interaction under test. A timeout at `max_duration_ms` is `failed` when the journey was runnable but exceeded its bound, `blocked` when the runtime never became ready, and `invalid` when the timer or manifest is not trustworthy.
+
+## Sensitive evidence and publication policy
+
+Every screenshot, trace, log, metric export, crash artifact and environment manifest has an `Artifact` record with `sensitivity = public-safe | internal | restricted`, `test_account = synthetic | dedicated-non-production | prohibited`, `redaction_status = not-required | passed | failed`, `access_policy`, `retention_until`, `deletion_method`, and `publication = allowed | internal-only | prohibited`. Account/payment journeys require synthetic or dedicated non-production accounts. Raw traces are restricted by default because DOM, screenshots, headers, bodies and console output can contain credentials or personal data.
+
+Redaction validation runs before storage or upload. An artifact with failed, missing or unverifiable redaction is rejected and must not be published, attached to a public issue, or treated as QA evidence. Retention and deletion receipts remain part of the evidence package; public research receives only approved summaries or scrubbed derivatives.
 
 ---
 
@@ -339,9 +348,9 @@ The pipeline should normalize tools into a small contract instead of abstracting
 QARunner.listTests(filter) -> TestDescriptor[]
 QARunner.runEngineTests(manifest) -> QAResult[]
 QARunner.runBlackBoxJourney(manifest) -> QAResult
-QARunner.captureVisualCheckpoint(checkpoint) -> VisualEvidence
-QARunner.runPerformanceWorkload(manifest) -> PerformanceRun
-QARunner.runSession(manifest) -> SessionEvidence
+QARunner.captureVisualCheckpoint(checkpoint) -> QAResult{test_layer=visual}
+QARunner.runPerformanceWorkload(manifest) -> QAResult{test_layer=performance, payload=PerformanceRun}
+QARunner.runSession(manifest) -> QAResult{test_layer=session, payload=SessionEvidence}
 ```
 
 Engine-specific adapters retain raw native evidence:
@@ -352,7 +361,7 @@ Engine-specific adapters retain raw native evidence:
 - Android Perfetto/AGI/device telemetry;
 - Apple XCTest result bundles/metrics.
 
-Normalization is additive. Never throw away raw provider/engine reports just to fit a simplified dashboard.
+Normalization is additive. Never throw away raw provider/engine reports just to fit a simplified dashboard. `VisualEvidence`, `SessionEvidence` and `PerformanceRun` are typed payloads inside the common `QAResult` envelope and must carry the same source/build/environment identity, access record, assertion/artifact references, status and failure semantics. Adapters must emit both the normalized result and a mapping to `pipeline-run`/playtest evidence; unmapped fields remain unknown rather than inferred.
 
 ---
 
