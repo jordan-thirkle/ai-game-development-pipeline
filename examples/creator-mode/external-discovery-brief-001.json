@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0.0",
+  "brief_id": "EXTERNAL-DISCOVERY-001",
+  "title": "Mobile co-op survival-builder",
+  "platforms": ["iOS", "Android", "web-preview", "desktop-preview"],
+  "max_results_per_query": 10,
+  "capabilities": [
+    {
+      "id": "whole-starter-architecture",
+      "query": "godot survival starter kit",
+      "require_signals": ["godot"],
+      "required_any": ["survival"],
+      "secondary_any": ["starter", "template", "kit", "framework"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "controller-camera",
+      "query": "godot third person controller",
+      "require_signals": ["godot"],
+      "required_any": ["controller"],
+      "secondary_any": ["third person", "third-person", "camera", "character"],
+      "canonical_seed_ids": ["reuse.kenney-starter-3d-platformer"]
+    },
+    {
+      "id": "combat-interactions",
+      "query": "godot combat system",
+      "require_signals": ["godot"],
+      "required_any": ["combat"],
+      "secondary_any": ["system", "interaction", "melee", "shooter", "weapon"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "enemy-npc-ai",
+      "query": "godot behavior tree ai",
+      "require_signals": ["godot"],
+      "required_any": ["behavior tree", "behaviour tree", "ai", "npc"],
+      "secondary_any": ["state machine", "enemy", "behavior", "behaviour"],
+      "canonical_seed_ids": ["reuse.limboai"]
+    },
+    {
+      "id": "building-placement",
+      "query": "godot building placement system",
+      "require_signals": ["godot"],
+      "required_any": ["building", "placement"],
+      "secondary_any": ["system", "build", "snapping", "construction"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "inventory-economy",
+      "query": "godot inventory system",
+      "require_signals": ["godot"],
+      "required_any": ["inventory"],
+      "secondary_any": ["system", "item", "equipment"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "crafting-recipes",
+      "query": "godot crafting system",
+      "require_signals": ["godot"],
+      "required_any": ["crafting", "craft"],
+      "secondary_any": ["system", "recipe"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "save-progression",
+      "query": "godot save system",
+      "require_signals": ["godot"],
+      "required_any": ["save", "savedata", "persistence"],
+      "secondary_any": ["system", "plugin", "addon"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "ui-touch-accessibility",
+      "query": "godot virtual joystick",
+      "require_signals": ["godot"],
+      "required_any": ["joystick", "mobile", "touch", "accessibility"],
+      "secondary_any": ["virtual", "input", "ui", "control"],
+      "canonical_seed_ids": []
+    },
+    {
+      "id": "environment-character-animation-assets",
+      "query": "godot low poly assets cc0",
+      "require_signals": [],
+      "required_any": ["asset", "model", "low poly", "low-poly", "cc0"],
+      "secondary_any": ["godot", "3d", "character", "environment"],
+      "canonical_seed_ids": ["reuse.kenney-starter-3d-platformer"]
+    },
+    {
+      "id": "audio-music",
+      "query": "godot audio sfx cc0",
+      "require_signals": [],
+      "required_any": ["audio", "sfx", "sound", "music"],
+      "secondary_any": ["godot", "cc0", "game"],
+      "canonical_seed_ids": ["reuse.kenney-starter-3d-platformer"]
+    },
+    {
+      "id": "multiplayer-networking-social",
+      "query": "godot multiplayer netcode",
+      "require_signals": ["godot"],
+      "required_any": ["multiplayer", "netcode", "network"],
+      "secondary_any": ["addon", "plugin", "online", "synchronization"],
+      "canonical_seed_ids": []
+    }
+  ]
+}
