@@ -1,0 +1,98 @@
+name: Validate Creator Mode reuse plan
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/creator-reuse-plan.schema.json'
+      - 'research/CREATOR-MODE-REUSE-DOGFOOD-001.md'
+      - 'examples/creator-mode/reuse-plan-001.json'
+      - 'tools/validate-creator-reuse-plan.mjs'
+      - '.github/workflows/validate-creator-reuse-plan.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'schemas/creator-reuse-plan.schema.json'
+      - 'research/CREATOR-MODE-REUSE-DOGFOOD-001.md'
+      - 'examples/creator-mode/reuse-plan-001.json'
+      - 'tools/validate-creator-reuse-plan.mjs'
+      - '.github/workflows/validate-creator-reuse-plan.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+
+      - name: Validate canonical Creator Mode reuse plan
+        run: node tools/validate-creator-reuse-plan.mjs
+
+      - name: Prove unsafe Creator Mode shortcuts fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp examples/creator-mode/reuse-plan-001.json /tmp/creator-reuse-plan.json
+          node <<'NODE'
+          const fs = require('fs');
+          const planPath = '/tmp/creator-reuse-plan.json';
+          const registryPath = 'registry/open-source-game-reuse.v1.json';
+          const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+          const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+          const byCapability = new Map(plan.capabilities.map((entry) => [entry.capability_id, entry]));
+          const bySource = new Map(registry.entries.map((entry) => [entry.entry_id, entry]));
+
+          // 1) Attempt to adapt strong-copyleft/reference-only source as production code.
+          const controller = byCapability.get('player-controller-camera');
+          const openttd = bySource.get('reuse.openttd');
+          controller.candidates_considered.push(openttd.entry_id);
+          controller.selected_entry_id = openttd.entry_id;
+          controller.decision = 'adapt';
+          controller.clearance_snapshot = {
+            evidence_status: openttd.evidence_status,
+            code: openttd.licensing.code_clearance_status,
+            assets: openttd.licensing.asset_clearance_status,
+            dependencies: openttd.dependency_clearance_status,
+          };
+
+          // 2) Soften a blocked review snapshot and pretend it is reusable.
+          const enemy = byCapability.get('enemy-ai');
+          enemy.decision = 'adapt';
+          enemy.clearance_snapshot = {
+            evidence_status: 'SOURCE-VERIFIED',
+            code: 'cleared',
+            assets: 'cleared',
+            dependencies: 'cleared',
+          };
+
+          // 3) Jump from an empty discovery result directly to bespoke implementation.
+          const inventory = byCapability.get('inventory-run-loot');
+          inventory.decision = 'bespoke_last_resort';
+
+          // 4) Inflate the measured benefit.
+          plan.metrics.planned_generic_surface_reduction_pct = 100;
+
+          // 5) Claim discovery was instrumented without measurements.
+          plan.discovery_effort.measurement_status = 'instrumented';
+
+          fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
+          NODE
+
+          if node tools/validate-creator-reuse-plan.mjs /tmp/creator-reuse-plan.json > /tmp/creator-reuse-negative.log 2>&1; then
+            echo 'Negative Creator Mode probe unexpectedly passed'
+            cat /tmp/creator-reuse-negative.log
+            exit 1
+          fi
+
+          cat /tmp/creator-reuse-negative.log
+          grep -F 'player-controller-camera adapt cannot use reuse.openttd' /tmp/creator-reuse-negative.log
+          grep -F 'enemy-ai clearance_snapshot must exactly match the selected registry entry' /tmp/creator-reuse-negative.log
+          grep -F 'enemy-ai adapt cannot use reuse.limboai' /tmp/creator-reuse-negative.log
+          grep -F 'inventory-run-loot bespoke_last_resort requires at least one external candidate/search path to have been considered' /tmp/creator-reuse-negative.log
+          grep -F 'metrics.planned_generic_surface_reduction_pct must equal recomputed value 50' /tmp/creator-reuse-negative.log
+          grep -F 'discovery_effort.search_actions must be a non-negative number when instrumented' /tmp/creator-reuse-negative.log
