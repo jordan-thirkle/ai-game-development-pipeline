@@ -35,23 +35,23 @@ public sealed class CharacterGatePlugin : GamePlugin
 
     private static void RunGate()
     {
-        var floor = SpawnBox(
+        SpawnBox(
             "BYJTT Floor",
             new Vector3(0.0f, -20.0f, 0.0f),
             new Vector3(2400.0f, 40.0f, 3200.0f));
-        var eastWall = SpawnBox(
+        SpawnBox(
             "BYJTT East Wall",
             new Vector3((ArenaHalfWidthMeters + WallThicknessMeters / 2.0f) * CentimetersPerMeter, 200.0f, 0.0f),
             new Vector3(WallThicknessMeters * CentimetersPerMeter, WallHeightMeters * CentimetersPerMeter, 3200.0f));
-        var westWall = SpawnBox(
+        SpawnBox(
             "BYJTT West Wall",
             new Vector3(-(ArenaHalfWidthMeters + WallThicknessMeters / 2.0f) * CentimetersPerMeter, 200.0f, 0.0f),
             new Vector3(WallThicknessMeters * CentimetersPerMeter, WallHeightMeters * CentimetersPerMeter, 3200.0f));
-        var northWall = SpawnBox(
+        SpawnBox(
             "BYJTT North Wall",
             new Vector3(0.0f, 200.0f, (ArenaHalfDepthMeters + WallThicknessMeters / 2.0f) * CentimetersPerMeter),
             new Vector3(2400.0f, WallHeightMeters * CentimetersPerMeter, WallThicknessMeters * CentimetersPerMeter));
-        var southWall = SpawnBox(
+        SpawnBox(
             "BYJTT South Wall",
             new Vector3(0.0f, 200.0f, -(ArenaHalfDepthMeters + WallThicknessMeters / 2.0f) * CentimetersPerMeter),
             new Vector3(2400.0f, WallHeightMeters * CentimetersPerMeter, WallThicknessMeters * CentimetersPerMeter));
@@ -107,18 +107,11 @@ public sealed class CharacterGatePlugin : GamePlugin
             $"stop_error_cm={stopError:F6} release_drift_cm={releaseDrift:F6} side_collision_count={sideCollisionCount} " +
             $"observation_isolation={observationIsolation.ToString().ToLowerInvariant()}");
 
-        DestroyActor(player);
-        DestroyActor(floor);
-        DestroyActor(eastWall);
-        DestroyActor(westWall);
-        DestroyActor(northWall);
-        DestroyActor(southWall);
-
         if (!passed)
             throw new InvalidOperationException("Flax native CharacterController gate did not satisfy its collision contract.");
     }
 
-    private static BoxCollider SpawnBox(string name, Vector3 position, Vector3 size)
+    private static void SpawnBox(string name, Vector3 position, Vector3 size)
     {
         var collider = new BoxCollider
         {
@@ -128,12 +121,5 @@ public sealed class CharacterGatePlugin : GamePlugin
             StaticFlags = StaticFlags.None,
         };
         Level.SpawnActor(collider);
-        return collider;
-    }
-
-    private static void DestroyActor(Actor actor)
-    {
-        if (actor != null)
-            actor.DeleteObject();
     }
 }
