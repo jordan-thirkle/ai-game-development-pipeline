@@ -48,15 +48,38 @@
       "type":"array","minItems":1,
       "items":{"type":"object","additionalProperties":false,"required":["type","url","checkedAt"],"properties":{"type":{"type":"string"},"url":{"type":"string","format":"uri"},"checkedAt":{"type":"string","format":"date-time"},"notes":{"type":"string"}}}
     },
-    "publication": {"type":"object","additionalProperties":false,"required":["safe"],"properties":{"safe":{"type":"boolean"},"slug":{"type":"string"},"notes":{"type":"string"}}},
+    "publication": {"type":"object","additionalProperties":false,"required":["safe"],"properties":{"safe":{"type":"boolean"},"slug":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]{2,99}$"},"notes":{"type":"string"}}},
     "usedIn":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-    "rejectionReason":{"type":"string"},
+    "rejectionReason":{"type":"string","minLength":1},
     "lastVerified":{"type":"string","format":"date-time"}
   },
   "allOf": [
     {
       "if":{"properties":{"state":{"enum":["qualified","benchmarking","promoted"]}},"required":["state"]},
       "then":{"properties":{"licence":{"properties":{"status":{"const":"verified"}}},"commercialUse":{"enum":["verified-allowed","conditional"]},"provenance":{"properties":{"confidence":{"enum":["high","medium"]}}}}}
+    },
+    {
+      "if":{"properties":{"state":{"const":"promoted"}},"required":["state"]},
+      "then":{
+        "required":["usedIn"],
+        "properties":{
+          "usedIn":{"minItems":1},
+          "assessment":{"properties":{"recommendation":{"const":"reuse"}}},
+          "evidence":{"contains":{"type":"object","properties":{"type":{"enum":["execution","benchmark"]}},"required":["type"]},"minContains":1}
+        }
+      }
+    },
+    {
+      "if":{"properties":{"state":{"const":"rejected"}},"required":["state"]},
+      "then":{"required":["rejectionReason"],"properties":{"publication":{"properties":{"safe":{"const":false}}}}}
+    },
+    {
+      "if":{"properties":{"state":{"const":"quarantined"}},"required":["state"]},
+      "then":{"properties":{"publication":{"properties":{"safe":{"const":false}}}}}
+    },
+    {
+      "if":{"properties":{"publication":{"properties":{"safe":{"const":true}},"required":["safe"]}},"required":["publication"]},
+      "then":{"properties":{"publication":{"required":["slug"]}}}
     }
   ]
 }
