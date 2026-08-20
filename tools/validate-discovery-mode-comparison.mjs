@@ -14,6 +14,17 @@ function assert(condition, message) {
   if (!condition) errors.push(message);
 }
 
+function looksLikeGenericIndex(repository) {
+  const name = (repository?.split('/').pop() ?? '').toLowerCase();
+  return (
+    name.startsWith('awesome') ||
+    name.includes('awesome-') ||
+    /(^|[-_])resources?($|[-_])/.test(name) ||
+    name.includes('mcp-server') ||
+    name.includes('agency-agents')
+  );
+}
+
 function validateCandidate(candidate, owner) {
   assert(candidate && typeof candidate === 'object', `${owner} candidate must be an object`);
   if (!candidate || typeof candidate !== 'object') return;
@@ -24,6 +35,9 @@ function validateCandidate(candidate, owner) {
   assert(Array.isArray(candidate.capabilities) && candidate.capabilities.length > 0, `${owner} ${candidate.candidate_id} must map to at least one capability`);
   for (const capability of candidate.capabilities ?? []) {
     assert(comparison.capabilities.includes(capability), `${owner} ${candidate.candidate_id} references unknown capability ${capability}`);
+  }
+  if (owner === 'bounded_worker') {
+    assert(!looksLikeGenericIndex(candidate.repository), `${owner} ${candidate.candidate_id} may not count a generic index/resource-list repository as a direct component candidate`);
   }
   if (candidate.screening_status === 'reviewable') {
     assert(candidate.asset_boundary === 'cleared' || candidate.asset_boundary === 'not_applicable', `${owner} ${candidate.candidate_id} reviewable candidate must have a cleared/not-applicable asset boundary`);
@@ -86,14 +100,20 @@ if (workerPath) {
   assert(worker.human_interventions === 0, 'bounded worker must require zero human interventions during execution');
   assert(worker.unsafe_promotions === 0, 'bounded worker must report zero unsafe promotions');
   assert(typeof worker.elapsed_minutes === 'number' && worker.elapsed_minutes >= 0, 'worker elapsed_minutes must be instrumented');
+  assert(Number.isInteger(worker.search_hits_seen) && worker.search_hits_seen >= worker.candidate_count, 'worker must report search_hits_seen');
+  assert(Number.isInteger(worker.rejected_search_hits) && worker.rejected_search_hits >= 0, 'worker must report rejected_search_hits');
   for (const candidate of worker.queue ?? []) validateCandidate(candidate, 'bounded_worker');
   const workerMetrics = recompute(worker);
   assert(worker.candidate_count === workerMetrics.candidateCount, `worker candidate_count must equal recomputed ${workerMetrics.candidateCount}`);
   assert(worker.reviewable_candidate_count === workerMetrics.reviewableCount, `worker reviewable_candidate_count must equal recomputed ${workerMetrics.reviewableCount}`);
   assert(worker.capability_candidate_coverage_pct === workerMetrics.coveragePct, `worker capability_candidate_coverage_pct must equal recomputed ${workerMetrics.coveragePct}`);
   assert(worker.fully_cleared_capability_coverage_pct === workerMetrics.clearedCoveragePct, `worker fully_cleared_capability_coverage_pct must equal recomputed ${workerMetrics.clearedCoveragePct}`);
+
+  const baselineActions = baseline.search_actions + baseline.source_fetches;
   const totalActions = worker.search_actions + worker.source_fetches;
-  assert(totalActions < baseline.search_actions + baseline.source_fetches, `worker must use fewer external actions than frozen baseline (${baseline.search_actions + baseline.source_fetches})`);
+  assert(totalActions <= baselineActions * 0.75, `worker must reduce external actions by at least 25% versus frozen baseline (${baselineActions}); got ${totalActions}`);
+  assert(workerMetrics.coveragePct >= baselineMetrics.coveragePct, `worker candidate coverage must match or exceed frozen baseline ${baselineMetrics.coveragePct}%; got ${workerMetrics.coveragePct}%`);
+  assert(workerMetrics.clearedCoveragePct >= baselineMetrics.clearedCoveragePct, `worker fully-cleared coverage must match or exceed frozen baseline ${baselineMetrics.clearedCoveragePct}%; got ${workerMetrics.clearedCoveragePct}%`);
 }
 
 assert(comparison.decision?.agent_deployment_approved === false, 'comparison may not pre-approve agent deployment');
@@ -105,4 +125,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; worker=${workerPath ? 'instrumented result validated' : 'pending'}; deployment gates remain closed.`);
+console.log(`Discovery mode comparison valid: baseline=${baseline.search_actions + baseline.source_fetches} actions; worker=${workerPath ? 'instrumented result validated against >=25% efficiency + coverage parity gates' : 'pending'}; deployment gates remain closed.`);
