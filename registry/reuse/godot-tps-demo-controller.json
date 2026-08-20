@@ -1,0 +1,77 @@
+{
+  "id": "godot-tps-demo-controller",
+  "name": "Godot TPS Demo Controller Code",
+  "description": "First-party Godot third-person shooter reference implementation covering player movement, camera, aiming, shooting, gamepad controls and production-grade scene structure. Treat code reuse separately from bundled asset reuse.",
+  "kind": "reference",
+  "state": "qualified",
+  "source": {
+    "canonicalUrl": "https://github.com/godotengine/tps-demo/tree/90f2e38",
+    "provider": "Godot Engine",
+    "repositoryUrl": "https://github.com/godotengine/tps-demo",
+    "version": "4.5-90f2e38",
+    "commit": "90f2e38"
+  },
+  "licence": {
+    "status": "verified",
+    "identifier": "MIT (code); CC-BY-3.0 (bundled assets/music)",
+    "evidenceUrl": "https://github.com/godotengine/tps-demo/blob/90f2e38/LICENSE.md",
+    "attributionRequired": true,
+    "notice": "All code is MIT licensed. Bundled assets and music are CC-BY 3.0; licence text also notes derivative Substance Painter materials provided by GameTextures.com. Prefer code/reference reuse and independently vetted BYJTT assets unless all bundled content obligations are verified."
+  },
+  "commercialUse": "conditional",
+  "provenance": {
+    "confidence": "high",
+    "notes": "Official Godot Engine repository and signed 4.5 release. Code and asset licensing are explicitly separated in the repository licence."
+  },
+  "maintenance": {
+    "status": "active",
+    "evidence": "Official repository released Godot 4.5 build 90f2e38 in October 2025 and master targets current Godot 4.x.",
+    "notes": "Pin the release/commit matching the Godot lane rather than tracking master blindly."
+  },
+  "compatibility": {
+    "engines": ["Godot"],
+    "platforms": ["desktop", "mobile", "web"],
+    "notes": "The demo has keyboard/mouse and gamepad controls. BYJTT-LAB-001 still requires explicit touch-control adaptation and mobile performance evidence."
+  },
+  "risk": {
+    "supplyChain": "low",
+    "dependencyBurden": "low",
+    "legalNotes": "Code is MIT. Bundled assets/music carry CC-BY 3.0 attribution obligations and the licence mentions derivative source materials from GameTextures.com; do not treat the repository as uniformly MIT.",
+    "securityNotes": "First-party reference project with no reason to bypass normal dependency/import review."
+  },
+  "assessment": {
+    "integrationEffort": "medium",
+    "lifecycleRisk": "low",
+    "scores": {
+      "projectFit": 4.5,
+      "licenceCommercialCompatibility": 4,
+      "provenanceConfidence": 5,
+      "maintenanceUpstreamHealth": 5,
+      "targetPlatformSupport": 4,
+      "integrationEffort": 3.5
+    },
+    "recommendation": "benchmark",
+    "notes": "Strong first-party reference for the Godot lane, but touch input must be added and bundled content should not be adopted wholesale without separate provenance review."
+  },
+  "evidence": [
+    {
+      "type": "official-repository",
+      "url": "https://github.com/godotengine/tps-demo/tree/90f2e38",
+      "checkedAt": "2026-08-20T03:00:00Z",
+      "notes": "Official Godot TPS demo pinned to the 4.5 release commit."
+    },
+    {
+      "type": "official-licence",
+      "url": "https://github.com/godotengine/tps-demo/blob/90f2e38/LICENSE.md",
+      "checkedAt": "2026-08-20T03:00:00Z",
+      "notes": "Licence separates MIT code from CC-BY 3.0 assets/music and notes derivative Substance Painter materials."
+    }
+  ],
+  "publication": {
+    "safe": true,
+    "slug": "godot-tps-demo-controller-code",
+    "notes": "Public evaluation must clearly distinguish code licence from bundled asset/music licences."
+  },
+  "usedIn": ["BYJTT-LAB-001-discovery"],
+  "lastVerified": "2026-08-20T03:00:00Z"
+}
