@@ -100,14 +100,28 @@ int main(int argc, char** argv) {
   float max_x = start.x;
 
   for (int i = 0; i < kDrivenSteps; ++i) {
-    wi::physics::MoveCharacter(player, XMFLOAT3(1.0f, 0.0f, 0.0f), kWalkSpeed);
+    // Keep horizontal control enabled through transient non-supported character
+    // states (for example, while pressing against a wall). Wicked Engine's
+    // native controller exposes this as its normal MoveCharacter option; this
+    // avoids leaving a stale velocity active when ground support changes.
+    wi::physics::MoveCharacter(
+        player,
+        XMFLOAT3(1.0f, 0.0f, 0.0f),
+        kWalkSpeed,
+        0.0f,
+        true);
     Step(scene, kFixedDt);
     max_x = std::max(max_x, Observe(player).x);
   }
 
   const Observation driven = Observe(player);
   for (int i = 0; i < kReleasedSteps; ++i) {
-    wi::physics::MoveCharacter(player, XMFLOAT3(0.0f, 0.0f, 0.0f), 0.0f);
+    wi::physics::MoveCharacter(
+        player,
+        XMFLOAT3(0.0f, 0.0f, 0.0f),
+        0.0f,
+        0.0f,
+        true);
     Step(scene, kFixedDt);
     max_x = std::max(max_x, Observe(player).x);
   }
@@ -165,8 +179,8 @@ int main(int argc, char** argv) {
 
   std::cout << "BYJTT Wicked Engine native-character gate: " << (pass ? "PASS" : "FAIL") << '\n';
   std::cout << "start=(" << start.x << ',' << start.y << ',' << start.z << ") max_x=" << max_x
-            << " final_x=" << final_observation.x << " vx=" << final_velocity.x
-            << " release_drift=" << release_drift << '\n';
+            << " driven_x=" << driven.x << " final_x=" << final_observation.x
+            << " vx=" << final_velocity.x << " release_drift=" << release_drift << '\n';
 
   wi::jobsystem::ShutDown();
   return pass ? 0 : 1;
