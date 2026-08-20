@@ -57,7 +57,7 @@ async function readJson(path) {
     return JSON.parse(await readFile(path, 'utf8'));
   } catch (error) {
     failures.push(`Unable to read ${path}: ${error.message}`);
-    return null;
+    return undefined;
   }
 }
 
@@ -68,23 +68,38 @@ async function validateExecutedMediaEntry(meta, entry, id) {
     failures.push(`${meta.path} entry ${id} marked EXECUTED requires execution_record`);
     return;
   }
-  if (!nonEmptyString(record.path) || !/^experiments\/[A-Za-z0-9._-]+\/experiment\.json$/.test(record.path)) {
-    failures.push(`${meta.path} entry ${id} execution_record.path must reference experiments/<id>/experiment.json`);
-    return;
-  }
   if (!nonEmptyString(record.experiment_id)) {
     failures.push(`${meta.path} entry ${id} execution_record requires experiment_id`);
     return;
   }
+  const pathMatch = nonEmptyString(record.path)
+    ? record.path.match(/^experiments\/([A-Za-z0-9][A-Za-z0-9._-]*)\/experiment\.json$/)
+    : null;
+  if (!pathMatch) {
+    failures.push(`${meta.path} entry ${id} execution_record.path must reference experiments/<id>/experiment.json without traversal segments`);
+    return;
+  }
+  if (pathMatch[1] !== record.experiment_id) {
+    failures.push(`${meta.path} entry ${id} execution_record.path directory must equal execution_record.experiment_id`);
+    return;
+  }
   const experiment = await readJson(record.path);
-  if (!experiment) return;
+  if (experiment === undefined) return;
+  if (!isPlainObject(experiment)) {
+    failures.push(`${meta.path} entry ${id} execution evidence ${record.path} must contain a JSON object`);
+    return;
+  }
   if (experiment.experiment_id !== record.experiment_id) failures.push(`${meta.path} entry ${id} execution_record experiment_id does not match ${record.path}`);
   if (experiment.status !== 'completed') failures.push(`${meta.path} entry ${id} EXECUTED evidence experiment must have status=completed`);
   if (!Array.isArray(experiment.evidence) || experiment.evidence.length === 0) failures.push(`${meta.path} entry ${id} EXECUTED evidence experiment requires non-empty evidence`);
 }
 
 const index = await readJson(indexPath);
-if (!index) reportFailuresAndExit();
+if (index === undefined) reportFailuresAndExit();
+if (!isPlainObject(index)) {
+  failures.push(`${indexPath} root must be a JSON object`);
+  reportFailuresAndExit();
+}
 
 if (!nonEmptyString(index.schema_version) || !/^\d+\.\d+\.\d+$/.test(index.schema_version)) failures.push(`${indexPath} requires a semantic-version schema_version`);
 if (!isValidOffsetTimestamp(index.last_verified_at)) failures.push(`${indexPath} requires a calendar-valid offset-aware RFC3339 last_verified_at`);
@@ -121,9 +136,10 @@ for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cro
   if (index.rules?.[rule] !== true) failures.push(`${indexPath} must declare ${rule}=true`);
 }
 
-const policy = await readJson(index.policy_shard);
-const evidenceLabelsArray = Array.isArray(policy?.evidence_labels) && policy.evidence_labels.every(nonEmptyString);
-const adoptionMapValid = isPlainObject(policy?.adoption_status_map) && Object.values(policy.adoption_status_map).every(nonEmptyString);
+const policy = nonEmptyString(index.policy_shard) ? await readJson(index.policy_shard) : undefined;
+if (policy !== undefined && !isPlainObject(policy)) failures.push(`Policy shard ${index.policy_shard} root must be a JSON object`);
+const evidenceLabelsArray = isPlainObject(policy) && Array.isArray(policy.evidence_labels) && policy.evidence_labels.every(nonEmptyString);
+const adoptionMapValid = isPlainObject(policy) && isPlainObject(policy.adoption_status_map) && Object.values(policy.adoption_status_map).every(nonEmptyString);
 const evidenceLabels = new Set(evidenceLabelsArray ? policy.evidence_labels : []);
 const adoptionTokens = new Set(adoptionMapValid ? Object.values(policy.adoption_status_map) : []);
 if (!evidenceLabelsArray || evidenceLabels.size === 0) failures.push(`Policy shard ${index.policy_shard} must expose non-empty string evidence_labels`);
@@ -133,7 +149,12 @@ const loadedShards = [];
 for (const shard of index.shards ?? []) {
   if (!nonEmptyString(shard?.path)) continue;
   const data = await readJson(shard.path);
-  if (data) loadedShards.push({ meta: shard, data });
+  if (data === undefined) continue;
+  if (!isPlainObject(data)) {
+    failures.push(`${shard.path} root must be a JSON object`);
+    continue;
+  }
+  loadedShards.push({ meta: shard, data });
 }
 
 const benchmarkIds = new Set();
