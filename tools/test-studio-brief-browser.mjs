@@ -27,12 +27,27 @@ try {
   assert.match(evidence, /Harbour Run/);
   assert.match(evidence, /Target: web/);
   assert.match(evidence, /Project: brief-harbour-run/);
+  assert.match(evidence, /Verified local starter/);
   assert.match(evidence, /Publication executed: false/);
   assert.match(evidence, /Secrets used: false/);
   assert.match(evidence, /Dry-run only: true/);
+
+  const downloadLink = page.getByRole('link', { name: 'Download starter bundle' });
+  assert.equal(await downloadLink.count(), 1, 'verified starter download was not exposed in Studio');
+  const href = await downloadLink.getAttribute('href');
+  assert.match(href, /^\/api\/pipeline\/downloads\/[0-9a-f-]+$/i);
+  assert.equal(await downloadLink.getAttribute('download'), 'brief-harbour-run-verified-local-starter.tar.gz');
+  const bundleResponse = await page.request.get(new URL(href, baseURL).href);
+  assert.equal(bundleResponse.ok(), true, `starter download HTTP ${bundleResponse.status()}`);
+  assert.equal(bundleResponse.headers()['content-type'], 'application/gzip');
+  assert.match(bundleResponse.headers()['x-byjtt-bundle-sha256'], /^sha256:[a-f0-9]{64}$/);
+  const bundleBytes = await bundleResponse.body();
+  assert.equal(bundleBytes[0], 0x1f);
+  assert.equal(bundleBytes[1], 0x8b);
+
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/desktop-brief-run.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed.');
+  console.log('Studio brief browser dogfood passed with verified starter download.');
 } finally {
   await browser.close();
 }
