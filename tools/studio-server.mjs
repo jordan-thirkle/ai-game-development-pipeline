@@ -61,6 +61,12 @@ export async function executeSampleRun() {
 async function staticFileFor(url) {
   const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
   const requested = pathname === '/' ? '/apps/studio/index.html' : pathname.endsWith('/') ? `${pathname}index.html` : pathname;
+  const publicPaths = new Set([
+    '/apps/studio/index.html',
+    '/fixtures/control-plane/BYJTT-LAB-001.json',
+    '/tools/control-plane-freshness.mjs'
+  ]);
+  if (!publicPaths.has(requested)) return null;
   const candidate = resolve(REPOSITORY_ROOT, `.${requested}`);
   const root = await realpath(REPOSITORY_ROOT);
   let file;
@@ -80,8 +86,9 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
       if (request.url === '/api/pipeline/runs') {
         if (request.method !== 'POST') return sendJson(response, 405, { error: 'Method not allowed' });
         const origin = request.headers.origin;
-        const expectedOrigin = `http://${request.headers.host}`;
-        if (origin && origin !== expectedOrigin) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
+        const expectedHost = `${LOOPBACK_HOST}:${request.socket.localPort}`;
+        const expectedOrigin = `http://${expectedHost}`;
+        if (request.headers.host !== expectedHost || (origin && origin !== expectedOrigin)) return sendJson(response, 403, { error: 'Cross-origin pipeline runs are not allowed.' });
         if (Number(request.headers['content-length'] || 0) > 0) return sendJson(response, 400, { error: 'The sample run accepts no request body.' });
         if (running) return sendJson(response, 409, { error: 'A local sample run is already in progress.' });
         running = true;

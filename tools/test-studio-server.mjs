@@ -58,6 +58,9 @@ test('run endpoint rejects cross-origin and parameterized requests', async () =>
     assert.equal(crossOrigin.status, 403);
     const body = await fetch(`${base}/api/pipeline/runs`, { method: 'POST', body: JSON.stringify({ project: '/tmp/other' }) });
     assert.equal(body.status, 400);
+    const port = new URL(base).port;
+    const spoofed = await fetch(`${base}/api/pipeline/runs`, { method: 'POST', headers: { host: `evil.test:${port}`, origin: `http://evil.test:${port}` } });
+    assert.equal(spoofed.status, 403);
   });
 });
 
@@ -65,6 +68,8 @@ test('static serving does not escape the repository root', async () => {
   await withServer({}, async (base) => {
     assert.equal((await fetch(`${base}/apps/studio/`)).status, 200);
     assert.equal((await fetch(`${base}/../../../../etc/passwd`)).status, 404);
+    assert.equal((await fetch(`${base}/package.json`)).status, 404);
+    assert.equal((await fetch(`${base}/tools/run-pipeline.mjs`)).status, 404);
     assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'PUT' })).status, 405);
   });
 });

@@ -63,6 +63,19 @@ await record('visual sample pipeline completes with safe publishing evidence',as
   await page.close();
 });
 
+await record('visual sample failure stays explicit and retryable',async()=>{
+  const {page,consoleErrors}=await open({width:1280,height:800});
+  await page.route('**/api/pipeline/runs',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Deliberate test failure'})}));
+  await page.locator('[data-view="local-run"]').click();
+  await page.locator('#run-sample').click();
+  await page.waitForFunction(()=>document.querySelector('#run-message')?.textContent.includes('Deliberate test failure'));
+  assert.equal(await page.locator('[data-run-step].fail').count(),6,'failed stages reverted to an idle-looking state');
+  assert.equal(await page.locator('#run-sample').isEnabled(),true,'retry stayed disabled');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(),false,'stale success evidence became visible');
+  assert(consoleErrors.every(message=>/Failed to load resource.*500/.test(message)),`unexpected console errors: ${consoleErrors.join('; ')}`);
+  await page.close();
+});
+
 await record('blocked human gate cannot be actioned',async()=>{
   const {page}=await open({width:1280,height:800});
   const actions=page.locator('#gate [data-verdict]');
@@ -168,6 +181,8 @@ await record('mobile layout and navigation stay usable',async()=>{
   await page.locator('#workstreams').waitFor({state:'visible'});
   assert((await page.locator('#workstream-list .item').count())>0,'mobile Workstreams view did not render');
   await page.locator('[data-view="overview"]').click();
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.locator('#run-sample').isVisible(),true,'mobile sample runner is unreachable');
   await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
@@ -180,6 +195,11 @@ await record('keyboard basics',async()=>{
   const tag=await page.evaluate(()=>document.activeElement?.tagName);
   assert.equal(tag,'BUTTON','first keyboard focus is not actionable');
   await page.keyboard.press('Enter');
+  await page.locator('[data-view="local-run"]').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('[data-view="local-run"]').getAttribute('aria-current'),'page');
+  await page.locator('#run-sample').focus();
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'run-sample','sample run button is not keyboard focusable');
   await page.close();
 });
 
