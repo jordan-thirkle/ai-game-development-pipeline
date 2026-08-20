@@ -1,0 +1,60 @@
+name: Validate discovery mode comparison
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/discovery-mode-comparison.schema.json'
+      - 'research/DISCOVERY-MODE-COMPARISON-001.md'
+      - 'examples/creator-mode/discovery-comparison-001.json'
+      - 'tools/validate-discovery-mode-comparison.mjs'
+      - 'tools/bounded-external-discovery.mjs'
+      - '.github/workflows/validate-discovery-mode-comparison.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Validate frozen comparison input
+        run: node tools/validate-discovery-mode-comparison.mjs examples/creator-mode/discovery-comparison-001.json --allow-pending-worker
+      - name: Run bounded discovery worker
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/bounded-external-discovery.mjs /tmp/bounded-discovery-result.json
+      - name: Validate bounded worker result
+        run: node tools/validate-discovery-mode-comparison.mjs examples/creator-mode/discovery-comparison-001.json --worker-result /tmp/bounded-discovery-result.json
+      - name: Emit comparison summary
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('/tmp/bounded-discovery-result.json', 'utf8'));
+          const baseline = JSON.parse(fs.readFileSync('examples/creator-mode/discovery-comparison-001.json', 'utf8')).interactive_baseline;
+          const manualActions = baseline.search_actions + baseline.source_fetches;
+          const workerActions = result.search_actions + result.source_fetches;
+          const reduction = manualActions > 0 ? Math.round((1 - workerActions / manualActions) * 100) : null;
+          console.log(JSON.stringify({
+            manual_actions: manualActions,
+            worker_actions: workerActions,
+            action_reduction_pct: reduction,
+            manual_candidate_coverage_pct: baseline.capability_candidate_coverage_pct,
+            worker_candidate_coverage_pct: result.capability_candidate_coverage_pct,
+            manual_fully_cleared_coverage_pct: baseline.fully_cleared_capability_coverage_pct,
+            worker_fully_cleared_coverage_pct: result.fully_cleared_capability_coverage_pct,
+            worker_elapsed_minutes: result.elapsed_minutes,
+            unsafe_promotions: result.unsafe_promotions,
+          }, null, 2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bounded-discovery-result
+          path: /tmp/bounded-discovery-result.json
+          if-no-files-found: error
+          retention-days: 7
