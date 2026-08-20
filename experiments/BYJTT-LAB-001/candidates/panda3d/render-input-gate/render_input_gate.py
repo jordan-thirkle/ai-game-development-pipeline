@@ -32,6 +32,8 @@ loadPrcFileData("", "sync-video false")
 loadPrcFileData("", "show-frame-rate-meter false")
 loadPrcFileData("", "audio-library-name null")
 
+POST_RELEASE_CAPTURE_GRACE_SECONDS = 1.0
+
 
 class RenderInputGate(ShowBase):
     def __init__(self, output_path: Path) -> None:
@@ -49,6 +51,7 @@ class RenderInputGate(ShowBase):
         self.contact_observed = False
         self.max_x = 0.0
         self.release_x: float | None = None
+        self.release_started_at: float | None = None
         self.release_steps = 0
         self.errors: list[str] = []
         self._finished = False
@@ -115,6 +118,7 @@ class RenderInputGate(ShowBase):
         current = self.player.getLinearVelocity()
         self.player.setLinearVelocity(Vec3(0.0, current.y, current.z))
         self.release_x = float(self.player_path.getX())
+        self.release_started_at = time.monotonic()
         self.release_steps = 0
 
     def _step(self, task: Task.Task) -> int:
@@ -129,7 +133,11 @@ class RenderInputGate(ShowBase):
 
         if self.release_x is not None and not self.held_d:
             self.release_steps += 1
-            if self.release_steps >= RELEASE_STABLE_STEPS:
+            capture_grace_elapsed = (
+                self.release_started_at is not None
+                and time.monotonic() - self.release_started_at >= POST_RELEASE_CAPTURE_GRACE_SECONDS
+            )
+            if self.release_steps >= RELEASE_STABLE_STEPS and capture_grace_elapsed:
                 self._finish(False)
                 return Task.done
 
