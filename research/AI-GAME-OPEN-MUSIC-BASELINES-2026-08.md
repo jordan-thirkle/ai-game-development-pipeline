@@ -1,12 +1,18 @@
 # Open / Local Music Generation Baselines — 2026-08
 
-Status: **source/terms research only; no ByJTT execution evidence yet**  
-Project time: `Europe/London`  
-Companion: `AI-GAME-2D-AUDIO-ANIMATION-SYSTEMS-2026-08.md`
+Research date: **2026-08-20**  
+Last verified: **2026-08-20T02:51:00+01:00** (`Europe/London`)  
+Execution status: **NOT EXECUTED — source/terms research only**  
+Tested version/configuration status: **no ByJTT audio has been generated or accepted under this document**  
+Update/supersession status: **current music research snapshot; Stable Audio 3.0 supersedes old 1.0 as Stability's primary 2026 benchmark, subject to exact-artifact terms**  
+Companion: `AI-GAME-2D-AUDIO-ANIMATION-SYSTEMS-2026-08.md`  
+Evaluation protocol authority: `AI-GAME-DEV-EVALUATION-SYSTEMS-2026-08.md`
 
 ## Why this exists
 
 The music-generation landscape is moving too quickly to treat older AudioCraft/Stable Audio assumptions as permanent. This companion identifies the **current commercially plausible open/local baselines** and explicitly separates model/repository licence from output/IP risk.
+
+Every experiment below is bound to the universal frozen run-manifest rule in `AI-GAME-DEV-EVALUATION-SYSTEMS-2026-08.md`: immutable manifest ID/hash, exact inputs and hashes, component/model revisions, execution environment, seeds, retry/attempt policy, predeclared selection/acceptance criteria, spend ceilings, credential scope and complete provenance. A changed manifest means a new benchmark run; results are not pooled across manifest hashes.
 
 ---
 
@@ -17,28 +23,56 @@ Pinned code revision: `14c0211d5a0653b0f63e27686f4c3f151b4d8629`
 Repository licence at pinned revision: MIT  
 Official model repository: https://huggingface.co/ACE-Step/Ace-Step1.5  
 Pinned current model-repository revision: `19671f406d603126926c1b7e2adc169acbcade22`  
-Earlier model-card revision independently inspected: `e491069bd696ec53bae96986197b24ffc2d8692c`  
-Model-card licence: MIT  
-Evidence: **SOURCE-VERIFIED**  
-Disposition: **BENCHMARK NOW as open/local commercial-music candidate, pending exact component hash inventory**
+Original component upload revision: `571cee8` (abbreviated Hugging Face commit displayed by the official repository; full repository revision must be resolved and stored by the run manifest before download)  
+Model-repository metadata licence: MIT  
+Evidence: **SOURCE-VERIFIED for repository/model metadata and file hashes; commercial-output/training-data statements are not independently established**  
+Disposition: **TECHNICAL BENCHMARK CANDIDATE; production promotion blocked pending exact component ledger + output-rights decision**
 
-Current official project/model material describes text-to-music plus reference/editing workflows and a multi-component model repository containing components such as `Qwen3-Embedding-0.6B`, `acestep-5Hz-lm-1.7B`, `acestep-v15-turbo`, and `vae`. The model card labels the released model family MIT, but repository-level licensing does not substitute for an inventory of every concrete component downloaded by a benchmark run.
+### Component ledger required for the reference bundle
 
-### Important boundary
+The official model repository is a composite, not one opaque weight. A proposed baseline currently includes:
 
-MIT code/model licensing does not guarantee that any requested/generated song is free of third-party copyright, performer, lyric, reference-audio or stylistic-similarity risk. The pipeline therefore still requires:
-- prompt/reference provenance;
-- reference-audio rights;
-- generated-output hash;
-- originality/similarity review appropriate to the release context;
-- exact model-component revisions and local file hashes;
-- human/legal escalation for material ambiguity.
+1. **Qwen3 embedding component** — bundled path `Qwen3-Embedding-0.6B/`
+   - bundled upload revision: `571cee8` (resolve full hash in manifest)
+   - bundled `model.safetensors` SHA-256: `0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd`
+   - upstream family: `Qwen/Qwen3-Embedding-0.6B`
+   - upstream model metadata licence: Apache-2.0
+   - upstream immutable revision/hash still required in the execution manifest; a bundled copy does not replace upstream provenance.
+2. **ACE-Step 5 Hz language model** — proposed path `acestep-5Hz-lm-1.7B/`
+   - bundled upload revision: `571cee8` (resolve full hash in manifest)
+   - `model.safetensors` SHA-256: `f161689da73e5ecefa28ff780d51c2d92a00f056d021d7933c779ed5c6cd7db8`
+   - configuration identifies Qwen3 architecture; ACE-Step documentation describes the 1.7B LM as pretrained from Qwen3-1.7B
+   - upstream `Qwen/Qwen3-1.7B` metadata licence: Apache-2.0
+   - the ACE-Step fine-tuned artifact is covered by the ACE-Step model-repository metadata at the frozen revision, but upstream provenance/notice obligations remain recorded separately.
+3. **ACE-Step DiT / generation model** — proposed path `acestep-v15-turbo/`
+   - bundled upload revision: `571cee8` (resolve full hash in manifest)
+   - `model.safetensors` SHA-256: `3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7`
+   - top-level model repository metadata: MIT
+   - remote-code files `configuration_acestep_v15.py` and `modeling_acestep_v15_turbo.py` carry Apache-2.0 source headers and are executable code, not inert weights.
+4. **VAE** — path `vae/`
+   - bundled upload revision: `571cee8` (resolve full hash in manifest)
+   - `diffusion_pytorch_model.safetensors` SHA-256: `da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0`
+   - top-level model repository metadata: MIT; exact upstream/derivation provenance must be recorded if the model card or files identify one.
+5. **Custom/remote Python code**
+   - `trust_remote_code=True` is documented by the model repository and means the benchmark executes repository-supplied Python.
+   - every executed remote-code path is pinned to the same immutable model-repository revision, reviewed as code, and recorded in the run manifest before execution.
+   - per-file licence headers take precedence over any assumption that one top-level metadata value describes every copied source file.
 
-Generated-output use as downstream model-training data is also not assumed merely from the model licence. That question is irrelevant to ordinary game use unless we actually train on outputs, at which point it becomes a separate licence/provenance decision.
+If any component actually selected by the benchmark differs from this proposed bundle, it gets a new component record and the run manifest changes.
+
+### Output-rights and training-data boundary
+
+The project repository is MIT and the project/model materials position ACE-Step for creative/commercial use, but this is not treated as independent legal proof about every generated artifact. A May 2026 upstream issue (`ace-step/ACE-Step-1.5#1182`) explicitly asked whether generated outputs may be used as downstream training data; it was closed as not planned without an authoritative project answer. A later rights clarification discussion also remained unanswered at research time. Those community threads are **non-authoritative context**, not licence terms.
+
+Therefore:
+- output-as-training-data status is **UNKNOWN** until an authoritative versioned source says otherwise;
+- ordinary technical benchmarking does not require us to answer that unrelated training question;
+- a generated cue cannot become `production_candidate` solely because the repository/model metadata says MIT;
+- prompt/reference rights, originality/similarity review and the exact release-context legal decision remain separate gates.
 
 ### Benchmark
 
-Use a frozen game-music brief set rather than one hero track:
+Use a frozen game-music brief set from one immutable manifest rather than one hero track:
 - main-menu theme;
 - exploration loop;
 - combat loop;
@@ -60,6 +94,8 @@ Measure:
 - cost per accepted game-ready cue;
 - provenance/commercial-readiness completeness.
 
+All failed/rejected attempts count under the manifest's fixed retry policy; cherry-picking unrecorded generations invalidates the run.
+
 ---
 
 ## Stable Audio 3.0
@@ -77,26 +113,25 @@ Disposition: **BENCHMARK NOW only after artifact-level and transitive licence cl
 
 Stability AI's current official material describes Stable Audio 3.0 Small/Medium as open-weight models and states the family was trained on fully licensed data, with longer music-generation capabilities than the older 1.0 generation. The current Stability AI Community License page states free commercial use of covered Core Models for eligible creators/organizations under its current revenue threshold, with Enterprise licensing required above that threshold; the 3.0 announcement states creators may commercialize outputs under the applicable licence.
 
-That is **not the whole licence picture for every downloadable artifact**. The current gated Hugging Face Stable Audio 3 Small repositories also disclose components redistributed under the **Gemma Terms of Use**, including their own use restrictions. Access itself requires accepting the model gate and sharing contact information. Therefore a project cannot infer production eligibility from the Stability Community License alone.
+Those training-data/output statements remain **vendor/model documentation**, not independent audit evidence.
 
-### Why it matters
-
-This materially changes our candidate set. We should not evaluate obsolete Stable Audio Open 1.0 as if it represented Stability's 2026 audio frontier, but we also must not convert a permissive top-level commercial tier into blanket clearance of transitive model components.
+That is **not the whole licence picture for every downloadable artifact**. The current gated Hugging Face Stable Audio 3 Small repositories also disclose components redistributed under the **Gemma Terms of Use**, including their own use restrictions. Access itself requires accepting the model gate and sharing requested account/contact data. Therefore a project cannot infer production eligibility from the Stability Community License alone.
 
 ### Required pre-execution work
 
-Before benchmarking any Stable Audio 3.0 artifact:
+Before benchmarking any Stable Audio 3.0 artifact, the immutable run manifest must:
 - choose the exact Small Music / Small SFX / Medium artifact;
-- pin the exact Hugging Face repository revision and every relevant LFS/file hash;
-- retain the exact Stability Community/Enterprise licence snapshot and account/registration requirements applicable to the run;
-- separately capture and review Gemma Terms or any other transitive component terms disclosed by that exact artifact;
+- pin exact Hugging Face repository revision and every relevant LFS/file hash;
+- retain a durable Stability Community/Enterprise licence snapshot/reference + SHA-256 and retrieval timestamp;
+- separately retain and review Gemma Terms or any other transitive component terms disclosed by that exact artifact;
+- record gated-access fields/data disclosed and their handling/retention policy;
 - record organization revenue/licence-tier eligibility at execution time;
-- block automatic commercial use if the top-level and transitive terms cannot both be cleared;
+- block automatic commercial use if top-level and transitive terms cannot both be cleared;
 - capture model/training-data provenance statements as vendor/model documentation, not independent proof.
 
 ### Benchmark
 
-Run the same frozen game-music cue set as ACE-Step 1.5 and compare accepted-cue quality, controllability, local compute requirements, edit/variation workflow, licence friction and total game-ready cost. For SFX, use a separate frozen cue manifest rather than treating music results as evidence for one-shot game effects.
+Run the same frozen game-music cue manifest as ACE-Step 1.5 and compare accepted-cue quality, controllability, local compute requirements, edit/variation workflow, licence friction and total game-ready cost. For SFX, use a separate frozen cue manifest rather than treating music results as evidence for one-shot game effects.
 
 ---
 
@@ -115,9 +150,21 @@ AudioCraft remains technically useful research, but its commonly released MusicG
 ## Stable Audio Open 1.0
 
 Official model card: https://huggingface.co/stabilityai/stable-audio-open-1.0  
+Evidence: **SOURCE-VERIFIED model metadata only**  
 Disposition: **HISTORICAL/REFERENCE; do not use as the primary Stability benchmark**
 
-The model card points commercial users to Stability's licence. The current licence framework may permit covered Stability models commercially for eligible users, but Stable Audio 3.0 is the more relevant 2026 benchmark. Keep 1.0 only for historical/reproducibility comparisons where useful, and apply the exact artifact/transitive-term review to any actual use.
+The current model card uses `stable-audio-community` licensing metadata and a gated-access prompt. Access currently asks for:
+- name;
+- email;
+- country;
+- organization or affiliation;
+- intended-use category;
+- acknowledgement of the licence agreement/privacy policy;
+- optional marketing-email preference.
+
+Any historical/reproducibility run records the exact gate fields submitted, the account/identity responsible, purpose, where that contact information is transmitted/stored, the applicable Stability privacy-policy/terms snapshot, retention/deletion handling where controllable, and the exact model artifact revision/hashes. Credentials/contact details themselves are not committed to the public repository; the provenance record stores redacted identifiers and handling evidence.
+
+The model card points commercial users to Stability's licensing framework, but Stable Audio 3.0 is the more relevant 2026 benchmark. Keep 1.0 only for historical/reproducibility comparisons where useful, and apply exact artifact/transitive-term review to any actual use.
 
 ---
 
@@ -125,13 +172,17 @@ The model card points commercial users to Stability's licence. The current licen
 
 Every compared system uses the same frozen cue manifest and the same post-processing acceptance criteria. No cherry-picking the easiest song per provider.
 
-Before any paid/cloud or gated-model run:
-- human-approved spend ceiling where spend exists;
-- exact model/provider/service and repository revision;
-- exact downloaded component hashes;
-- licence tier eligibility and transitive component terms;
+Before any paid/cloud or gated-model run, the immutable manifest records:
+- manifest ID + content hash;
+- exact cue IDs/input hashes and selection rules;
+- exact model/provider/service and component revisions/hashes;
+- execution environment and determinism controls;
+- retry/attempt policy;
+- hard spend/time/compute ceilings;
+- licence-tier eligibility and transitive component terms;
+- credential/data-disclosure scope;
 - input/reference rights;
-- output provenance record.
+- output provenance record IDs.
 
 Before any shipped cue:
 - technical audio QA;
@@ -143,7 +194,7 @@ Before any shipped cue:
 
 ## Current disposition
 
-1. **ACE-Step 1.5** — first open/local executable music benchmark once exact component hashes are frozen and a proof-capable GPU environment is available.
+1. **ACE-Step 1.5** — technical open/local benchmark candidate after full component records are resolved to immutable hashes; production promotion remains separately gated on output-rights/originality review.
 2. **Stable Audio 3.0 Small/Medium** — co-primary technical benchmark after exact artifact hashes **and all Stability/Gemma/transitive terms** are cleared for the intended use.
 3. **Stable Audio 3.0 Small SFX** — serious SFX candidate, but evaluated with a distinct frozen SFX manifest and the same transitive-term gate.
 4. **AudioCraft MusicGen/AudioGen** — research baseline and licence-negative test, not commercial default.
