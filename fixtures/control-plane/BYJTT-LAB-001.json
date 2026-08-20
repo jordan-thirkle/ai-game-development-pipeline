@@ -1,6 +1,6 @@
 {
   "schemaVersion": "0.2.0",
-  "generatedAt": "2026-08-20T15:59:14+01:00",
+  "generatedAt": "2026-08-20T16:17:08+01:00",
   "project": {
     "id": "BYJTT-LAB-001",
     "name": "Mobile 3D Action Slice",
@@ -284,7 +284,7 @@
     {
       "id": "ws-fyrox",
       "title": "Fyrox 1.0 native-physics feasibility candidate",
-      "status": "verification",
+      "status": "blocked",
       "sessionId": "github-pr:126",
       "branch": "benchmark/001-fyrox-physics-tracer",
       "base": "main",
@@ -305,7 +305,7 @@
     {
       "id": "ws-panda3d",
       "title": "Panda3D 1.10.16 Bullet feasibility candidate",
-      "status": "verification",
+      "status": "blocked",
       "sessionId": "github-pr:129",
       "branch": "benchmark/001-panda3d-bullet",
       "base": "main",
@@ -416,7 +416,7 @@
     {
       "id": "ws-ezengine",
       "title": "ezEngine 26.3 Jolt feasibility candidate",
-      "status": "verification",
+      "status": "blocked",
       "sessionId": "github-pr:150",
       "branch": "benchmark/001-ezengine-jolt-tracer",
       "base": "main",
@@ -437,7 +437,7 @@
     {
       "id": "ws-wicked-engine",
       "title": "Wicked Engine 0.72.106 Jolt character feasibility candidate",
-      "status": "verification",
+      "status": "blocked",
       "sessionId": "github-pr:152",
       "branch": "benchmark/001-wicked-jolt-character-tracer",
       "base": "main",
@@ -602,7 +602,7 @@
       "label": "Three.js/WebGPU Phase A integrated execution evidence",
       "status": "current",
       "uri": "experiments/BYJTT-LAB-001/candidates/three-webgpu/README.md",
-      "revision": "integrated-main",
+      "revision": "8b08b4f405980bccda6a10e4b98f2856b579e153",
       "capturedAt": "2026-08-19T05:00:00+01:00"
     },
     {
