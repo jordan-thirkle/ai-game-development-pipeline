@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { browserCommand, assertSupportedNode, launchStudio, verifyStudioReady } from './studio-launcher.mjs';
 import { startStudioServer } from './studio-server.mjs';
@@ -38,6 +39,19 @@ test('readiness rejects unsafe capability projection', async () => {
   );
 });
 
+test('readiness aborts stalled requests within the configured deadline', async () => {
+  const pendingUntilAbort = async (_url, { signal } = {}) => new Promise((_resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+  const started = Date.now();
+  await assert.rejects(
+    () => verifyStudioReady('http://127.0.0.1:1/apps/studio/', pendingUntilAbort, 25),
+    (error) => error?.name === 'TimeoutError' || error?.name === 'AbortError'
+  );
+  assert.ok(Date.now() - started < 1_000, 'bounded readiness test exceeded one second');
+});
+
 test('launcher dogfoods the real Studio server on an ephemeral loopback port without opening a browser', async () => {
   const logs = [];
   const result = await launchStudio({
@@ -73,7 +87,7 @@ test('launcher refuses readiness and closes the server when capability verificat
   assert.equal(closed, true);
 });
 
-test('browser-open failure does not turn a verified local server into a false failure', async () => {
+test('synchronous browser-open failure does not turn a verified local server into a false failure', async () => {
   const fakeServer = {
     address() { return { port: 45679 }; },
     close(done) { done(); }
@@ -89,4 +103,27 @@ test('browser-open failure does not turn a verified local server into a false fa
   });
   assert.equal(server, fakeServer);
   assert.match(logs.join('\n'), /Could not open the browser automatically/);
+});
+
+test('asynchronous browser-opener failure is handled without crashing Studio', async () => {
+  const fakeServer = {
+    address() { return { port: 45680 }; },
+    close(done) { done(); }
+  };
+  const logs = [];
+  const opener = new EventEmitter();
+  const { server } = await launchStudio({
+    startServer: async () => fakeServer,
+    open() {
+      queueMicrotask(() => opener.emit('error', new Error('opener missing')));
+      return opener;
+    },
+    fetchImpl: async (url) => String(url).includes('capabilities')
+      ? response({ json: { dryRunOnly: true, secretsRequired: false, publicationSupported: false } })
+      : response(),
+    log: (line) => logs.push(line)
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(server, fakeServer);
+  assert.match(logs.join('\n'), /Could not open the browser automatically: opener missing/);
 });
