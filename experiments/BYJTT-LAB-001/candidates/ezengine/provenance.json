@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "candidate_id": "ezengine",
+  "phase": "feasibility",
+  "upstream": {
+    "repository": "https://github.com/ezEngine/ezEngine",
+    "release": "release-26.3",
+    "revision": "9d6f053f1fa0637e420dc1d06a692b7bc5f27d1e",
+    "license": "MIT"
+  },
+  "selected_native_system": {
+    "name": "JoltPlugin / bundled Jolt",
+    "reason": "ezEngine ships and enables Jolt as its native physics integration; this gate links the engine JoltPlugin and executes the bundled Jolt solver rather than introducing another physics dependency."
+  },
+  "evidence_boundary": {
+    "engine_jolt_plugin_linked": true,
+    "engine_character_component_executed": false,
+    "external_input_executed": false,
+    "rendering_executed": false,
+    "full_phase_a_executed": false
+  }
+}
