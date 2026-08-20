@@ -58,10 +58,12 @@ jobs:
         run: |
           set -euo pipefail
           mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=artifacts/render-input/dependency-tree.txt
+          mvn --batch-mode --no-transfer-progress dependency:build-classpath -Dmdep.outputFile=artifacts/render-input/classpath.txt
           grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' artifacts/render-input/dependency-tree.txt
           grep -F 'org.jmonkeyengine:jme3-lwjgl3:jar:3.9.0-stable' artifacts/render-input/dependency-tree.txt
           grep -F 'com.github.stephengold:Minie:jar:9.0.3' artifacts/render-input/dependency-tree.txt
           grep -Ei 'Libbulletjme|libbulletjme' artifacts/render-input/dependency-tree.txt
+          test -s artifacts/render-input/classpath.txt
       - name: Execute rendered engine with real OS keyboard input
         shell: bash
         working-directory: ${{ env.CANDIDATE }}
@@ -79,9 +81,9 @@ jobs:
           trap cleanup EXIT
           glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1 || true
 
-          mvn --batch-mode --no-transfer-progress exec:java \
-            -Dexec.args="$ARTIFACTS/result.json" \
-            >"$ARTIFACTS/runtime.log" 2>&1 &
+          CLASSPATH="target/classes:$(cat "$ARTIFACTS/classpath.txt")"
+          java -cp "$CLASSPATH" com.byjtt.lab.MinieRenderedInputGate \
+            "$ARTIFACTS/result.json" >"$ARTIFACTS/runtime.log" 2>&1 &
           APP_PID=$!
 
           WINDOW_ID=""
@@ -120,6 +122,10 @@ jobs:
           echo "app_exit_status=$APP_STATUS" | tee -a "$ARTIFACTS/window-diagnostics.txt"
           cat "$ARTIFACTS/runtime.log"
           test "$APP_STATUS" -eq 0
+          if grep -Eq '(^|[^A-Za-z])(Exception|ERROR|SEVERE)([^A-Za-z]|$)' "$ARTIFACTS/runtime.log"; then
+            echo 'Unexpected exception/error marker found in runtime.log' >&2
+            exit 1
+          fi
       - name: Assert machine-readable pass and hash evidence
         shell: bash
         run: |
@@ -130,6 +136,7 @@ jobs:
             "$CANDIDATE/pom.xml" \
             "$CANDIDATE/src/main/java/com/byjtt/lab/MinieRenderedInputGate.java" \
             "$CANDIDATE/artifacts/render-input/dependency-tree.txt" \
+            "$CANDIDATE/artifacts/render-input/classpath.txt" \
             "$RESULT" \
             "$CANDIDATE/artifacts/render-input/before-input.png" \
             > "$CANDIDATE/artifacts/render-input/sha256.txt"
