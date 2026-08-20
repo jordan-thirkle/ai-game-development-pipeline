@@ -28,7 +28,7 @@ jobs:
       - name: Install Linux runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libsdl2-2.0-0 libgl1-mesa-dri mesa-vulkan-drivers libx11-6 libxcursor1 libxi6 libxrandr2 libasound2t64
+          sudo apt-get install -y xvfb libsdl2-dev libgl1-mesa-dri mesa-vulkan-drivers libx11-6 libxcursor1 libxi6 libxrandr2 libasound2t64
       - name: Record exact execution environment
         run: |
           mkdir -p "$CANDIDATE/artifacts/character-gate"
@@ -39,7 +39,8 @@ jobs:
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
             echo "dotnet_sdk=$(dotnet --version)"
             echo "os=$(uname -a)"
-            echo "sdl2=$(ldconfig -p | grep -m1 libSDL2 || true)"
+            echo "sdl2_runtime=$(ldconfig -p | grep -m1 libSDL2 || true)"
+            echo "sdl2_link=$(find /usr/lib /lib -name libSDL2.so -print -quit 2>/dev/null || true)"
           } | tee "$CANDIDATE/artifacts/character-gate/environment.txt"
           dotnet --info >> "$CANDIDATE/artifacts/character-gate/environment.txt"
       - name: Restore committed dependency graph
