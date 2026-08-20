@@ -1,0 +1,161 @@
+name: Benchmark 001 Godot acquisition/combat integration gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/godot/integration-gate/**'
+      - '.github/workflows/benchmark-001-godot-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GODOT_RELEASE_TAG: 4.7.1-stable
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      EXPECTED_GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      GODOT_LICENSE: MIT
+      GODOT_CHECKSUM_SOURCE: official Godot 4.7.1 release asset independently verified against the previously proven official download
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          EXPECTED_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'checked_out_sha=%s\nexpected_sha=%s\n' "$HEAD_SHA" "$EXPECTED_SHA" | tee /tmp/revision.txt
+          test "$HEAD_SHA" = "$EXPECTED_SHA"
+
+      - name: Download and verify pinned Godot runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output /tmp/godot.zip "$GODOT_URL"
+          OBSERVED_SHA="$(sha256sum /tmp/godot.zip | awk '{print $1}')"
+          printf 'release_tag=%s\nurl=%s\nexpected_sha256=%s\nobserved_sha256=%s\nlicense=%s\nchecksum_source=%s\n' \
+            "$GODOT_RELEASE_TAG" "$GODOT_URL" "$EXPECTED_GODOT_SHA256" "$OBSERVED_SHA" "$GODOT_LICENSE" "$GODOT_CHECKSUM_SOURCE" | tee /tmp/godot-provenance.txt
+          test "$OBSERVED_SHA" = "$EXPECTED_GODOT_SHA256"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/godot-version.txt
+
+      - name: Parse project and scripts
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --editor --quit 2>&1 | tee /tmp/godot-parse.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script' /tmp/godot-parse.log
+
+      - name: Reprove existing CharacterBody3D movement and collision
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script tests/headless_tracer.gd 2>&1 | tee /tmp/godot-character.log
+          mapfile -t lines < <(grep '^BYJTT_RESULT=' /tmp/godot-character.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_RESULT=}" | tee /tmp/character-result.json
+          jq -e '.result == "pass" and .controller == "CharacterBody3D" and .wall_collision_observed == true and .observation_mutation_isolated == true' /tmp/character-result.json
+
+      - name: Reprove existing NavigationServer3D path
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script navigation-gate/navigation_tracer.gd 2>&1 | tee /tmp/godot-navigation.log
+          mapfile -t lines < <(grep '^BYJTT_RESULT=' /tmp/godot-navigation.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_RESULT=}" | tee /tmp/navigation-result.json
+          jq -e '.result == "pass" and .engine_system == "NavigationServer3D" and .path_found == true and .post_navigation_position_clamp == false' /tmp/navigation-result.json
+
+      - name: Execute acquisition and enemy-combat integration gate
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script integration-gate/acquisition_combat_tracer.gd 2>&1 | tee /tmp/godot-integration.log
+          mapfile -t lines < <(grep '^BYJTT_RESULT=' /tmp/godot-integration.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_RESULT=}" | tee /tmp/integration-result.json
+          jq -e '
+            .result == "pass" and
+            .experiment_id == "BYJTT-LAB-001" and
+            .player_controller == "CharacterBody3D" and
+            .navigation_system == "NavigationServer3D" and
+            .contract_oracle_validated == true and
+            .acquire_range_m == 12 and
+            .acquired == true and
+            .player_normal_action_input_executed == true and
+            .physical_os_input_executed == false and
+            .native_path_found == true and
+            .enemy_move_speed_mps == 2.7 and
+            .enemy_attack_range_m == 1.6 and
+            .enemy_attack_damage == 20 and
+            .enemy_attack_cooldown_s == 1.1 and
+            .cooldown_guard_s == 0.5 and
+            .cooldown_guard_passed == true and
+            .enemy_attack_count == 1 and
+            .player_health_before == 100 and
+            .player_health_after == 80 and
+            .observation_mutation_isolated == true and
+            .test_only_gameplay_mutation_shortcut == false and
+            .post_navigation_position_clamp == false and
+            .post_physics_arena_clamp == false and
+            .player_attack_executed == false and
+            .bidirectional_damage_exchange_executed == false and
+            (.failures | length) == 0
+          ' /tmp/integration-result.json
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          : > /tmp/evidence-sha256.txt
+          for file in \
+            /tmp/revision.txt \
+            /tmp/godot-provenance.txt \
+            /tmp/godot-version.txt \
+            /tmp/godot-parse.log \
+            /tmp/godot-character.log \
+            /tmp/character-result.json \
+            /tmp/godot-navigation.log \
+            /tmp/navigation-result.json \
+            /tmp/godot-integration.log \
+            /tmp/integration-result.json; do
+            if [ -f "$file" ]; then sha256sum "$file" >> /tmp/evidence-sha256.txt; fi
+          done
+          cat /tmp/evidence-sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: godot-integration-gate-${{ github.run_id }}
+          path: |
+            /tmp/revision.txt
+            /tmp/godot-provenance.txt
+            /tmp/godot-version.txt
+            /tmp/godot-parse.log
+            /tmp/godot-character.log
+            /tmp/character-result.json
+            /tmp/godot-navigation.log
+            /tmp/navigation-result.json
+            /tmp/godot-integration.log
+            /tmp/integration-result.json
+            /tmp/evidence-sha256.txt
+          if-no-files-found: warn
