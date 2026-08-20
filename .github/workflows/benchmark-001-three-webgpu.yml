@@ -24,12 +24,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '26'
-      - name: Record execution environment
+      - name: Verify exact execution revision
+        shell: bash
         run: |
+          set -euo pipefail
+          ACTUAL_HEAD="$(git rev-parse HEAD)"
+          echo "actual_head_sha=$ACTUAL_HEAD"
+          echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+          test "$ACTUAL_HEAD" = "$CANDIDATE_HEAD_SHA"
+      - name: Record execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p "$CANDIDATE/artifacts/phase-a"
           {
             echo "node=$(node --version)"
@@ -37,10 +48,11 @@ jobs:
             echo "chrome=$(google-chrome --version || true)"
             echo "os=$(uname -a)"
             echo "github_sha=$GITHUB_SHA"
+            echo "checked_out_head=$(git rev-parse HEAD)"
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
           } | tee "$CANDIDATE/artifacts/phase-a/environment.txt"
       - name: Install pinned candidate dependencies
-        run: npm --prefix "$CANDIDATE" install --ignore-scripts --no-audit --no-fund
+        run: npm --prefix "$CANDIDATE" ci --ignore-scripts --no-audit --no-fund
       - name: Build Three.js candidate
         run: npm --prefix "$CANDIDATE" run build
       - name: Run shared Phase A playtest in Chrome
