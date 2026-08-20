@@ -1,0 +1,164 @@
+name: Benchmark 001 Fyrox rendered input
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/fyrox/render-input-gate/**'
+      - '.github/workflows/benchmark-001-fyrox-render-input.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rendered-input:
+    name: rendered-input
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/fyrox/render-input-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      DISPLAY: ':99'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install Rust 1.88
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup override set 1.88.0
+      - name: Install Linux runtime dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev pkg-config \
+            xvfb x11-utils openbox xdotool wmctrl imagemagick \
+            libgl1-mesa-dri libglx-mesa0 mesa-utils
+      - name: Record exact execution environment
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          ACTUAL_HEAD_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_HEAD_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_head_sha=$ACTUAL_HEAD_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "rustc=$(rustc --version)"
+            echo "cargo=$(cargo --version)"
+            echo "os=$(uname -a)"
+            echo "fyrox_declared_rust_version=1.87"
+            echo "effective_dependency_floor=1.88"
+            echo "effective_floor_reason=fyrox-impl_1.0.0_requires_libloading_0.9"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Freeze dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile
+          cargo tree --locked | tee evidence/cargo-tree.txt
+      - name: Strict compile and tests
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          RUSTFLAGS='-D warnings' cargo check --locked 2>&1 | tee evidence/cargo-check.log
+          RUSTFLAGS='-D warnings' cargo test --locked 2>&1 | tee evidence/cargo-test.log
+          RUSTFLAGS='-D warnings' cargo build --release --locked 2>&1 | tee evidence/cargo-build.log
+      - name: Execute real Fyrox window and external keyboard path
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > evidence/xvfb.log 2>&1 &
+          XVFB_PID=$!
+          OPENBOX_PID=''
+          trap 'if [ -n "$OPENBOX_PID" ]; then kill "$OPENBOX_PID" 2>/dev/null || true; fi; kill "$XVFB_PID" 2>/dev/null || true' EXIT
+
+          DISPLAY_READY=false
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              DISPLAY_READY=true
+              break
+            fi
+            sleep 0.1
+          done
+          test "$DISPLAY_READY" = true
+
+          openbox > evidence/openbox.log 2>&1 &
+          OPENBOX_PID=$!
+          WM_READY=false
+          for _ in $(seq 1 50); do
+            if wmctrl -m > evidence/window-manager.txt 2>&1 && grep -q '^Name: Openbox$' evidence/window-manager.txt; then
+              WM_READY=true
+              break
+            fi
+            sleep 0.1
+          done
+          test "$WM_READY" = true
+          glxinfo -B > evidence/glxinfo.txt
+
+          # GitHub-hosted runners have no physical ALSA device. Give Fyrox/cpal an
+          # ALSA null PCM so optional audio initialization does not create a false
+          # runtime failure while keeping the strict engine error scan unchanged.
+          cat > evidence/alsa-null.conf <<'EOF'
+          pcm.!default {
+            type null
+          }
+          EOF
+          export ALSA_CONFIG_PATH="$PWD/evidence/alsa-null.conf"
+
+          timeout 25s ./target/release/byjtt-lab-001-fyrox-render-input > evidence/runtime.log 2>&1 &
+          APP_PID=$!
+
+          WINDOW_ID=''
+          for _ in $(seq 1 80); do
+            WINDOW_ID="$(xdotool search --name '^BYJTT LAB 001 Fyrox Render Input$' 2>/dev/null | head -n 1 || true)"
+            if [ -n "$WINDOW_ID" ]; then break; fi
+            sleep 0.25
+          done
+          test -n "$WINDOW_ID"
+          {
+            echo "window_id=$WINDOW_ID"
+            xdotool getwindowname "$WINDOW_ID"
+            xdotool getwindowgeometry --shell "$WINDOW_ID"
+          } | tee evidence/window.txt
+
+          xdotool windowactivate --sync "$WINDOW_ID"
+          sleep 0.5
+          import -window "$WINDOW_ID" evidence/before-input.png
+          test -s evidence/before-input.png
+
+          xdotool keydown --window "$WINDOW_ID" d
+          sleep 2
+          xdotool keyup --window "$WINDOW_ID" d
+
+          for _ in $(seq 1 40); do
+            if [ -s evidence/runtime-result.json ]; then break; fi
+            sleep 0.25
+          done
+          test -s evidence/runtime-result.json
+          cat evidence/runtime-result.json
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("evidence/runtime-result.json","utf8")); if(!r.passed||r.press_events<1||r.release_events<1||r.movement_m<1||r.walk_speed_mps!==3.5||r.native_physics_integrated_in_this_gate!==false) process.exit(1);'
+
+          import -window "$WINDOW_ID" evidence/after-input.png || true
+          kill "$APP_PID" 2>/dev/null || true
+          wait "$APP_PID" 2>/dev/null || true
+          if grep -E '(^|[^[:alnum:]_])(panic|ERROR|Error:|thread .* panicked)' evidence/runtime.log; then
+            echo 'Unexpected runtime error marker found' >&2
+            exit 1
+          fi
+      - name: Hash exact-head evidence
+        if: always()
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          find evidence -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > evidence/sha256.txt || true
+          cat evidence/sha256.txt || true
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-fyrox-render-input-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/fyrox/render-input-gate/evidence/**
+            experiments/BYJTT-LAB-001/candidates/fyrox/render-input-gate/Cargo.lock
+          if-no-files-found: error
+          retention-days: 30
