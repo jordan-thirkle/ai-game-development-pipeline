@@ -46,7 +46,7 @@ jobs:
           from pathlib import Path
           p = Path('.github/workflows/benchmark-001-torque3d-runtime.yml')
           text = p.read_text(encoding='utf-8')
-          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip']
+          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip', 'extract_dir/Torque3D']
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit(f'missing fail-closed workflow markers: {missing}')
@@ -128,7 +128,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             xvfb openbox wmctrl x11-utils mesa-utils libgl1-mesa-dri \
-            libopenal1 libsdl2-2.0-0 unzip p7zip-full libarchive-tools file
+            libopenal1 libsdl2-2.0-0 unzip file
 
       - name: Extract verified official package and launch Torque3D
         if: success()
@@ -140,36 +140,18 @@ jobs:
           extract_dir="$EVIDENCE_DIR/extracted"
           mkdir -p "$extract_dir"
 
-          case "$asset_name" in
-            *.zip) unzip -q "$archive" -d "$extract_dir" ;;
-            *.7z) 7z x -y -o"$extract_dir" "$archive" > "$EVIDENCE_DIR/extract.log" ;;
-            *.tar.gz|*.tgz) tar -xzf "$archive" -C "$extract_dir" ;;
-            *.tar.xz) tar -xJf "$archive" -C "$extract_dir" ;;
-            *) bsdtar -xf "$archive" -C "$extract_dir" ;;
-          esac
+          unzip -Z1 "$archive" > "$EVIDENCE_DIR/archive-files.txt"
+          entry_count="$(wc -l < "$EVIDENCE_DIR/archive-files.txt" | tr -d '[:space:]')"
+          printf 'archive_entry_count=%s\n' "$entry_count" > "$EVIDENCE_DIR/archive-metadata.txt"
+          grep -Fx 'Torque3D' "$EVIDENCE_DIR/archive-files.txt" >/dev/null
+          unzip -q "$archive" -d "$extract_dir"
 
-          find "$extract_dir" -maxdepth 5 -type f -printf '%p\n' | sort > "$EVIDENCE_DIR/extracted-files.txt"
-          while IFS= read -r f; do file "$f"; done < "$EVIDENCE_DIR/extracted-files.txt" > "$EVIDENCE_DIR/file-types.txt"
-
-          mapfile -t elf_bins < <(awk -F: '/ELF .*executable/ {print $1}' "$EVIDENCE_DIR/file-types.txt")
-          if (( ${#elf_bins[@]} == 0 )); then
-            jq -n --arg status 'no-linux-executable-found' '{status:$status, runtime_executed:false}' > "$EVIDENCE_DIR/runtime-result.json"
-            echo 'No ELF executable found in verified official Linux package.' >&2
-            exit 44
-          fi
-
-          binary=''
-          for candidate in "${elf_bins[@]}"; do
-            base="$(basename "$candidate" | tr '[:upper:]' '[:lower:]')"
-            if [[ "$base" == *torque* || "$base" == *basegame* ]]; then
-              binary="$candidate"
-              break
-            fi
-          done
-          if [[ -z "$binary" ]]; then binary="${elf_bins[0]}"; fi
+          binary="$extract_dir/Torque3D"
+          test -f "$binary"
           chmod +x "$binary"
+          file "$binary" | tee "$EVIDENCE_DIR/selected-binary-file.txt"
+          grep -Eq 'ELF .*executable' "$EVIDENCE_DIR/selected-binary-file.txt"
           printf '%s\n' "$binary" | tee "$EVIDENCE_DIR/selected-binary.txt"
-          file "$binary" > "$EVIDENCE_DIR/selected-binary-file.txt"
           ldd "$binary" > "$EVIDENCE_DIR/ldd.txt" 2>&1 || true
 
           export DISPLAY=:99
