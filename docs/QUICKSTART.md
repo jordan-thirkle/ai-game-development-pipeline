@@ -3,7 +3,7 @@
 The repository includes a dependency-free sample project. Run the complete local pipeline from the repository root:
 
 ```sh
-npm run pipeline:demo
+node tools/run-pipeline.mjs --project examples/sample-game --output /tmp/ai-game-pipeline-demo --dry-run
 ```
 
 The command is intentionally dry-run only. It builds `examples/sample-game/dist`, runs QA against that artifact, selects the requested source-verified registry entry, creates a release-candidate manifest, and writes the following files under `/tmp/ai-game-pipeline-demo/`:
@@ -25,7 +25,7 @@ pipeline-run.json
 Validate the emitted run record with the repository schema validator:
 
 ```sh
-npm run validate:record -- pipeline-run /tmp/ai-game-pipeline-demo/pipeline-run.json
+node tools/validate-record.mjs pipeline-run /tmp/ai-game-pipeline-demo/pipeline-run.json
 ```
 
 To scaffold a fresh copy without overwriting an existing directory:
