@@ -2,6 +2,14 @@ export const DEFAULT_CONTROL_PLANE_MAX_AGE_HOURS=6;
 
 const RFC3339=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
 
+function daysInMonth(year,month){
+  if(month===2){
+    const leap=year%4===0&&(year%100!==0||year%400===0);
+    return leap?29:28;
+  }
+  return [4,6,9,11].includes(month)?30:31;
+}
+
 function parseStrictTimestamp(value){
   if(typeof value!=='string') return NaN;
   const match=RFC3339.exec(value);
@@ -9,13 +17,7 @@ function parseStrictTimestamp(value){
   const [,yearText,monthText,dayText,hourText,minuteText,secondText,,offset]=match;
   const year=Number(yearText),month=Number(monthText),day=Number(dayText);
   const hour=Number(hourText),minute=Number(minuteText),second=Number(secondText);
-  if(month<1||month>12||hour>23||minute>59||second>59) return NaN;
-  const calendarCheck=new Date(Date.UTC(year,month-1,day));
-  if(
-    calendarCheck.getUTCFullYear()!==year||
-    calendarCheck.getUTCMonth()!==month-1||
-    calendarCheck.getUTCDate()!==day
-  ) return NaN;
+  if(month<1||month>12||day<1||day>daysInMonth(year,month)||hour>23||minute>59||second>59) return NaN;
   if(offset!=='Z'){
     const offsetHour=Number(offset.slice(1,3));
     const offsetMinute=Number(offset.slice(4,6));
