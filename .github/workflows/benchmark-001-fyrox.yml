@@ -30,14 +30,16 @@ jobs:
       - name: Record execution environment
         run: |
           mkdir -p "$CANDIDATE/evidence"
+          ACTUAL_HEAD_SHA="$(git rev-parse HEAD)"
           {
             echo "rustc=$(rustc --version)"
             echo "cargo=$(cargo --version)"
             echo "os=$(uname -a)"
-            echo "github_sha=$GITHUB_SHA"
+            echo "github_event_sha=$GITHUB_SHA"
+            echo "checked_out_head_sha=$ACTUAL_HEAD_SHA"
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
           } | tee "$CANDIDATE/evidence/environment.txt"
-          test "$GITHUB_SHA" = "$CANDIDATE_HEAD_SHA"
+          test "$ACTUAL_HEAD_SHA" = "$CANDIDATE_HEAD_SHA"
       - name: Resolve and freeze dependencies
         working-directory: ${{ env.CANDIDATE }}
         run: cargo generate-lockfile
