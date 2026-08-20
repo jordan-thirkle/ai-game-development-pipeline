@@ -54,6 +54,28 @@ async function readJson(path) {
   }
 }
 
+async function validateExecutedMediaEntry(meta, entry, id) {
+  if (meta.namespace !== 'media' || entry.execution_status !== 'EXECUTED') return;
+  const record = entry.execution_record;
+  if (!isPlainObject(record)) {
+    failures.push(`${meta.path} entry ${id} marked EXECUTED requires execution_record`);
+    return;
+  }
+  if (!nonEmptyString(record.path) || !/^experiments\/[A-Za-z0-9._-]+\/experiment\.json$/.test(record.path)) {
+    failures.push(`${meta.path} entry ${id} execution_record.path must reference experiments/<id>/experiment.json`);
+    return;
+  }
+  if (!nonEmptyString(record.experiment_id)) {
+    failures.push(`${meta.path} entry ${id} execution_record requires experiment_id`);
+    return;
+  }
+  const experiment = await readJson(record.path);
+  if (!experiment) return;
+  if (experiment.experiment_id !== record.experiment_id) failures.push(`${meta.path} entry ${id} execution_record experiment_id does not match ${record.path}`);
+  if (experiment.status !== 'completed') failures.push(`${meta.path} entry ${id} EXECUTED evidence experiment must have status=completed`);
+  if (!Array.isArray(experiment.evidence) || experiment.evidence.length === 0) failures.push(`${meta.path} entry ${id} EXECUTED evidence experiment requires non-empty evidence`);
+}
+
 const index = await readJson(indexPath);
 if (!index) process.exit(1);
 
@@ -65,6 +87,7 @@ if (!Array.isArray(index.shards) || index.shards.length < 2) failures.push(`${in
 
 const shardIds = new Set();
 const shardPaths = new Set();
+let policyMeta = null;
 for (const shard of index.shards ?? []) {
   if (!isPlainObject(shard)) {
     failures.push(`${indexPath} shard records must be objects`);
@@ -77,9 +100,11 @@ for (const shard of index.shards ?? []) {
   if (shardPaths.has(shard.path)) failures.push(`Duplicate registry shard path: ${shard.path}`);
   shardIds.add(shard.shard_id);
   shardPaths.add(shard.path);
+  if (shard.path === index.policy_shard) policyMeta = shard;
   if (shard.required !== true) failures.push(`Registry shard ${shard.shard_id ?? '<missing>'} must currently be required`);
 }
 if (!shardPaths.has(index.policy_shard)) failures.push(`${indexPath} policy_shard must be listed in shards`);
+if (policyMeta && policyMeta.namespace !== 'core') failures.push(`${indexPath} policy_shard must use namespace=core`);
 for (const rule of ['global_entry_ids_unique','global_benchmark_ids_unique','cross_shard_benchmark_joins_allowed','policy_enums_inherited_from_policy_shard','repository_commit_is_the_atomic_registry_revision']) {
   if (index.rules?.[rule] !== true) failures.push(`${indexPath} must declare ${rule}=true`);
 }
@@ -158,7 +183,7 @@ for (const { meta, data } of loadedShards) {
         if (entry.source_revisions.code_commit !== entry.version_or_revision) failures.push(`${meta.path} entry ${id} version_or_revision must equal source_revisions.code_commit`);
       }
     }
-    if (meta.namespace === 'media' && entry.execution_status === 'EXECUTED') failures.push(`${meta.path} entry ${id} cannot be EXECUTED before a separate experiment record is materialized`);
+    await validateExecutedMediaEntry(meta, entry, id);
   }
 }
 
