@@ -107,8 +107,12 @@
       "canonical_url": "https://github.com/VAST-AI-Research/UniRig",
       "source_type": "repository+official_model_repository",
       "source_revision_status": "immutable_commit_and_model_revision",
+      "source_revisions": {
+        "code_commit": "6793c6640ff01c8fb389f3993434124bb43d2933",
+        "model_revision": "36842e2b5947e9e60f89275b83208c8e74071c63"
+      },
       "license": "Pinned code repository and official model metadata report MIT for the released component; exact checkpoint provenance is separate.",
-      "version_or_revision": "6793c6640ff01a20cf92a90f7ccc024c3544c8b",
+      "version_or_revision": "6793c6640ff01c8fb389f3993434124bb43d2933",
       "last_verified_at": "2026-08-20T02:51:00+01:00",
       "execution_status": "SOURCE-VERIFIED",
       "benchmark_id": "bench.byjtt.rigging",
@@ -117,7 +121,7 @@
       "lock_in_risk": "low-format/high-compute",
       "license_review_status": "skeleton_candidate_skinning_blocked_pending_upstream_intent_verification",
       "redistribution_status": "checkpoint_and_input_asset_records_required_before_redistribution",
-      "notes": "Code pin is 6793c6640ff01c8fb389f3993434124bb43d2933; model repo pin 36842e2b5947e9e60f89275b83208c8e74071c63. Skeleton checkpoint SHA-256 d8cf9b42d56e7bc316d293597ecf8c4c39a8631cdd44a261ecf388242fabd0f4. Skin checkpoint SHA-256 9d40cf42fb9d4c10d8b373d9f4f557c6fbbc5ebacae7ae6b3dce5a0d8a18bc33 but skinning remains blocked because upstream model-card release text is contradictory. Checkpoints expose pickle imports; verify official hashes before restricted loading."
+      "notes": "Skeleton checkpoint SHA-256 d8cf9b42d56e7bc316d293597ecf8c4c39a8631cdd44a261ecf388242fabd0f4. Skin checkpoint SHA-256 9d40cf42fb9d4c10d8b373d9f4f557c6fbbc5ebacae7ae6b3dce5a0d8a18bc33 but skinning remains blocked because upstream model-card release text is contradictory. Checkpoints expose pickle imports; verify official hashes before restricted loading."
     },
     {
       "entry_id": "audio.audiocraft",
@@ -145,6 +149,10 @@
       "canonical_url": "https://github.com/ace-step/ACE-Step-1.5",
       "source_type": "repository+official_model_repository+component_ledger",
       "source_revision_status": "immutable_commit_and_model_revision",
+      "source_revisions": {
+        "code_commit": "14c0211d5a0653b0f63e27686f4c3f151b4d8629",
+        "model_revision": "19671f406d603126926c1b7e2adc169acbcade22"
+      },
       "license": "Top-level code/model metadata MIT; component ledger also includes Apache-2.0 Qwen-derived components and Apache-2.0 remote-code files. Output/training-data legal conclusions remain separately gated.",
       "version_or_revision": "14c0211d5a0653b0f63e27686f4c3f151b4d8629",
       "last_verified_at": "2026-08-20T02:51:00+01:00",
@@ -155,7 +163,7 @@
       "lock_in_risk": "low-local/high-component-complexity",
       "license_review_status": "partial_component_ledger_complete_for_proposed_bundle_production_output_rights_still_gated",
       "redistribution_status": "blocked_for_production_promotion_until_runtime_manifest_and_component_notices_are_complete",
-      "notes": "Model repo pin 19671f406d603126926c1b7e2adc169acbcade22. Proposed component hashes: Qwen embedding 0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd; 1.7B LM f161689da73e5ecefa28ff780d51c2d92a00f056d021d7933c779ed5c6cd7db8; turbo DiT 3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7; VAE da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0. trust_remote_code means executed Python must be revision-pinned/reviewed. Output-as-training-data status remains UNKNOWN."
+      "notes": "Proposed component hashes: Qwen embedding 0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd; 1.7B LM f161689da73e5ecefa28ff780d51c2d92a00f056d021d7933c779ed5c6cd7db8; turbo DiT 3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7; VAE da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0. trust_remote_code means executed Python must be revision-pinned/reviewed. Output-as-training-data status remains UNKNOWN."
     },
     {
       "entry_id": "audio.stable-audio-3",
@@ -202,6 +210,10 @@
       "canonical_url": "https://github.com/resemble-ai/chatterbox",
       "source_type": "repository+official_model_repository",
       "source_revision_status": "immutable_commit_and_model_revision",
+      "source_revisions": {
+        "code_commit": "5de7a54aa4e5e2baadb0182dde554908b48b85c2",
+        "model_revision": "5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18"
+      },
       "license": "Pinned repository and official model metadata report MIT; speaker/reference rights are separate and model licensing does not grant voice-cloning consent.",
       "version_or_revision": "5de7a54aa4e5e2baadb0182dde554908b48b85c2",
       "last_verified_at": "2026-08-20T02:51:00+01:00",
@@ -212,7 +224,7 @@
       "lock_in_risk": "low-local",
       "license_review_status": "model_metadata_verified_runtime_artifact_manifest_and_voice_consent_required",
       "redistribution_status": "weights_and_generated_voice_outputs_require_exact_artifact_and_consent_provenance",
-      "notes": "Model repo pin 5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18. Known V3 artifact hashes are research evidence only; benchmark must record the exact files selected by the chosen loader rather than assuming those filenames. Any reference-conditioned/cloned voice generation is blocked without recorded lawful permission/consent and source-audio provenance."
+      "notes": "Known V3 artifact hashes are research evidence only; benchmark must record the exact files selected by the chosen loader rather than assuming those filenames. Any reference-conditioned/cloned voice generation is blocked without recorded lawful permission/consent and source-audio provenance."
     },
     {
       "entry_id": "voice.elevenlabs",
