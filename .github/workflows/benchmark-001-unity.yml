@@ -1,0 +1,60 @@
+name: BYJTT-LAB-001 Unity proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  playmode-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+    steps:
+      - name: Checkout exact requested revision
+        uses: actions/checkout@v4
+
+      - name: Fail closed when Unity activation is unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${UNITY_LICENSE:-}" || -z "${UNITY_EMAIL:-}" || -z "${UNITY_PASSWORD:-}" ]]; then
+            echo "Unity execution BLOCKED: UNITY_LICENSE / UNITY_EMAIL / UNITY_PASSWORD are required."
+            exit 1
+          fi
+          echo "candidate_head=${GITHUB_SHA}" | tee unity-candidate-head.txt
+
+      - name: Execute Unity PlayMode proof
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9
+        with:
+          projectPath: experiments/BYJTT-LAB-001/candidates/unity
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          testMode: playmode
+          artifactsPath: unity-test-artifacts
+
+      - name: Preserve exact-head marker
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p unity-test-artifacts
+          {
+            echo "candidate_head=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "workflow_run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "expected_editor=6000.3.13f1"
+          } > unity-test-artifacts/exact-head.txt
+
+      - name: Upload Unity proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byjtt-lab-001-unity-proof-${{ github.sha }}
+          path: |
+            unity-test-artifacts
+            unity-candidate-head.txt
+          if-no-files-found: error
