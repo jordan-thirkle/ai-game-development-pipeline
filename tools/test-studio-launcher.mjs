@@ -54,6 +54,34 @@ test('macOS launcher preserves a nonzero Studio exit after its user-facing pause
   }
 });
 
+test('macOS launcher preserves a nonzero Studio exit when the pause receives EOF', async () => {
+  const fakeBin = await mkdtemp(path.join(tmpdir(), 'byjtt-launcher-node-eof-'));
+  const fakeNode = path.join(fakeBin, 'node');
+  await writeFile(fakeNode, '#!/bin/sh\nexit 7\n', 'utf8');
+  await chmod(fakeNode, 0o755);
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn('sh', ['apps/studio/launch-studio.command'], {
+        cwd: new URL('..', import.meta.url),
+        env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ''}` }
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+      child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+      child.once('error', reject);
+      child.once('close', (code, signal) => resolve({ code, signal, stdout, stderr }));
+      child.stdin.end();
+    });
+    assert.equal(result.code, 7);
+    assert.equal(result.signal, null);
+    assert.match(result.stdout, /Studio could not start/);
+  } finally {
+    await rm(fakeBin, { recursive: true, force: true });
+  }
+});
+
 test('readiness rejects a page failure', async () => {
   let call = 0;
   await assert.rejects(
