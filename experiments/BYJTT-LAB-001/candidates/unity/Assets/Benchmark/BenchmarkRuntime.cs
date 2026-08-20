@@ -75,13 +75,9 @@ namespace ByJtt.Benchmark.Unity
 
         private void BuildPlayer()
         {
-            var player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            player.name = "Player";
+            var player = new GameObject("Player");
             player.transform.SetParent(transform, false);
             player.transform.position = BenchmarkConstants.PlayerSpawn;
-
-            var primitiveCollider = player.GetComponent<CapsuleCollider>();
-            Destroy(primitiveCollider);
 
             var controller = player.AddComponent<CharacterController>();
             controller.center = new Vector3(0f, 1f, 0f);
@@ -91,6 +87,16 @@ namespace ByJtt.Benchmark.Unity
             controller.minMoveDistance = 0f;
 
             _playerMotor = player.AddComponent<PlayerMotor>();
+
+            var visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            visual.name = "Player Visual";
+            visual.transform.SetParent(player.transform, false);
+            visual.transform.localPosition = new Vector3(0f, 1f, 0f);
+            var visualCollider = visual.GetComponent<CapsuleCollider>();
+            if (visualCollider != null)
+            {
+                Destroy(visualCollider);
+            }
         }
 
         private void BuildArena()
