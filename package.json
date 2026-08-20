@@ -8,7 +8,8 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-github-config.mjs && npm run test:governor && npm run test:control-plane-freshness",
+    "validate:registry": "node tools/validate-registry-shards.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
     "new:record": "node tools/new-record.mjs",
