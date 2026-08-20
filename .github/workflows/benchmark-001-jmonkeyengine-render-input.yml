@@ -70,6 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           ARTIFACTS="$PWD/artifacts/render-input"
+          INPUT_HOLD_SECONDS=8
           Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp >"$ARTIFACTS/xvfb.log" 2>&1 &
           XVFB_PID=$!
           sleep 1
@@ -100,6 +101,7 @@ jobs:
 
           {
             echo "window_id=$WINDOW_ID"
+            echo "external_key_hold_seconds=$INPUT_HOLD_SECONDS"
             xdotool search --onlyvisible --name 'jMonkeyEngine\|BYJTT-LAB' getwindowname %@ 2>&1 || true
             xdotool getactivewindow getwindowname 2>&1 || true
           } | tee "$ARTIFACTS/window-diagnostics.txt"
@@ -110,7 +112,7 @@ jobs:
           sleep 0.5
           import -window "$WINDOW_ID" "$ARTIFACTS/before-input.png"
           xdotool keydown --window "$WINDOW_ID" d
-          sleep 4
+          sleep "$INPUT_HOLD_SECONDS"
           xdotool keyup --window "$WINDOW_ID" d
           sleep 0.25
           import -window "$WINDOW_ID" "$ARTIFACTS/after-release.png" || true
