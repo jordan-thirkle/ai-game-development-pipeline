@@ -12,11 +12,12 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-node tools/studio-launcher.mjs
-status=$?
-if [ "$status" -ne 0 ]; then
-  printf '\nStudio could not start. The error above is safe to copy into ChatGPT for diagnosis.\n'
-  printf 'Press Return to close.\n'
-  read -r _
+if node tools/studio-launcher.mjs; then
+  exit 0
+else
+  status=$?
 fi
+printf '\nStudio could not start. The error above is safe to copy into ChatGPT for diagnosis.\n'
+printf 'Press Return to close.\n'
+read -r _
 exit "$status"
