@@ -8,7 +8,7 @@ cd "$REPO_ROOT"
 if ! command -v node >/dev/null 2>&1; then
   printf '\nBYJTT Studio needs Node.js 26 or newer. Install Node, then open this launcher again.\n'
   printf 'Press Return to close.\n'
-  read -r _
+  read -r _ || true
   exit 1
 fi
 
@@ -19,5 +19,5 @@ else
 fi
 printf '\nStudio could not start. The error above is safe to copy into ChatGPT for diagnosis.\n'
 printf 'Press Return to close.\n'
-read -r _
+read -r _ || true
 exit "$status"
