@@ -18,6 +18,24 @@ The standard therefore separates:
 
 No single benchmark replaces the others.
 
+## Universal pre-execution rule
+
+No benchmark result is publishable/comparable unless its protocol is frozen **before execution**. The committed run manifest must identify:
+
+- benchmark/system ID and immutable source revision;
+- exact task IDs, or a deterministic sampling algorithm + seed;
+- per-stratum counts;
+- inclusion/exclusion rules;
+- model/agent/harness versions;
+- feedback/tool conditions;
+- scoring rules and failure handling;
+- retry policy;
+- time/token/compute/spend ceilings;
+- credential scope and secrets owner where external services are involved;
+- human approvals required for meaningful spend or unresolved legal/licence risk.
+
+The same frozen task set and scoring rules MUST be used across conditions being compared. Inspecting outcomes and then changing the sample/scoring invalidates the comparison and requires a new benchmark run ID.
+
 ---
 
 ## GameDevBench — external agent capability benchmark
@@ -50,6 +68,8 @@ Run a stratified subset spanning all four task categories and compare the same a
 2. runtime screenshot feedback;
 3. screenshot + video/runtime feedback where supported.
 
+Before any run, commit an immutable task manifest containing the exact selected task IDs (or deterministic seed + selection algorithm), per-stratum counts, exclusions, scoring rules, retry policy and all three feedback conditions. Do not choose or remove tasks after inspecting their contents/results unless the run is invalidated and restarted under a new manifest.
+
 Record success, retries, elapsed time, token/cost, files touched, ground-truth validity and self-assessment calibration.
 
 ---
@@ -65,6 +85,22 @@ Evidence: **SOURCE-VERIFIED**
 Adoption: **BENCHMARK NOW**
 
 OpenGameEval provides a useful platform-specific task/evaluation reference. Our Roblox adapter should reuse or map to its task design where appropriate, then add our separate cross-provider concerns such as ownership, portability, provenance and exact-revision evidence.
+
+### Paid/credentialed execution gate
+
+Before an OpenGameEval (or equivalent credentialed external benchmark) run can start, the run manifest MUST record:
+
+- accountable run owner;
+- immutable task/eval revision;
+- model/provider and credential owner;
+- minimum credential scopes required;
+- expected request/task count;
+- hard spend/credit ceiling and compute/time ceiling;
+- whether the run can incur any paid usage;
+- explicit human approval identity + timestamp for meaningful paid usage;
+- secret handling/rotation expectation after the run where appropriate.
+
+Missing approval or an unknown/unbounded spend estimate blocks paid execution. A free/local dry-run may proceed only if it cannot consume paid credits or broaden credential scope.
 
 ---
 
@@ -166,7 +202,7 @@ HumanPlaytest:
   clarity / feel / fun / taste / accessibility: ...
 ```
 
-Stable benchmark/system IDs live in `../registry/ai-game-dev-systems.v1.json`; every actual experiment also satisfies `../registry/PROVENANCE.md`.
+Stable benchmark/system IDs live in `../registry/ai-game-dev-systems.v1.json`; every actual experiment also satisfies `../registry/PROVENANCE.md` and the universal frozen-manifest rule above.
 
 This prevents a product from becoming “best AI game engine” by optimizing a single benchmark.
 
