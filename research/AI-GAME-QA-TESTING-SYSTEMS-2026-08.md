@@ -395,7 +395,7 @@ Blind human playtesters review a subset of automation-pass and automation-fail b
 
 # 12. Current research hierarchy
 
-This is **benchmark ordering, not production adoption**:
+This is a **hypothesis for benchmark ordering, not a measured ranking or production adoption**. The order must be revisited after exact-version, exact-environment comparative runs; provider documentation establishes capability boundaries, not superiority.
 
 1. **engine first-party testing frameworks first** — Unity Test Framework / Performance API and Unreal Automation Framework;
 2. **Unreal Gauntlet** — incumbent packaged-session, multiplayer and target-device orchestration benchmark;
