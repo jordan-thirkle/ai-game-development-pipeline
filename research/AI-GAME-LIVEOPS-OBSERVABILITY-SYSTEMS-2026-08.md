@@ -251,16 +251,27 @@ ConfigSnapshot<T>
   fallback_reason_optional
   value: T
 
+OpaqueProjectId
+  encoding = lowercase_hex
+  bytes_before_encoding = 16
+  encoded_length = 32_ASCII_chars
+  semantics = opaque_no_embedded_PII_or_business_meaning
+
 ExperimentContext
   consent_state
-  install_id_pseudonymous_optional
-  player_id_pseudonymous_optional
-  session_id_pseudonymous_optional
+  install_id_pseudonymous_optional: OpaqueProjectId
+  player_id_pseudonymous_optional: OpaqueProjectId
+  session_id_pseudonymous_optional: OpaqueProjectId
   locale_optional
   platform
   release_channel
   game_mode_optional
   approved_cohort_attributes{}
+
+ExperimentContextValidation
+  status = valid_pseudonymous | valid_anonymous | invalid_consent | invalid_identifier | invalid_attribute | invalid_required_field
+  provider_call_allowed
+  reason_code
 
 ExperimentAssignment
   experiment_id
@@ -277,15 +288,23 @@ ExperimentSnapshot
   provider_optional
   generated_at_utc
   context_available
+  context_validation_status
+  provider_call_attempted
 ```
 
-`ExperimentContext` is allowlisted and privacy-bounded. `approved_cohort_attributes` follows canonical scalar/type discipline, max **16 attributes**, each max **128 UTF-8 bytes**; no direct PII or unbounded identifiers. If policy/consent prevents provider evaluation or context is unavailable, the provider gets no invented identity and gameplay uses empty/local privacy-approved assignments according to the frozen experiment contract.
+`OpaqueProjectId` is generated or privacy-preservingly transformed by project-owned code before provider evaluation. A generated ID uses 128 bits of cryptographically secure randomness. A stable transformed ID may use an environment-scoped keyed one-way derivation and truncate to 128 bits before the fixed lowercase-hex encoding. Raw emails, phone numbers, account names, platform IDs, auth tokens, database keys, or strings merely *labelled* pseudonymous are invalid. IDs that are not exactly 32 lowercase hexadecimal ASCII characters are rejected before any provider call.
+
+`ExperimentContext` is allowlisted and privacy-bounded. `platform` and `release_channel` are always required; `consent_state` is always required. `approved_cohort_attributes` follows canonical scalar/type discipline, max **16 attributes**, each max **128 UTF-8 bytes**; no direct PII or unbounded identifiers.
+
+Before `getAssignments` can call a provider, the canonical layer produces `ExperimentContextValidation`. `consent_state != granted` yields `invalid_consent` and `provider_call_allowed=false`. Invalid opaque IDs, attributes, or required fields similarly suppress the provider call. A consent-granted context containing only required fields (`platform`, `release_channel`, `consent_state`) is `valid_anonymous` **only when the frozen experiment contract explicitly declares `identity_requirement=anonymous_allowed`**; otherwise it is unusable for that experiment and the provider is not called. A context with at least one valid required pseudonymous identity field is `valid_pseudonymous` when the experiment contract permits that identity scope.
+
+If the context is invalid or an experiment disallows anonymous evaluation, gameplay receives an empty assignment snapshot or a locally deterministic privacy-approved fallback only when the frozen experiment contract explicitly defines one. It never invents identity, blocks boot, or silently changes to a different provider identity policy.
 
 `drop_reason` is mandatory exactly for `status=dropped` and omitted for accepted/disabled. `other_bounded` requires a project-owned bounded subcode.
 
 ## Canonical experiment exposure boundary
 
-The project owns **one exposure boundary: first eligible product/gameplay use of the assigned variant**, not assignment fetch, flag download, config activation, or provider callback. Every adapter suppresses its own automatic “exposure” semantics where possible or maps them so the canonical layer remains authoritative.
+The project owns **one exposure boundary: first eligible product/gameplay use of the assigned variant** — not assignment fetch, flag download, config activation, or provider callback. Every adapter suppresses its own automatic exposure semantics where possible or maps them so the canonical layer remains authoritative.
 
 Canonical exposure identity is derived from:
 
@@ -330,7 +349,9 @@ Use one release build/failure matrix. Score capture, symbolication, grouping, co
 
 ## Remote config and experiment safety
 
-Use source-controlled typed defaults. Exercise offline/online, timeout, invalid response, old-client mismatch, stale cache, rollout, rollback, assignment persistence, the **first-eligible-feature-use** exposure boundary and dedupe, missing/denied ExperimentContext, consent transitions, tampering and server-authoritative boundaries. Firebase runs also exercise Realtime API-disabled setup, listener lifecycle and standard-fetch fallback.
+Use source-controlled typed defaults. Exercise offline/online, timeout, invalid response, old-client mismatch, stale cache, rollout, rollback, assignment persistence, the **first-eligible-feature-use** exposure boundary and dedupe, missing/denied/invalid-identifier `ExperimentContext`, anonymous-allowed versus identity-required experiments, consent transitions, tampering and server-authoritative boundaries. Firebase runs also exercise Realtime API-disabled setup, listener lifecycle and standard-fetch fallback.
+
+For every missing, denied or invalid experiment context case, raw run evidence must record: `context_available`, `context_validation_status`, consent state, assignment source/fallback outcome, `provider_call_attempted`, provider-call suppression reason, and whether the game reached the expected boot/playable checkpoint. A documented fallback does not pass without these observations.
 
 ## Server observability portability
 
@@ -364,11 +385,13 @@ No candidate becomes `EXECUTED`, `preferred` or default until a completed experi
 - platform/build/runtime manifest;
 - consent state-machine evidence;
 - canonical event/config/ExperimentContext revision;
+- OpaqueProjectId generation/derivation policy and invalid-identifier rejection evidence;
 - queue/retry/drop/idempotency configuration;
 - canonical exposure-boundary/dedupe configuration;
 - provider prerequisites;
 - frozen workload;
 - raw duplicate/loss/drop evidence;
+- missing/denied/invalid ExperimentContext evidence including context availability/validation, consent, fallback assignment source, provider-call suppression and boot/playable result;
 - provider cache/deletion/export behavior;
 - cost snapshot;
 - failures/limitations;
