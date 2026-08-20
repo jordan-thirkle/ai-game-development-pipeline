@@ -25,11 +25,13 @@ function publicRecord(record) {
       identifier: record.licence.identifier,
       evidenceUrl: record.licence.evidenceUrl,
       attributionRequired: record.licence.attributionRequired,
+      checkedAt: record.licence.checkedAt,
       notice: record.licence.notice
     },
     commercialUse: record.commercialUse,
     maintenance: {
       status: record.maintenance.status,
+      checkedAt: record.maintenance.checkedAt,
       notes: record.maintenance.notes
     },
     compatibility: record.compatibility,
