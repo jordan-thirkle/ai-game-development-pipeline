@@ -1,0 +1,21 @@
+{
+  "manifestVersion": "1.0.0",
+  "projectId": "sample-game",
+  "name": "Pipeline Sample Game",
+  "objective": "Prove a dependency-free build, QA, release-candidate, and publishing dry run.",
+  "targetPlatforms": ["local-node"],
+  "registry": {
+    "entryIds": ["system.gdevelop"]
+  },
+  "build": {
+    "argv": ["node", "build.mjs"],
+    "artifact": "dist"
+  },
+  "qa": {
+    "argv": ["node", "qa.mjs", "{artifact}"]
+  },
+  "publish": {
+    "provider": "local",
+    "destination": "local://planned/sample-game"
+  }
+}

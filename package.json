@@ -18,7 +18,9 @@
     "gate:control-plane-freshness": "node tools/check-control-plane-freshness.mjs",
     "test:control-plane-freshness": "node tools/test-control-plane-freshness.mjs",
     "test:pipeline-run-scaffold": "node --test tools/test-pipeline-run-scaffold.mjs",
-    "test:governor": "node --test tools/test-lifecycle-status.mjs"
+    "test:governor": "node --test tools/test-lifecycle-status.mjs",
+    "pipeline:demo": "node tools/run-pipeline.mjs --project examples/sample-game --output /tmp/ai-game-pipeline-demo --dry-run",
+    "test:run-pipeline": "node --test tools/test-run-pipeline.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",
