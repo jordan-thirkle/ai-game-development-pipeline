@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { browserCommand, assertSupportedNode, launchStudio, verifyStudioReady } from './studio-launcher.mjs';
 import { startStudioServer } from './studio-server.mjs';
@@ -20,6 +24,34 @@ test('Node version gate rejects unsupported and malformed runtimes', () => {
   assert.doesNotThrow(() => assertSupportedNode('27.1.2'));
   assert.throws(() => assertSupportedNode('25.9.0'), /Node 26 or newer/);
   assert.throws(() => assertSupportedNode('unknown'), /Node 26 or newer/);
+});
+
+test('macOS launcher preserves a nonzero Studio exit after its user-facing pause', async () => {
+  const fakeBin = await mkdtemp(path.join(tmpdir(), 'byjtt-launcher-node-'));
+  const fakeNode = path.join(fakeBin, 'node');
+  await writeFile(fakeNode, '#!/bin/sh\nexit 7\n', 'utf8');
+  await chmod(fakeNode, 0o755);
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn('sh', ['apps/studio/launch-studio.command'], {
+        cwd: new URL('..', import.meta.url),
+        env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ''}` }
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+      child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+      child.once('error', reject);
+      child.once('close', (code, signal) => resolve({ code, signal, stdout, stderr }));
+      child.stdin.end('\n');
+    });
+    assert.equal(result.code, 7);
+    assert.equal(result.signal, null);
+    assert.match(result.stdout, /Studio could not start/);
+  } finally {
+    await rm(fakeBin, { recursive: true, force: true });
+  }
 });
 
 test('readiness rejects a page failure', async () => {
