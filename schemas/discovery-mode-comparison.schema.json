@@ -47,6 +47,8 @@
       "properties": {
         "mode": {"enum": ["interactive_manual_agent", "bounded_discovery_worker"]},
         "measurement_status": {"enum": ["instrumented", "action_counts_only", "pending"]},
+        "started_at": {"type": "string", "format": "date-time"},
+        "ended_at": {"type": "string", "format": "date-time"},
         "search_actions": {"type": ["integer", "null"], "minimum": 0},
         "source_fetches": {"type": ["integer", "null"], "minimum": 0},
         "distinct_sources_inspected": {"type": ["integer", "null"], "minimum": 0},
@@ -55,6 +57,9 @@
         "capability_candidate_coverage_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
         "fully_cleared_capability_coverage_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
         "irrelevant_or_duplicate_filtered": {"type": ["integer", "null"], "minimum": 0},
+        "search_hits_seen": {"type": "integer", "minimum": 0},
+        "rejected_search_hits": {"type": "integer", "minimum": 0},
+        "duplicate_selections_filtered": {"type": "integer", "minimum": 0},
         "human_interventions": {"type": ["integer", "null"], "minimum": 0},
         "unsafe_promotions": {"type": ["integer", "null"], "minimum": 0},
         "elapsed_minutes": {"type": ["number", "null"], "minimum": 0},
@@ -63,6 +68,29 @@
         "queue": {
           "type": "array",
           "items": {"$ref": "#/$defs/candidate"}
+        },
+        "query_log": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["capability_id", "query", "returned", "eligible_after_metadata_screen", "rejected_as_irrelevant_or_index"],
+            "properties": {
+              "capability_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+              "query": {"type": "string", "minLength": 2},
+              "returned": {"type": "integer", "minimum": 0},
+              "eligible_after_metadata_screen": {"type": "integer", "minimum": 0},
+              "rejected_as_irrelevant_or_index": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "per_capability": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"}
+          }
         },
         "notes": {"type": "string", "minLength": 10}
       }
