@@ -54,7 +54,7 @@ test('capabilities disclose the fail-closed publishing boundary', async () => {
   await withServer({}, async (base) => {
     const response = await fetch(`${base}/api/pipeline/capabilities`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false });
+    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
   });
 });
 
@@ -68,6 +68,7 @@ test('sample run scaffolds, builds, verifies, and emits a non-publishing receipt
   assert.equal(result.evidence.qa.executed, true);
   assert.equal(result.evidence.qa.status, 'pass');
   assert.equal(result.evidence.releaseCandidate.dryRunOnly, true);
+  assert.equal(Buffer.isBuffer(result.bundle.bytes), true);
   assert.deepEqual(result.safety, {
     dryRun: true,
     publicationExecuted: false,
@@ -81,11 +82,13 @@ test('expected build and QA failures preserve partial evidence and clean workspa
   assert.equal(build.status, 'fail');
   assert.equal(build.evidence.build.status, 'fail');
   assert.equal(build.evidence.releaseCandidate, undefined);
+  assert.equal(build.bundle, null);
   const qa = await failureRun('qa');
   assert.equal(qa.status, 'fail');
   assert.equal(qa.evidence.build.status, 'pass');
   assert.equal(qa.evidence.qa.status, 'fail');
   assert.equal(qa.evidence.publishing, undefined);
+  assert.equal(qa.bundle, null);
 });
 
 test('run endpoint rejects other methods and concurrent execution', async () => {
@@ -123,6 +126,7 @@ test('failed execution returns partial evidence as a non-success response', asyn
     assert.equal(result.status, 'fail');
     assert.equal(result.evidence.build.status, 'pass');
     assert.equal(result.evidence.qa.status, 'fail');
+    assert.equal(result.download, undefined);
   });
 });
 
