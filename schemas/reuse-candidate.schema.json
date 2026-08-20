@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byjtt.com/schemas/reuse-candidate.schema.json",
+  "title": "External Reuse Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "kind",
+    "state",
+    "source",
+    "licence",
+    "commercialUse",
+    "provenance",
+    "compatibility",
+    "assessment",
+    "evidence",
+    "publication",
+    "lastVerified"
+  ],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,79}$"},
+    "name": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "kind": {
+      "type": "string",
+      "enum": ["whole-game", "starter-kit", "mechanic", "controller", "plugin", "library", "shader", "ui-kit", "tool", "asset-pack", "3d-asset", "2d-asset", "animation", "audio", "font", "reference", "other"]
+    },
+    "state": {
+      "type": "string",
+      "enum": ["discovered", "quarantined", "qualified", "benchmarking", "promoted", "rejected", "stale"]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "provider"],
+      "properties": {
+        "canonicalUrl": {"type": "string", "format": "uri"},
+        "provider": {"type": "string"},
+        "repositoryUrl": {"type": "string", "format": "uri"},
+        "version": {"type": "string"},
+        "commit": {"type": "string"},
+        "releaseDate": {"type": "string", "format": "date"}
+      }
+    },
+    "licence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "identifier", "evidenceUrl"],
+      "properties": {
+        "status": {"type": "string", "enum": ["verified", "ambiguous", "restricted", "unknown"]},
+        "identifier": {"type": "string"},
+        "evidenceUrl": {"type": "string", "format": "uri"},
+        "attributionRequired": {"type": "boolean"},
+        "notice": {"type": "string"}
+      }
+    },
+    "commercialUse": {
+      "type": "string",
+      "enum": ["verified-allowed", "conditional", "not-allowed", "unknown"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "notes"],
+      "properties": {
+        "confidence": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
+        "notes": {"type": "string"}
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engines": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "platforms": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "formats": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "notes": {"type": "string"}
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["integrationEffort", "lifecycleRisk", "scores", "recommendation"],
+      "properties": {
+        "integrationEffort": {"type": "string", "enum": ["low", "medium", "high", "unknown"]},
+        "lifecycleRisk": {"type": "string", "enum": ["low", "medium", "high", "unknown"]},
+        "scores": {
+          "type": "object",
+          "additionalProperties": {"type": "number", "minimum": 0, "maximum": 5}
+        },
+        "recommendation": {"type": "string", "enum": ["reuse", "benchmark", "custom", "defer", "reject"]},
+        "notes": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "url", "checkedAt"],
+        "properties": {
+          "type": {"type": "string"},
+          "url": {"type": "string", "format": "uri"},
+          "checkedAt": {"type": "string", "format": "date-time"},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["safe"],
+      "properties": {
+        "safe": {"type": "boolean"},
+        "slug": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    },
+    "usedIn": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "rejectionReason": {"type": "string"},
+    "lastVerified": {"type": "string", "format": "date-time"}
+  }
+}
