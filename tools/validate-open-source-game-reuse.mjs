@@ -4,16 +4,17 @@ const path = process.argv[2] ?? 'registry/open-source-game-reuse.v1.json';
 const failures = [];
 const sha40 = /^[0-9a-f]{40}$/i;
 const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
-const allowedCategories = new Set(['official_template_collection', 'whole_game_reference', 'mechanic_framework', 'asset_library', 'discovery_index']);
+const allowedCategories = new Set(['official_template_collection', 'starter_kit', 'whole_game_reference', 'mechanic_framework', 'asset_library', 'asset_discovery', 'discovery_index']);
 const allowedSourceTypes = new Set(['github_repository', 'official_website']);
 const allowedRevisionStates = new Set(['immutable_commit', 'mutable_web_snapshot']);
-const allowedAdoption = new Set(['drop_in_candidate', 'asset_source_candidate', 'architecture_reference', 'discovery_source']);
+const allowedAdoption = new Set(['drop_in_candidate', 'component_candidate', 'asset_source_candidate', 'asset_discovery_candidate', 'architecture_reference', 'discovery_source']);
 const allowedLicenceClasses = new Set(['permissive', 'copyleft', 'public_domain', 'mixed', 'unknown']);
 const allowedCommercial = new Set(['allowed_with_conditions', 'blocked_for_drop_in', 'per_item_review_required']);
 const allowedBoundary = new Set(['single_code_licence_reviewed', 'single_asset_licence_reviewed', 'code_and_assets_separated', 'mixed_requires_per_item_review']);
-const allowedMaintenance = new Set(['active', 'stable', 'unknown']);
+const allowedMaintenance = new Set(['active', 'stable', 'static_mature', 'stale', 'unknown']);
 const allowedEffort = new Set(['low', 'medium', 'high', 'reference_only']);
 const allowedRisk = new Set(['low', 'medium', 'high', 'unknown']);
+const requiredWeights = ['task_fit', 'maintenance', 'licence_provenance', 'integration_cost', 'docs_tests', 'platform_fit', 'popularity'];
 
 function nonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -63,7 +64,19 @@ if (registry?.policy?.external_discovery_required_before_bespoke !== true) failu
 if (registry?.policy?.popularity_never_overrides_fit_or_licence !== true) failures.push('policy must prevent popularity from overriding fit/licence');
 if (registry?.policy?.code_and_asset_licences_are_separate !== true) failures.push('policy must separate code and asset licences');
 if (!Number.isInteger(registry?.policy?.rechallenge_days) || registry.policy.rechallenge_days < 1 || registry.policy.rechallenge_days > 365) failures.push('policy.rechallenge_days must be an integer from 1 to 365');
-if (!Array.isArray(registry?.entries) || registry.entries.length < 4) failures.push('entries must contain at least four seed records');
+
+const weights = registry?.policy?.ranking_weights;
+if (!weights || typeof weights !== 'object' || Array.isArray(weights)) {
+  failures.push('policy.ranking_weights must be an object');
+} else {
+  for (const key of requiredWeights) {
+    if (!Number.isInteger(weights[key]) || weights[key] < 0 || weights[key] > 100) failures.push(`policy.ranking_weights.${key} must be an integer from 0 to 100`);
+  }
+  if (requiredWeights.every((key) => Number.isInteger(weights[key])) && requiredWeights.reduce((sum, key) => sum + weights[key], 0) !== 100) failures.push('policy.ranking_weights must total 100');
+  if (Number.isInteger(weights.popularity) && weights.popularity > 10) failures.push('policy.ranking_weights.popularity must be <= 10 because popularity is only a soft discovery signal');
+}
+
+if (!Array.isArray(registry?.entries) || registry.entries.length < 6) failures.push('entries must contain at least six seed records');
 
 const ids = new Set();
 for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
@@ -121,10 +134,25 @@ for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
     requireEnum(risk.licence, allowedRisk, `${id}.risk.licence`);
   }
 
+  const popularity = entry.popularity_snapshot;
+  if (!popularity || typeof popularity !== 'object' || Array.isArray(popularity)) {
+    failures.push(`${id}.popularity_snapshot must be an object`);
+  } else {
+    for (const field of ['stars', 'forks']) {
+      if (popularity[field] !== null && (!Number.isInteger(popularity[field]) || popularity[field] < 0)) failures.push(`${id}.popularity_snapshot.${field} must be null or a non-negative integer`);
+    }
+    if (!validTimestamp(popularity.observed_at)) failures.push(`${id}.popularity_snapshot.observed_at must be calendar-valid RFC3339`);
+  }
+
   if (entry.adoption_status === 'drop_in_candidate') {
     if (licensing?.commercial_use_status !== 'allowed_with_conditions') failures.push(`${id} drop_in_candidate requires commercial_use_status=allowed_with_conditions`);
     if (!['permissive', 'public_domain'].includes(licensing?.license_class)) failures.push(`${id} drop_in_candidate requires permissive or public_domain licence class`);
     if (licensing?.boundary_status === 'mixed_requires_per_item_review') failures.push(`${id} drop_in_candidate cannot have unresolved mixed licence boundaries`);
+  }
+
+  if (entry.adoption_status === 'component_candidate') {
+    if (licensing?.commercial_use_status === 'blocked_for_drop_in') failures.push(`${id} component_candidate cannot be commercially blocked`);
+    if (licensing?.license_class === 'copyleft') failures.push(`${id} component_candidate cannot silently carry strong copyleft`);
   }
 
   if (entry.adoption_status === 'asset_source_candidate') {
@@ -132,13 +160,13 @@ for (const entry of Array.isArray(registry?.entries) ? registry.entries : []) {
     if (licensing?.commercial_use_status !== 'allowed_with_conditions') failures.push(`${id} asset_source_candidate requires reviewed commercial-use status`);
   }
 
-  if (['copyleft', 'mixed', 'unknown'].includes(licensing?.license_class) && entry.adoption_status === 'drop_in_candidate') {
-    failures.push(`${id} copyleft/mixed/unknown licence cannot be silently promoted to drop_in_candidate`);
-  }
+  if (entry.adoption_status === 'asset_discovery_candidate' && entry.category !== 'asset_discovery') failures.push(`${id} asset_discovery_candidate must use category asset_discovery`);
+  if (entry.adoption_status === 'discovery_source' && entry.category !== 'discovery_index') failures.push(`${id} discovery_source must use category discovery_index`);
+  if (['copyleft', 'mixed', 'unknown'].includes(licensing?.license_class) && entry.adoption_status === 'drop_in_candidate') failures.push(`${id} copyleft/mixed/unknown licence cannot be silently promoted to drop_in_candidate`);
 }
 
 const categories = new Set((registry?.entries ?? []).map((entry) => entry?.category));
-for (const required of ['official_template_collection', 'whole_game_reference', 'mechanic_framework', 'asset_library']) {
+for (const required of ['official_template_collection', 'starter_kit', 'whole_game_reference', 'mechanic_framework', 'asset_library', 'asset_discovery', 'discovery_index']) {
   if (!categories.has(required)) failures.push(`seed registry must cover category: ${required}`);
 }
 
@@ -148,4 +176,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`External reuse registry valid: ${registry.entries.length} entries across ${categories.size} categories.`);
+console.log(`External reuse registry valid: ${registry.entries.length} entries across ${categories.size} categories; popularity weight=${weights.popularity}%.`);
