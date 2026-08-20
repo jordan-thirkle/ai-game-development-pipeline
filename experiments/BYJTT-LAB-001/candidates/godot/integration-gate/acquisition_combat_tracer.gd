@@ -27,6 +27,9 @@ func _check(condition: bool, message: String) -> void:
         failures.append(message)
         push_error(message)
 
+func _is_number(value: Variant) -> bool:
+    return typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT
+
 func _required_vector3(value: Variant, label: String) -> Vector3:
     _check(value is Array, label + " must be an array")
     if not value is Array:
@@ -36,7 +39,9 @@ func _required_vector3(value: Variant, label: String) -> Vector3:
     if values.size() != 3:
         return Vector3.INF
     for component in values:
-        _check(typeof(component) == TYPE_INT or typeof(component) == TYPE_FLOAT, label + " components must be numeric")
+        _check(_is_number(component), label + " components must be numeric")
+    if not failures.is_empty():
+        return Vector3.INF
     return Vector3(float(values[0]), float(values[1]), float(values[2]))
 
 func _validate_contract(contract: Dictionary) -> bool:
@@ -45,7 +50,7 @@ func _validate_contract(contract: Dictionary) -> bool:
     if failures.size() > 0:
         return false
 
-    _check(typeof(contract["schema_version"]) == TYPE_INT and int(contract["schema_version"]) == 1, "schema_version must remain 1")
+    _check(_is_number(contract["schema_version"]) and int(contract["schema_version"]) == 1, "schema_version must remain 1")
     _check(typeof(contract["experiment_id"]) == TYPE_STRING and String(contract["experiment_id"]) == "BYJTT-LAB-001", "experiment_id must remain BYJTT-LAB-001")
     _check(contract["arena"] is Dictionary, "arena must be a dictionary")
     _check(contract["player"] is Dictionary, "player must be a dictionary")
@@ -64,17 +69,17 @@ func _validate_contract(contract: Dictionary) -> bool:
     if failures.size() > 0:
         return false
 
-    _check((typeof(arena["width"]) == TYPE_INT or typeof(arena["width"]) == TYPE_FLOAT) and is_equal_approx(float(arena["width"]), REQUIRED_ARENA_WIDTH), "arena width must remain 24 m")
-    _check((typeof(arena["depth"]) == TYPE_INT or typeof(arena["depth"]) == TYPE_FLOAT) and is_equal_approx(float(arena["depth"]), REQUIRED_ARENA_DEPTH), "arena depth must remain 32 m")
+    _check(_is_number(arena["width"]) and is_equal_approx(float(arena["width"]), REQUIRED_ARENA_WIDTH), "arena width must remain 24 m")
+    _check(_is_number(arena["depth"]) and is_equal_approx(float(arena["depth"]), REQUIRED_ARENA_DEPTH), "arena depth must remain 32 m")
     _check(_required_vector3(arena["player_spawn"], "player_spawn").is_equal_approx(REQUIRED_PLAYER_SPAWN), "player spawn must remain (0,0,10)")
     _check(_required_vector3(arena["enemy_spawn"], "enemy_spawn").is_equal_approx(REQUIRED_ENEMY_SPAWN), "enemy spawn must remain (0,0,-6)")
-    _check(typeof(player_contract["max_health"]) == TYPE_INT and int(player_contract["max_health"]) == REQUIRED_PLAYER_MAX_HEALTH, "player max health must remain 100")
-    _check((typeof(enemy_contract["move_speed"]) == TYPE_INT or typeof(enemy_contract["move_speed"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["move_speed"]), REQUIRED_ENEMY_MOVE_SPEED), "enemy move speed must remain 2.7 m/s")
-    _check((typeof(enemy_contract["acquire_range"]) == TYPE_INT or typeof(enemy_contract["acquire_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["acquire_range"]), REQUIRED_ACQUIRE_RANGE), "enemy acquire range must remain 12 m")
-    _check((typeof(enemy_contract["lose_target_range"]) == TYPE_INT or typeof(enemy_contract["lose_target_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["lose_target_range"]), REQUIRED_LOSE_RANGE), "enemy lose range must remain 18 m")
-    _check((typeof(enemy_contract["attack_range"]) == TYPE_INT or typeof(enemy_contract["attack_range"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["attack_range"]), REQUIRED_ATTACK_RANGE), "enemy attack range must remain 1.6 m")
-    _check(typeof(enemy_contract["attack_damage"]) == TYPE_INT and int(enemy_contract["attack_damage"]) == REQUIRED_ATTACK_DAMAGE, "enemy attack damage must remain 20")
-    _check((typeof(enemy_contract["attack_cooldown"]) == TYPE_INT or typeof(enemy_contract["attack_cooldown"]) == TYPE_FLOAT) and is_equal_approx(float(enemy_contract["attack_cooldown"]), REQUIRED_ATTACK_COOLDOWN), "enemy attack cooldown must remain 1.1 s")
+    _check(_is_number(player_contract["max_health"]) and int(player_contract["max_health"]) == REQUIRED_PLAYER_MAX_HEALTH, "player max health must remain 100")
+    _check(_is_number(enemy_contract["move_speed"]) and is_equal_approx(float(enemy_contract["move_speed"]), REQUIRED_ENEMY_MOVE_SPEED), "enemy move speed must remain 2.7 m/s")
+    _check(_is_number(enemy_contract["acquire_range"]) and is_equal_approx(float(enemy_contract["acquire_range"]), REQUIRED_ACQUIRE_RANGE), "enemy acquire range must remain 12 m")
+    _check(_is_number(enemy_contract["lose_target_range"]) and is_equal_approx(float(enemy_contract["lose_target_range"]), REQUIRED_LOSE_RANGE), "enemy lose range must remain 18 m")
+    _check(_is_number(enemy_contract["attack_range"]) and is_equal_approx(float(enemy_contract["attack_range"]), REQUIRED_ATTACK_RANGE), "enemy attack range must remain 1.6 m")
+    _check(_is_number(enemy_contract["attack_damage"]) and int(enemy_contract["attack_damage"]) == REQUIRED_ATTACK_DAMAGE, "enemy attack damage must remain 20")
+    _check(_is_number(enemy_contract["attack_cooldown"]) and is_equal_approx(float(enemy_contract["attack_cooldown"]), REQUIRED_ATTACK_COOLDOWN), "enemy attack cooldown must remain 1.1 s")
     return failures.is_empty()
 
 func _run() -> void:
