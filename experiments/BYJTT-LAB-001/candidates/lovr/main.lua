@@ -65,6 +65,7 @@ function lovr.load()
   local version = string.format('%d.%d.%d', major, minor, patch)
 
   local world = lovr.physics.newWorld({
+    tags = { 'arena' },
     staticTags = { 'arena' },
     allowSleep = false,
     stabilization = 0.5,
