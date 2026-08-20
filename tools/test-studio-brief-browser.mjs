@@ -20,7 +20,11 @@ try {
   await page.locator('#brief-objective').fill('Build a small web-first arcade starter with a clear local verification trail.');
   await page.locator('#brief-target').selectOption('web');
   await page.locator('#run-brief').click();
+  assert.equal(await page.locator('#run-brief').isDisabled(), true, 'brief control remained active during a visual run');
+  assert.equal(await page.locator('#run-sample').isDisabled(), true, 'sample control remained active during a brief run');
   await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('verified local starter'), null, { timeout: 30000 });
+  assert.equal(await page.locator('#run-brief').isEnabled(), true, 'brief control was not restored after the run');
+  assert.equal(await page.locator('#run-sample').isEnabled(), true, 'sample control was not restored after the run');
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'brief flow did not prove all six local stages');
   const evidence = await page.locator('#run-evidence').textContent();
   assert.match(evidence, /Applied brief/);
@@ -47,7 +51,7 @@ try {
 
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/desktop-brief-run.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed with verified starter download.');
+  console.log('Studio brief browser dogfood passed with serialized controls and verified starter download.');
 } finally {
   await browser.close();
 }
