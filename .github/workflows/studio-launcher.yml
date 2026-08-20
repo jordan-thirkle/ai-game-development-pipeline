@@ -1,0 +1,42 @@
+name: Verify Studio launcher
+
+on:
+  pull_request:
+    paths:
+      - 'tools/studio-launcher.mjs'
+      - 'tools/test-studio-launcher.mjs'
+      - 'apps/studio/launch-studio.command'
+      - 'apps/studio/launch-studio.cmd'
+      - 'apps/studio/LAUNCHING.md'
+      - '.github/workflows/studio-launcher.yml'
+      - 'tools/studio-server.mjs'
+      - 'apps/studio/index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout candidate head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+      - name: Assert candidate revision
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install repository dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate shell launcher syntax
+        run: sh -n apps/studio/launch-studio.command
+      - name: Run adversarial launcher tests
+        run: node --test tools/test-studio-launcher.mjs
+      - name: Dogfood real local Studio readiness
+        run: node tools/studio-launcher.mjs --check
