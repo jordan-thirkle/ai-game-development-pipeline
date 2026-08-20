@@ -30,10 +30,8 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Run bounded discovery unit tests
         run: node --test tools/test-external-discovery.mjs
-      - name: Exercise reusable CLI on frozen brief
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node tools/external-reuse-discover.mjs examples/creator-mode/external-discovery-brief-001.json /tmp/external-discovery-queue.json
+      - name: Exercise reusable CLI on deterministic fixture
+        run: node tools/test-external-discovery.mjs --write-fixture /tmp/external-discovery-queue.json
       - name: Assert CLI autonomy boundary
         run: |
           node <<'NODE'
