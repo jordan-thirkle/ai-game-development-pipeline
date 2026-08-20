@@ -19,4 +19,4 @@ This slice may prove only:
 
 It must not infer or claim native `Player` collision, normal external input, rendering correctness, full Phase A, mobile/device support, performance readiness, or human playability.
 
-The first revision intentionally leaves the release SHA unset. CI must record the observed official asset digest and fail closed before extraction or execution. A later recovery revision may commit that exact digest and rerun.
+The initial bootstrap revision intentionally left the release SHA unset so CI could record the observed official asset digest and fail closed before extraction or execution. This revision pins that observed official asset SHA-256 in `expected-sha256.txt`; subsequent runs must verify the pinned digest before extraction or execution and fail closed on any mismatch.
