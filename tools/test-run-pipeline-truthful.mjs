@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,17 +67,28 @@ test('happy-path wrapper emits schema-valid truthful telemetry', async () => {
   }
 });
 
-test('failed child run is normalized too and still fails closed', async () => {
+test('failed build record is normalized too and still fails closed', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pipeline-truthful-fail-'));
   const output = join(root, 'run');
   try {
-    const run = spawnSync(process.execPath, [wrapper, '--project', 'examples/sample-game', '--output', output, '--dry-run', '--entry-id', 'missing.registry.entry'], {
+    await writeFile(join(root, 'project.manifest.json'), JSON.stringify({
+      manifestVersion: '1.0.0', projectId: 'truthful-failure', name: 'Truthful Failure',
+      registry: { entryIds: ['system.gdevelop'] },
+      build: { argv: [process.execPath, 'build.mjs'], artifact: 'dist' },
+      qa: { argv: [process.execPath, 'qa.mjs', '{artifact}'] },
+      publish: { provider: 'local', destination: 'local://planned/truthful-failure' }
+    }));
+    await writeFile(join(root, 'build.mjs'), "console.error('expected build failure'); process.exit(7);\n");
+    await writeFile(join(root, 'qa.mjs'), "throw new Error('QA must not run');\n");
+
+    const run = spawnSync(process.execPath, [wrapper, '--project', root, '--output', output, '--dry-run'], {
       cwd: repo,
       encoding: 'utf8'
     });
     assert.notEqual(run.status, 0);
     const record = await json(join(output, 'pipeline-run.json'));
     assert.equal(record.outcome.status, 'fail');
+    assert.equal(record.evidence.executionVerified, false);
     assertUnknownTelemetry(record);
   } finally {
     await rm(root, { recursive: true, force: true });
