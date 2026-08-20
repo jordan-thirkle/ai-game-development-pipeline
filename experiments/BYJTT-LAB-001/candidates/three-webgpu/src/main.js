@@ -149,6 +149,7 @@ const Jolt = await initJolt();
 const LAYER_NON_MOVING = 0;
 const LAYER_MOVING = 1;
 const NUM_OBJECT_LAYERS = 2;
+const WALL_HALF_THICKNESS = 0.25;
 
 function setupCollisionFiltering(settings) {
   const objectFilter = new Jolt.ObjectLayerPairFilterTable(NUM_OBJECT_LAYERS);
@@ -171,17 +172,25 @@ Jolt.destroy(joltSettings);
 const physicsSystem = jolt.GetPhysicsSystem();
 const bodyInterface = physicsSystem.GetBodyInterface();
 
-const floorShape = new Jolt.BoxShape(new Jolt.Vec3(CONTRACT.arena.width / 2, 0.25, CONTRACT.arena.depth / 2), 0.05, null);
-const floorBodySettings = new Jolt.BodyCreationSettings(
-  floorShape,
-  new Jolt.RVec3(0, -0.25, 0),
-  Jolt.Quat.prototype.sIdentity(),
-  Jolt.EMotionType_Static,
-  LAYER_NON_MOVING
-);
-const floorBody = bodyInterface.CreateBody(floorBodySettings);
-bodyInterface.AddBody(floorBody.GetID(), Jolt.EActivation_DontActivate);
-Jolt.destroy(floorBodySettings);
+function addStaticBox(halfX, halfY, halfZ, x, y, z) {
+  const shape = new Jolt.BoxShape(new Jolt.Vec3(halfX, halfY, halfZ), 0.05, undefined);
+  const bodySettings = new Jolt.BodyCreationSettings(
+    shape,
+    new Jolt.RVec3(x, y, z),
+    Jolt.Quat.prototype.sIdentity(),
+    Jolt.EMotionType_Static,
+    LAYER_NON_MOVING
+  );
+  const body = bodyInterface.CreateBody(bodySettings);
+  bodyInterface.AddBody(body.GetID(), Jolt.EActivation_DontActivate);
+  Jolt.destroy(bodySettings);
+}
+
+addStaticBox(CONTRACT.arena.width / 2, 0.25, CONTRACT.arena.depth / 2, 0, -0.25, 0);
+addStaticBox(WALL_HALF_THICKNESS, 2, CONTRACT.arena.depth / 2, CONTRACT.arena.width / 2, 2, 0);
+addStaticBox(WALL_HALF_THICKNESS, 2, CONTRACT.arena.depth / 2, -CONTRACT.arena.width / 2, 2, 0);
+addStaticBox(CONTRACT.arena.width / 2, 2, WALL_HALF_THICKNESS, 0, 2, CONTRACT.arena.depth / 2);
+addStaticBox(CONTRACT.arena.width / 2, 2, WALL_HALF_THICKNESS, 0, 2, -CONTRACT.arena.depth / 2);
 
 const characterShape = new Jolt.CapsuleShape(0.575, 0.42);
 const characterSettings = new Jolt.CharacterVirtualSettings();
@@ -338,6 +347,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'ArrowRight') cameraYaw -= 0.18;
 });
 window.addEventListener('keyup', (event) => setKey(event.code, false));
+window.addEventListener('blur', () => input.clear());
 
 for (const button of document.querySelectorAll('[data-hold]')) {
   const code = button.dataset.hold;
@@ -386,12 +396,6 @@ function updatePlayer(dt) {
   );
   const pos = character.GetPosition();
   playerMesh.position.set(pos.GetX(), pos.GetY(), pos.GetZ());
-  playerMesh.position.x = THREE.MathUtils.clamp(playerMesh.position.x, -CONTRACT.arena.width / 2 + 0.5, CONTRACT.arena.width / 2 - 0.5);
-  playerMesh.position.z = THREE.MathUtils.clamp(playerMesh.position.z, -CONTRACT.arena.depth / 2 + 0.5, CONTRACT.arena.depth / 2 - 0.5);
-  if (Math.abs(playerMesh.position.x - pos.GetX()) > 0.001 || Math.abs(playerMesh.position.z - pos.GetZ()) > 0.001) {
-    joltScratchPosition.Set(playerMesh.position.x, playerMesh.position.y, playerMesh.position.z);
-    character.SetPosition(joltScratchPosition);
-  }
   state.player.position = { x: playerMesh.position.x, y: playerMesh.position.y, z: playerMesh.position.z };
   if (desiredVelocity.lengthSq() > 0.02) playerMesh.rotation.y = Math.atan2(desiredVelocity.x, desiredVelocity.z);
 }
@@ -484,6 +488,8 @@ function snapshot() {
     'simulation.fixed_dt': FIXED_DT,
     'simulation.steps': simulationSteps,
     'simulation.dropped_seconds': droppedSimulationSeconds,
+    'physics.native_arena_boundary': true,
+    'physics.post_physics_arena_clamp': false,
     'player.position': { ...state.player.position },
     'player.health': state.player.health,
     'player.alive': state.player.alive,
