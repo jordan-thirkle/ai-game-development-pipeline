@@ -35,13 +35,13 @@ const templates = {
     },
     execution: {
       models: [],
-      toolCalls: 0,
-      failedToolCalls: 0,
-      humanInterventions: 0,
+      toolCalls: null,
+      failedToolCalls: null,
+      humanInterventions: null,
       humanMinutes: null,
       elapsedSeconds: null,
-      iterations: 0,
-      bespokeLinesChanged: 0,
+      iterations: null,
+      bespokeLinesChanged: null,
       reusedComponents: [],
       estimatedReuseRatio: null,
       externalServiceCostUsd: null
@@ -66,9 +66,9 @@ const templates = {
     },
     outcome: {
       status: 'blocked',
-      summary: 'Scaffold only; execution evidence has not been collected.',
+      summary: 'Scaffold only; execution evidence and telemetry have not been collected.',
       failures: ['Record is not complete.'],
-      nextAction: 'Replace scaffold values and collect fresh execution evidence.',
+      nextAction: 'Replace scaffold values and collect fresh execution evidence and measured telemetry.',
       promotedComponentIds: []
     }
   },
