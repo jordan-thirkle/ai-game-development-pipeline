@@ -1,0 +1,82 @@
+name: Benchmark 001 LÖVR physics gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/lovr/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-lovr.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physics-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/lovr
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/physics-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
+      - name: Install Lua static checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks
+          sudo luarocks install luacheck
+      - name: Strict Lua syntax and lint
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          luac5.4 -p conf.lua main.lua
+          luacheck conf.lua main.lua | tee artifacts/physics-gate/lint.log
+      - name: Acquire official LÖVR 0.19 Linux runtime
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://lovr.org/download/linux -o lovr.AppImage
+          chmod +x lovr.AppImage
+          sha256sum lovr.AppImage | tee artifacts/physics-gate/lovr-appimage.sha256
+          file lovr.AppImage | tee artifacts/physics-gate/lovr-appimage.file.txt
+          ./lovr.AppImage --appimage-extract > artifacts/physics-gate/appimage-extract.log
+          LOVR_BIN="$(find squashfs-root -type f -name lovr -perm -111 | head -n 1)"
+          test -n "$LOVR_BIN"
+          echo "$LOVR_BIN" > artifacts/physics-gate/lovr-binary-path.txt
+          "$LOVR_BIN" --version 2>&1 | tee artifacts/physics-gate/lovr-version.txt
+          grep -q '0.19.0' artifacts/physics-gate/lovr-version.txt
+      - name: Execute real headless LÖVR Jolt world
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          LOVR_BIN="$(cat artifacts/physics-gate/lovr-binary-path.txt)"
+          "$LOVR_BIN" . 2>&1 | tee artifacts/physics-gate/runtime.log
+          grep '^BYJTT_RESULT=' artifacts/physics-gate/runtime.log | tail -n 1 | sed 's/^BYJTT_RESULT=//' > artifacts/physics-gate/result.json
+          test -s artifacts/physics-gate/result.json
+      - name: Assert machine-readable evidence boundary
+        run: |
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.lovr_version!=="0.19.0" || r.physics_backend!=="jolt" || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.external_input_executed || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32) process.exit(1);' "$CANDIDATE/artifacts/physics-gate/result.json"
+          sha256sum \
+            "$CANDIDATE/conf.lua" \
+            "$CANDIDATE/main.lua" \
+            "$CANDIDATE/.luacheckrc" \
+            "$CANDIDATE/artifacts/physics-gate/result.json" \
+            > "$CANDIDATE/artifacts/physics-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-lovr-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/lovr/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
