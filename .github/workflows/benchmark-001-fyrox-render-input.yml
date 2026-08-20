@@ -75,6 +75,16 @@ jobs:
           sleep 2
           glxinfo -B > evidence/glxinfo.txt
 
+          # GitHub-hosted runners have no physical ALSA device. Give Fyrox/cpal an
+          # ALSA null PCM so optional audio initialization does not create a false
+          # runtime failure while keeping the strict engine error scan unchanged.
+          cat > evidence/alsa-null.conf <<'EOF'
+          pcm.!default {
+            type null
+          }
+          EOF
+          export ALSA_CONFIG_PATH="$PWD/evidence/alsa-null.conf"
+
           timeout 25s ./target/release/byjtt-lab-001-fyrox-render-input > evidence/runtime.log 2>&1 &
           APP_PID=$!
 
