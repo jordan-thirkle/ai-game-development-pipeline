@@ -55,8 +55,32 @@ try {
   });
   page.on('pageerror', (error) => consoleErrors.push(error.message));
 
-  await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
+  await page.goto(pathToFileURL(resolve(extractedDir, 'OPEN_PROJECT.html')).href, { waitUntil: 'load' });
   await page.waitForSelector('h1');
+  assert.equal(await page.locator('h1').textContent(), manifest.name);
+  assert.match(await page.locator('main').textContent(), new RegExp(manifest.objective.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(await page.locator('main').textContent(), /Build \+ QA\s*executed · pass/);
+  assert.match(await page.locator('main').textContent(), /Publishing\s*not executed · local dry run/);
+  assert.match(await page.locator('main').textContent(), /Secrets used\s*no/);
+  if (manifest.starter.requestedTargetPlatform === manifest.starter.executedTargetPlatform) {
+    assert.match(await page.locator('main').textContent(), new RegExp(`${manifest.starter.executedTargetPlatform}\\s*·\\s*executed locally`, 'i'));
+  } else {
+    assert.match(await page.locator('main').textContent(), new RegExp(`${manifest.starter.requestedTargetPlatform}\\s+requested\\s*·\\s*${manifest.starter.executedTargetPlatform}\\s+executed locally`, 'i'));
+  }
+  assert.equal(await page.getByRole('link', { name: 'Play starter' }).getAttribute('href'), 'starter/dist/index.html');
+  assert.equal(await page.getByRole('link', { name: 'Project brief' }).getAttribute('href'), 'PROJECT_BRIEF.html');
+  assert.equal(await page.getByRole('link', { name: 'Verification' }).getAttribute('href'), 'VERIFICATION.html');
+  assert.match(await page.locator('.boundary').textContent(), /does not prove native desktop\/mobile execution/);
+  assert.deepEqual(externalRequests, [], `starter home attempted network access: ${externalRequests.join(', ')}`);
+  assert.deepEqual(consoleErrors, [], `starter home emitted browser errors: ${consoleErrors.join('; ')}`);
+
+  const homeScreenshotPath = resolve(artifacts, 'starter-home-offline.png');
+  await mkdir(artifacts, { recursive: true });
+  await page.screenshot({ path: homeScreenshotPath, fullPage: true });
+  const homeScreenshotSha256 = `sha256:${createHash('sha256').update(await readFile(homeScreenshotPath)).digest('hex')}`;
+
+  await page.getByRole('link', { name: 'Verification' }).click();
+  await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/VERIFICATION.html'));
   assert.equal(await page.locator('h1').textContent(), 'Verified local starter');
   const facts = await page.locator('.fact').evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => [
     node.querySelector('dt')?.textContent?.trim(),
@@ -108,7 +132,6 @@ try {
   assert.deepEqual(externalRequests, [], `offline handoff attempted network access: ${externalRequests.join(', ')}`);
   assert.deepEqual(consoleErrors, [], `offline handoff emitted browser errors: ${consoleErrors.join('; ')}`);
 
-  await mkdir(artifacts, { recursive: true });
   const screenshotPath = resolve(artifacts, 'starter-handoff-offline.png');
   await page.screenshot({ path: screenshotPath, fullPage: true });
   const screenshotSha256 = `sha256:${createHash('sha256').update(await readFile(screenshotPath)).digest('hex')}`;
@@ -126,6 +149,11 @@ try {
     projectId: manifest.projectId,
     projectName: manifest.name,
     pipelineStatus: pipeline.status,
+    starterHomeEntry: 'OPEN_PROJECT.html',
+    starterHomeRendered: true,
+    starterHomeToPlayable: true,
+    starterHomeToBrief: true,
+    starterHomeToVerification: true,
     projectBriefEntry: 'PROJECT_BRIEF.html',
     projectBriefRendered: true,
     projectBriefRequestedTarget: manifest.starter.requestedTargetPlatform,
@@ -140,6 +168,7 @@ try {
     protocol: 'file:',
     externalNetworkRequests: externalRequests.length,
     bundleSha256: bundle.sha256,
+    homeScreenshotSha256,
     screenshotSha256,
     verificationScreenshotSha256,
     briefScreenshotSha256
