@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildInlineVerificationFacts } from '../apps/studio/latest-run-recovery.mjs';
+import { buildInlineVerificationFacts, recoverableBriefValues } from '../apps/studio/latest-run-recovery.mjs';
 
 const HASH = `sha256:${'a'.repeat(64)}`;
 const BUNDLE_HASH = `sha256:${'b'.repeat(64)}`;
@@ -8,6 +8,12 @@ const BUNDLE_HASH = `sha256:${'b'.repeat(64)}`;
 function safeResult() {
   return {
     status: 'pass',
+    brief: {
+      name: 'Harbour Run',
+      objective: 'Build a small verified arcade starter.',
+      targetPlatform: 'desktop',
+      mechanic: 'dodge'
+    },
     evidence: {
       intake: { validation: { status: 'pass' } },
       registry: { entries: [{ id: 'reviewed-starter' }] },
@@ -38,6 +44,33 @@ test('summarizes only consistent passing local evidence', () => {
   assert.equal(facts.Destination, 'local://planned/sample-game');
   assert.equal(facts['Verified artifact'], HASH);
   assert.equal(facts['Starter bundle'], BUNDLE_HASH);
+});
+
+test('recovers only bounded Creator Mode brief fields', () => {
+  assert.deepEqual(recoverableBriefValues(safeResult()), {
+    name: 'Harbour Run',
+    objective: 'Build a small verified arcade starter.',
+    targetPlatform: 'desktop',
+    mechanic: 'dodge'
+  });
+  const sample = safeResult();
+  sample.brief = null;
+  assert.equal(recoverableBriefValues(sample), null);
+});
+
+test('rejects malformed recovered brief fields', () => {
+  const target = safeResult();
+  target.brief.targetPlatform = 'store';
+  assert.throws(() => recoverableBriefValues(target), /target is invalid/i);
+  const mechanic = safeResult();
+  mechanic.brief.mechanic = 'arbitrary-code';
+  assert.throws(() => recoverableBriefValues(mechanic), /mechanic is invalid/i);
+  const name = safeResult();
+  name.brief.name = `Bad\u0000Name`;
+  assert.throws(() => recoverableBriefValues(name), /name is invalid/i);
+  const objective = safeResult();
+  objective.brief.objective = 'x'.repeat(501);
+  assert.throws(() => recoverableBriefValues(objective), /objective is invalid/i);
 });
 
 test('rejects a false publication claim', () => {
