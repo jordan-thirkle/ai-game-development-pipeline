@@ -9,8 +9,10 @@
     "runtime": "node tools/runtime.mjs"
   },
   "dependencies": {
+    "@babylonjs/addons": "9.20.0",
     "@babylonjs/core": "9.20.0",
-    "recast-detour": "1.6.4"
+    "@recast-navigation/core": "0.43.1",
+    "@recast-navigation/generators": "0.43.1"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
