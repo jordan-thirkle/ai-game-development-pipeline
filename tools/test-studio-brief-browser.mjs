@@ -22,6 +22,9 @@ try {
   await page.locator('[data-view="local-run"]').click();
   await page.locator('#brief-name').fill('Harbour Run');
   await page.locator('#brief-objective').fill('Build a small web-first arcade starter with a clear local verification trail.');
+  assert.equal(await page.locator('#brief-target').isVisible(), false, 'Creator Mode target should start progressively disclosed');
+  assert.equal(await page.locator('#brief-mechanic').isVisible(), false, 'Creator Mode mechanic should start progressively disclosed');
+  await page.locator('#creator-advanced summary').click();
   await page.locator('#brief-target').selectOption('web');
   await page.locator('#brief-mechanic').selectOption('dodge');
   await page.locator('#run-brief').click();
@@ -131,7 +134,7 @@ try {
 
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/desktop-brief-run-recovered.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed with serialized controls, verified starter download, recovered playable actions, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
+  console.log('Studio brief browser dogfood passed through Creator Mode fine-tuning with serialized controls, verified starter download, recovered playable actions, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
 } finally {
   await browser.close();
 }
