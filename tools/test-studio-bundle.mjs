@@ -99,12 +99,19 @@ test('creates a bounded gzip tar with zero-terminal starter, portable brief, and
     assert.match(bundle.sha256, /^sha256:[a-f0-9]{64}$/);
     assert.equal(bundle.fileCount, 10);
     const entries = readTarEntries(bundle.bytes);
-    assert.equal(entries.has('START_HERE.html'), true);
-    assert.equal(entries.has('PROJECT_BRIEF.html'), true);
-    assert.equal(entries.has('VERIFICATION.html'), true);
-    assert.equal(entries.has('VERIFICATION.txt'), true);
-    assert.equal(entries.has('starter/project.manifest.json'), true);
-    assert.equal(entries.has('starter/dist/index.html'), true);
+    const requiredEntries = [
+      'START_HERE.html',
+      'PROJECT_BRIEF.html',
+      'VERIFICATION.html',
+      'VERIFICATION.txt',
+      'starter/project.manifest.json',
+      'starter/dist/index.html',
+      'evidence/build-result.json',
+      'evidence/qa-result.json',
+      'evidence/release-candidate.json',
+      'evidence/publishing-receipt.json'
+    ];
+    assert.deepEqual([...entries.keys()].sort(), [...requiredEntries].sort());
     const briefPage = entries.get('PROJECT_BRIEF.html').toString('utf8');
     assert.match(briefPage, /Harbour Run/);
     assert.match(briefPage, /A small arcade game/);
@@ -116,6 +123,14 @@ test('creates a bounded gzip tar with zero-terminal starter, portable brief, and
     assert.doesNotMatch(briefPage, /<script/i);
     assert.doesNotMatch(briefPage, /https?:\/\//i);
     assert.doesNotMatch(briefPage, /javascript:/i);
+    const verificationPage = entries.get('VERIFICATION.html').toString('utf8');
+    assert.match(verificationPage, /Content-Security-Policy/);
+    assert.match(verificationPage, /starter\/dist\/index\.html/);
+    assert.match(verificationPage, /VERIFICATION\.txt/);
+    assert.match(verificationPage, new RegExp(artifactSha256));
+    assert.doesNotMatch(verificationPage, /<script/i);
+    assert.doesNotMatch(verificationPage, /https?:\/\//i);
+    assert.doesNotMatch(verificationPage, /javascript:/i);
     const verification = entries.get('VERIFICATION.txt').toString('utf8');
     assert.match(verification, /Build executed: true/);
     assert.match(verification, /QA status: pass/);
