@@ -16,6 +16,7 @@ const MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024;
 const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
 const VERIFIED_PLAYABLE_PATH = 'starter/dist/index.html';
 const START_HERE_PATH = 'START_HERE.html';
+const VERIFICATION_SUMMARY_PATH = 'VERIFICATION.txt';
 const START_HERE_BYTES = Buffer.from(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=starter/dist/index.html"><title>Open verified starter</title></head><body><p>Opening the verified local starter. <a href="starter/dist/index.html">Open it manually</a> if your browser does not continue automatically.</p></body></html>
 `, 'utf8');
@@ -89,6 +90,64 @@ async function collectFiles(root, archiveRoot, { excludeNames = new Set(), exclu
   return files;
 }
 
+async function readJsonEvidence(outputDir, filename) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await readFile(resolve(outputDir, filename), 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error instanceof SyntaxError) {
+      throw new StudioBundleError(`Verified local starter is missing valid ${filename}`, 'EVIDENCE_INCOMPLETE');
+    }
+    throw error;
+  }
+  return parsed;
+}
+
+async function createVerificationSummary(outputDir) {
+  const [build, qa, releaseCandidate, publishing] = await Promise.all([
+    readJsonEvidence(outputDir, 'build-result.json'),
+    readJsonEvidence(outputDir, 'qa-result.json'),
+    readJsonEvidence(outputDir, 'release-candidate.json'),
+    readJsonEvidence(outputDir, 'publishing-receipt.json')
+  ]);
+  const destination = publishing?.destination;
+  const destinationTarget = typeof destination?.target === 'string' ? destination.target : '';
+  const safe = build?.executed === true
+    && build?.status === 'pass'
+    && qa?.executed === true
+    && qa?.status === 'pass'
+    && releaseCandidate?.dryRunOnly === true
+    && publishing?.executed === false
+    && publishing?.secretsUsed === false
+    && destination?.kind === 'local'
+    && destinationTarget.startsWith('local://');
+  if (!safe) {
+    throw new StudioBundleError('Verified local starter evidence does not satisfy the local dry-run safety contract', 'EVIDENCE_INCOMPLETE');
+  }
+  const lines = [
+    'BYJTT VERIFIED LOCAL STARTER',
+    '',
+    'This is a portable summary of the machine-readable records in evidence/.',
+    'It does not claim store/provider publication, secret-backed execution, real requested-device execution, or human playability.',
+    '',
+    `Build executed: ${build.executed}`,
+    `Build status: ${build.status}`,
+    `Build artifact SHA-256: ${build.artifactSha256 || 'not recorded'}`,
+    `QA executed: ${qa.executed}`,
+    `QA status: ${qa.status}`,
+    `QA artifact SHA-256: ${qa.artifactSha256 || 'not recorded'}`,
+    `Release candidate dry-run only: ${releaseCandidate.dryRunOnly}`,
+    `Publication executed: ${publishing.executed}`,
+    `Secrets used: ${publishing.secretsUsed}`,
+    `Destination kind: ${destination.kind}`,
+    `Destination: ${destinationTarget}`,
+    '',
+    'For full provenance, inspect the JSON files under evidence/.',
+    ''
+  ];
+  return Buffer.from(lines.join('\n'), 'utf8');
+}
+
 export async function createStudioBundle({ projectDir, outputDir, projectId = 'starter' }) {
   const project = resolve(projectDir);
   const output = resolve(outputDir);
@@ -100,7 +159,13 @@ export async function createStudioBundle({ projectDir, outputDir, projectId = 's
   if (!projectFiles.some((file) => file.path === VERIFIED_PLAYABLE_PATH)) {
     throw new StudioBundleError('Verified local starter is missing dist/index.html', 'PLAYABLE_MISSING');
   }
-  const files = [{ path: START_HERE_PATH, body: START_HERE_BYTES }, ...projectFiles, ...evidenceFiles].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
+  const verificationSummary = await createVerificationSummary(output);
+  const files = [
+    { path: START_HERE_PATH, body: START_HERE_BYTES },
+    { path: VERIFICATION_SUMMARY_PATH, body: verificationSummary },
+    ...projectFiles,
+    ...evidenceFiles
+  ].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
   if (files.length === 0) throw new StudioBundleError('Local bundle would be empty', 'EMPTY_BUNDLE');
   if (files.length > MAX_FILES) throw new StudioBundleError(`Local bundle exceeds ${MAX_FILES} files`, 'BUNDLE_TOO_LARGE');
   const totalBytes = files.reduce((sum, file) => sum + file.body.length, 0);
