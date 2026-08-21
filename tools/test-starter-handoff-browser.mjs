@@ -70,12 +70,26 @@ try {
   assert.match(facts.Destination, /^local · local:\/\//);
   assert.match(await page.locator('.boundary').textContent(), /does not claim store\/provider publication/);
   const playableLink = page.getByRole('link', { name: 'Open verified starter' });
+  const projectBriefLink = page.getByRole('link', { name: 'View project brief' });
   assert.equal(await playableLink.getAttribute('href'), 'starter/dist/index.html');
+  assert.equal(await projectBriefLink.getAttribute('href'), 'PROJECT_BRIEF.html');
   assert.equal(await page.getByRole('link', { name: 'Open plain-text verification' }).getAttribute('href'), 'VERIFICATION.txt');
   assert.deepEqual(externalRequests, [], `verification page attempted network access: ${externalRequests.join(', ')}`);
   assert.deepEqual(consoleErrors, [], `verification page emitted browser errors: ${consoleErrors.join('; ')}`);
 
-  await playableLink.click();
+  await projectBriefLink.click();
+  await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/PROJECT_BRIEF.html'));
+  assert.equal(await page.locator('h1').textContent(), manifest.name);
+  assert.match(await page.locator('.lead').textContent(), new RegExp(manifest.objective.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(await page.locator('.panel').textContent(), new RegExp(manifest.starter.mechanic));
+  assert.match(await page.locator('.panel').textContent(), new RegExp(`${manifest.starter.requestedTargetPlatform}.*${manifest.starter.executedTargetPlatform}`, 'i'));
+  assert.equal(await page.getByRole('link', { name: 'Open verified starter' }).getAttribute('href'), 'START_HERE.html');
+  assert.equal(await page.getByRole('link', { name: 'View verification' }).getAttribute('href'), 'VERIFICATION.html');
+  assert.deepEqual(externalRequests, [], `project brief attempted network access: ${externalRequests.join(', ')}`);
+  assert.deepEqual(consoleErrors, [], `project brief emitted browser errors: ${consoleErrors.join('; ')}`);
+
+  await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
+  await page.getByRole('link', { name: 'Open verified starter' }).click();
   await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/starter/dist/index.html'));
   await page.waitForSelector('#game');
   assert.equal(await page.locator('#game').isVisible(), true, 'verified starter canvas did not become visible from verification page');
@@ -97,12 +111,20 @@ try {
   await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
   await page.screenshot({ path: verificationScreenshotPath, fullPage: true });
   const verificationScreenshotSha256 = `sha256:${createHash('sha256').update(await readFile(verificationScreenshotPath)).digest('hex')}`;
+  const briefScreenshotPath = resolve(artifacts, 'starter-project-brief-offline.png');
+  await page.goto(pathToFileURL(resolve(extractedDir, 'PROJECT_BRIEF.html')).href, { waitUntil: 'load' });
+  await page.screenshot({ path: briefScreenshotPath, fullPage: true });
+  const briefScreenshotSha256 = `sha256:${createHash('sha256').update(await readFile(briefScreenshotPath)).digest('hex')}`;
   const evidence = {
     status: 'pass',
     sample: 'examples/sample-game',
     projectId: manifest.projectId,
     projectName: manifest.name,
     pipelineStatus: pipeline.status,
+    projectBriefEntry: 'PROJECT_BRIEF.html',
+    projectBriefRendered: true,
+    projectBriefRequestedTarget: manifest.starter.requestedTargetPlatform,
+    projectBriefExecutedTarget: manifest.starter.executedTargetPlatform,
     verificationEntry: 'VERIFICATION.html',
     plainTextVerificationEntry: 'VERIFICATION.txt',
     verificationPageRendered: true,
@@ -114,7 +136,8 @@ try {
     externalNetworkRequests: externalRequests.length,
     bundleSha256: bundle.sha256,
     screenshotSha256,
-    verificationScreenshotSha256
+    verificationScreenshotSha256,
+    briefScreenshotSha256
   };
   await writeFile(resolve(artifacts, 'starter-handoff-browser.json'), JSON.stringify(evidence, null, 2) + '\n');
   await page.close();
