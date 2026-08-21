@@ -1,0 +1,25 @@
+{
+  "name": "byjtt-lab-001-playcanvas-navigation-gate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "test:browser": "node tools/browser-proof.mjs"
+  },
+  "dependencies": {
+    "@recast-navigation/playcanvas": "0.43.1",
+    "playcanvas": "2.21.3",
+    "recast-navigation": "0.43.1"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.1"
+  }
+}
