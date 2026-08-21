@@ -36,7 +36,8 @@ function safeResult() {
         provider: null,
         storeOperation: null,
         secretsUsed: false,
-        releaseCandidatePath: 'release-candidate.json'
+        releaseCandidatePath: 'release-candidate.json',
+        destination: { kind: 'local', target: 'local://planned/sample-game' }
       }
     },
     safety: {
