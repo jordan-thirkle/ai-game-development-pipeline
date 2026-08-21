@@ -17,6 +17,7 @@ jobs:
     env:
       GATE: experiments/BYJTT-LAB-001/candidates/evergine/runtime-gate
       CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      REQUIRED_DOTNET_SDK: 10.0.400
     steps:
       - name: Checkout exact candidate head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -24,10 +25,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Set up .NET 10
+      - name: Set up exact .NET SDK
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.400'
 
       - name: Record exact environment and lock state
         shell: bash
@@ -36,6 +37,8 @@ jobs:
           mkdir -p "$GATE/artifacts/runtime-gate"
           CHECKED_OUT_SHA="$(git rev-parse HEAD)"
           test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          DOTNET_SDK="$(dotnet --version)"
+          test "$DOTNET_SDK" = "$REQUIRED_DOTNET_SDK"
           if git ls-files --error-unmatch "$GATE/packages.lock.json" >/dev/null 2>&1; then
             echo 'COMMITTED_LOCK=true' >> "$GITHUB_ENV"
           else
@@ -44,7 +47,9 @@ jobs:
           {
             echo "checked_out_sha=$CHECKED_OUT_SHA"
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
-            echo "dotnet_sdk=$(dotnet --version)"
+            echo "required_dotnet_sdk=$REQUIRED_DOTNET_SDK"
+            echo "dotnet_sdk=$DOTNET_SDK"
+            echo "dotnet_sdk_exact_match=true"
             echo "os=$(uname -a)"
           } | tee "$GATE/artifacts/runtime-gate/environment.txt"
           dotnet --info >> "$GATE/artifacts/runtime-gate/environment.txt"
