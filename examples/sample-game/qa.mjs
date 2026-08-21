@@ -6,9 +6,12 @@ const manifest = JSON.parse(await readFile(resolve(artifact, '..', 'project.mani
 const game = await readFile(resolve(artifact, 'game.txt'), 'utf8');
 const metadata = JSON.parse(await readFile(resolve(artifact, 'build.json'), 'utf8'));
 const playable = await readFile(resolve(artifact, 'index.html'), 'utf8');
-const executedTarget = manifest.targetPlatforms?.[0] || 'web';
+const executedTargets = manifest.targetPlatforms;
+const executionIsLocalWeb = Array.isArray(executedTargets) && executedTargets.length === 1 && executedTargets[0] === 'web';
+const executedTarget = 'web';
 const requestedTarget = manifest.starter?.requestedTargetPlatform || executedTarget;
 if (
+  !executionIsLocalWeb ||
   basename(artifact) !== 'dist' ||
   game !== 'sample-game build artifact\n' ||
   metadata.format !== 'local-demo' ||
