@@ -1,0 +1,112 @@
+name: benchmark-001-babylon-character-controller
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/babylonjs/character-controller-gate/**'
+      - '.github/workflows/benchmark-001-babylon-character-controller.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controller-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/babylonjs/character-controller-gate
+      EVIDENCE_DIR: ${{ github.workspace }}/artifacts/babylon-character-controller
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact head and record environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          printf '%s\n' "$actual" | tee "$EVIDENCE_DIR/candidate-head.txt"
+          test "$actual" = "$expected"
+          node --version | tee "$EVIDENCE_DIR/node-version.txt"
+          npm --version | tee "$EVIDENCE_DIR/npm-version.txt"
+          uname -a > "$EVIDENCE_DIR/uname.txt"
+
+      - name: Strict source contract check
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('experiments/BYJTT-LAB-001/candidates/babylonjs/character-controller-gate/src/main.ts').read_text()
+          required = ['PhysicsCharacterController', 'checkSupport(', 'setVelocity(', 'integrate(', 'WALK_SPEED = 3.5', 'ARENA_WIDTH = 24', 'ARENA_DEPTH = 32', "event.code === 'KeyD'", 'post_physics_arena_clamp: false']
+          forbidden = ['position.x = Math.max(', 'position.z = Math.max(', 'setPosition(']
+          missing = [x for x in required if x not in source]
+          present_forbidden = [x for x in forbidden if x in source]
+          if missing or present_forbidden:
+              raise SystemExit(f'contract failure missing={missing} forbidden={present_forbidden}')
+          print('source contract: PASS')
+          PY
+
+      - name: Install exact direct dependencies
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --no-audit --no-fund 2>&1 | tee "$EVIDENCE_DIR/npm-install.log"
+          npm ls --all --json > "$EVIDENCE_DIR/npm-tree.json"
+          cp package-lock.json "$EVIDENCE_DIR/package-lock.json"
+
+      - name: Strict TypeScript
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm run typecheck 2>&1 | tee "$EVIDENCE_DIR/typecheck.log"
+
+      - name: Production build
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm run build 2>&1 | tee "$EVIDENCE_DIR/build.log"
+
+      - name: Install Chromium runtime
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee "$EVIDENCE_DIR/playwright-install.log"
+
+      - name: Execute real Babylon Havok controller proof
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm run test:runtime 2>&1 | tee "$EVIDENCE_DIR/runtime.log"
+          jq -e '.passed == true and .controller == "PhysicsCharacterController" and .native_wall_stop == true and .observation_copy_isolation == true and .external_input == true' "$EVIDENCE_DIR/runtime-result.json" >/dev/null
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name sha256-manifest.txt -print0 \
+            | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
+          cat "$EVIDENCE_DIR/runtime-result.json" 2>/dev/null || true
+          cat "$EVIDENCE_DIR/sha256-manifest.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: babylon-character-controller-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/babylon-character-controller
+          if-no-files-found: error
+          retention-days: 30
