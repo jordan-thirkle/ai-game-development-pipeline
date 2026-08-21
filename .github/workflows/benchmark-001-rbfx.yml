@@ -1,0 +1,145 @@
+name: BYJTT-LAB-001 rbfx native character gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/rbfx/**'
+      - '.github/workflows/benchmark-001-rbfx.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rbfx-character:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RBFX_REVISION: 5dd5df44886220be53a8eb1a0f1be5f84a3e9e21
+      GATE_DIR: experiments/BYJTT-LAB-001/candidates/rbfx/runtime-gate
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$actual" = "$expected"
+          printf 'candidate_head=%s\n' "$actual" | tee candidate-head.txt
+
+      - name: Install Linux build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libgl1-mesa-dev libasound2-dev libpulse-dev libudev-dev
+          {
+            uname -a
+            cmake --version
+            c++ --version
+            ninja --version
+          } | tee environment.txt
+
+      - name: Acquire exact rbfx source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .deps
+          git clone --filter=blob:none https://github.com/rbfx/rbfx.git .deps/rbfx
+          git -C .deps/rbfx checkout --detach "$RBFX_REVISION"
+          test "$(git -C .deps/rbfx rev-parse HEAD)" = "$RBFX_REVISION"
+          git -C .deps/rbfx show -s --format='rbfx_head=%H%nrbfx_date=%cI%nrbfx_subject=%s' HEAD | tee rbfx-source.txt
+
+      - name: Configure strict candidate build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S "$GATE_DIR" -B "$GATE_DIR/build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRBFX_SOURCE_DIR="$GITHUB_WORKSPACE/.deps/rbfx" \
+            2>&1 | tee configure.log
+
+      - name: Build candidate with warnings as errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "$GATE_DIR/build" --target rbfx_character_gate --parallel 2 \
+            2>&1 | tee build.log
+
+      - name: Execute real rbfx engine gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="$GATE_DIR/build/rbfx_character_gate"
+          test -x "$binary"
+          timeout 30s "$binary" 2>&1 | tee runtime.log
+
+      - name: Validate machine-readable result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          lines = Path('runtime.log').read_text(errors='replace').splitlines()
+          matches = [line.split('BYJTT_RESULT ', 1)[1] for line in lines if 'BYJTT_RESULT ' in line]
+          if len(matches) != 1:
+              raise SystemExit(f'expected exactly one BYJTT_RESULT line, found {len(matches)}')
+          result = json.loads(matches[0])
+          required_true = ['native_wall_stop', 'observation_copy_isolated', 'passed']
+          for key in required_true:
+              if result.get(key) is not True:
+                  raise SystemExit(f'{key} was not true: {result.get(key)!r}')
+          if result.get('post_physics_arena_clamp') is not False:
+              raise SystemExit('post_physics_arena_clamp must be false')
+          if result.get('external_input_executed') is not False:
+              raise SystemExit('external_input_executed must remain false in this headless gate')
+          if result.get('rbfx_revision') != '5dd5df44886220be53a8eb1a0f1be5f84a3e9e21':
+              raise SystemExit('unexpected rbfx revision')
+          if result.get('arena_width_m') != 24.0 or result.get('arena_depth_m') != 32.0:
+              raise SystemExit('shared arena constants changed')
+          if result.get('spawn') != [0.0, 0.0, 10.0] or result.get('walk_speed_mps') != 3.5:
+              raise SystemExit('shared spawn/speed constants changed')
+          if abs(result.get('expected_stop_x', 0.0) - 11.6) > 1e-6:
+              raise SystemExit('unexpected collision boundary')
+          Path('runtime-result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(candidate-head.txt environment.txt rbfx-source.txt configure.log build.log runtime.log runtime-result.json)
+          : > SHA256SUMS
+          for file in "${files[@]}"; do
+            if [[ -f "$file" ]]; then sha256sum "$file" >> SHA256SUMS; fi
+          done
+          cat SHA256SUMS
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-rbfx-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            candidate-head.txt
+            environment.txt
+            rbfx-source.txt
+            configure.log
+            build.log
+            runtime.log
+            runtime-result.json
+            SHA256SUMS
+          if-no-files-found: error
