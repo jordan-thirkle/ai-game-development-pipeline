@@ -43,6 +43,16 @@ try {
   assert.match(verificationText, /Destination kind: local/);
   assert.match(verificationText, /Destination: local:\/\//);
 
+  const publishingReceipt = JSON.parse(await readFile(resolve(extractedDir, 'evidence/publishing-receipt.json'), 'utf8'));
+  assert.equal(publishingReceipt.executed, false);
+  assert.equal(publishingReceipt.dryRun, true);
+  assert.equal(publishingReceipt.secretsUsed, false);
+  assert.equal(publishingReceipt.destination?.kind, 'local');
+  assert.match(publishingReceipt.destination?.target ?? '', /^local:\/\//);
+  assert.equal(publishingReceipt.provider, null);
+  assert.equal(publishingReceipt.storeOperation, null);
+  assert.deepEqual(publishingReceipt.plan, [`Would publish release-candidate.json to ${publishingReceipt.destination.target}`]);
+
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const externalRequests = [];
@@ -67,6 +77,21 @@ try {
   } else {
     assert.match(await page.locator('main').textContent(), new RegExp(`${manifest.starter.requestedTargetPlatform}\\s+requested\\s*·\\s*${manifest.starter.executedTargetPlatform}\\s+executed locally`, 'i'));
   }
+
+  const publishingPanel = page.locator('[aria-label="Dry-run publishing plan"]');
+  await publishingPanel.waitFor({ state: 'visible' });
+  const publishingPanelText = (await publishingPanel.textContent()) ?? '';
+  assert.match(publishingPanelText, /Dry-run publishing plan/);
+  assert.match(publishingPanelText, /NOT PUBLISHED/);
+  assert.match(publishingPanelText, new RegExp(publishingReceipt.plan[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(publishingPanelText, /Provider\s*none/);
+  assert.match(publishingPanelText, /Store operation\s*none/);
+  assert.match(publishingPanelText, /Secrets\s*not used/);
+  assert.match(publishingPanelText, new RegExp(`Destination\\s*${publishingReceipt.destination.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.match(publishingPanelText, /External proof gate:/);
+  assert.match(publishingPanelText, /real provider, device, or store action requires a separately authorized workflow/);
+  assert.match(publishingPanelText, /contains no such authority/);
+
   assert.equal(await page.getByRole('link', { name: 'Play starter' }).getAttribute('href'), 'starter/dist/index.html');
   assert.equal(await page.getByRole('link', { name: 'Project brief' }).getAttribute('href'), 'PROJECT_BRIEF.html');
   assert.equal(await page.getByRole('link', { name: 'Verification' }).getAttribute('href'), 'VERIFICATION.html');
@@ -154,6 +179,13 @@ try {
     starterHomeToPlayable: true,
     starterHomeToBrief: true,
     starterHomeToVerification: true,
+    publishingPlanBrowserVerified: true,
+    publishingPlanStatus: 'NOT PUBLISHED',
+    publishingPlan: publishingReceipt.plan[0],
+    publishingProvider: publishingReceipt.provider,
+    publishingStoreOperation: publishingReceipt.storeOperation,
+    publishingSecretsUsed: publishingReceipt.secretsUsed,
+    publishingDestination: publishingReceipt.destination.target,
     projectBriefEntry: 'PROJECT_BRIEF.html',
     projectBriefRendered: true,
     projectBriefRequestedTarget: manifest.starter.requestedTargetPlatform,
