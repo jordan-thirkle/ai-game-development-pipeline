@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { createVerificationPage } from './studio-verification-page.mjs';
 
 export class StudioBundleError extends Error {
   constructor(message, code = 'STUDIO_BUNDLE_ERROR') {
@@ -17,6 +18,7 @@ const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
 const VERIFIED_PLAYABLE_PATH = 'starter/dist/index.html';
 const START_HERE_PATH = 'START_HERE.html';
 const VERIFICATION_SUMMARY_PATH = 'VERIFICATION.txt';
+const VERIFICATION_PAGE_PATH = 'VERIFICATION.html';
 const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const START_HERE_BYTES = Buffer.from(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=starter/dist/index.html"><title>Open verified starter</title></head><body><p>Opening the verified local starter. <a href="starter/dist/index.html">Open it manually</a> if your browser does not continue automatically.</p></body></html>
@@ -232,8 +234,10 @@ export async function createStudioBundle({ projectDir, outputDir, projectId = 's
     throw new StudioBundleError('Verified local starter is missing dist/index.html', 'PLAYABLE_MISSING');
   }
   const verificationSummary = createVerificationSummary(evidence, artifactSnapshot.sha256);
+  const verificationPage = createVerificationPage(evidence, artifactSnapshot.sha256);
   const files = [
     { path: START_HERE_PATH, body: START_HERE_BYTES },
+    { path: VERIFICATION_PAGE_PATH, body: verificationPage },
     { path: VERIFICATION_SUMMARY_PATH, body: verificationSummary },
     ...allProjectFiles,
     ...evidenceFiles
