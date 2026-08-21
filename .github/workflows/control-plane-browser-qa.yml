@@ -54,7 +54,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$range")"
           printf '%s\n' "$changed"
-          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/(studio-server|studio-brief|studio-bundle|studio-verification-page|studio-starter-home-page|test-studio-server|test-studio-brief|test-studio-brief-browser|test-studio-bundle|test-studio-verification-page|test-studio-solved-system-summary|test-studio-publishing-plan|test-studio-inline-publishing-plan|test-starter-handoff-browser|test-control-plane-browser|run-pipeline|control-plane-freshness)\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/(studio-server|studio-brief|studio-bundle|studio-verification-page|studio-starter-home-page|test-studio-server|test-studio-brief|test-studio-brief-browser|test-studio-bundle|test-studio-verification-page|test-studio-solved-system-summary|test-studio-publishing-plan|test-studio-inline-publishing-plan|test-studio-inline-publishing-browser|test-starter-handoff-browser|test-control-plane-browser|run-pipeline|control-plane-freshness)\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
@@ -86,6 +86,12 @@ jobs:
           done
           cat /tmp/control-plane-server.log
           exit 1
+      - name: Dogfood inline publishing plan in real Studio Chrome
+        if: steps.changes.outputs.run == 'true'
+        env:
+          CONTROL_PLANE_URL: http://127.0.0.1:4173/apps/studio/
+          BROWSER_ARTIFACTS: artifacts/control-plane-browser
+        run: node tools/test-studio-inline-publishing-browser.mjs
       - name: Run direct browser QA
         if: steps.changes.outputs.run == 'true'
         env:
