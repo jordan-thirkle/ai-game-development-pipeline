@@ -1,0 +1,158 @@
+name: Benchmark 001 jMonkeyEngine persistence gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-persistence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persistence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@7a445ee88d4e23b52c33a9e70805f3d4d6a9b8a6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate/pom.xml
+
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/evidence"
+          checked="$(git rev-parse HEAD)"
+          test "$checked" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$checked"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            java -version 2>&1
+            mvn -version
+            uname -a
+          } | tee "$GATE/evidence/environment.txt"
+
+      - name: Fail closed on prohibited gameplay mutation surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_file="$GATE/src/main/java/com/byjtt/benchmark/JmePersistenceGate.java"
+          if grep -En '\b(setHealth|setSalvageHealth|grantReward|grantUpgrade|writeSaveDirectly|teleportPlayer)\b' "$source_file"; then
+            echo 'Prohibited gameplay mutation surface found' >&2
+            exit 1
+          fi
+          player_spawn_count="$(grep -c 'player\.setPhysicsLocation(PLAYER_SPAWN\.clone())' "$source_file")"
+          wall_spawn_count="$(grep -c 'wall\.setPhysicsLocation(location)' "$source_file")"
+          all_position_setters="$(grep -c '\.setPhysicsLocation(' "$source_file")"
+          test "$player_spawn_count" -eq 1
+          test "$wall_spawn_count" -eq 1
+          test "$all_position_setters" -eq 2
+          {
+            echo "player_spawn_setters=$player_spawn_count"
+            echo "static_wall_setters=$wall_spawn_count"
+            echo "all_position_setters=$all_position_setters"
+            echo 'forbidden_mutation_helpers=0'
+          } | tee "$GATE/evidence/shortcut-scan.txt"
+
+      - name: Strict compile and dependency evidence
+        working-directory: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn -B -ntp clean package 2>&1 | tee evidence/build.log
+          mvn -B -ntp dependency:tree 2>&1 | tee evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-desktop:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' evidence/dependency-tree.txt
+
+      - name: Execute normal save path in first JVM
+        working-directory: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f evidence/progression.j3o evidence/save-result.json evidence/restore-result.json
+          mvn -B -ntp exec:java -Dexec.args=save 2>&1 | tee evidence/save-runtime.log
+          test -s evidence/progression.j3o
+          test -s evidence/save-result.json
+
+      - name: Execute fresh runtime restore in second JVM
+        working-directory: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn -B -ntp exec:java -Dexec.args=restore 2>&1 | tee evidence/restore-runtime.log
+          test -s evidence/restore-result.json
+
+      - name: Assert save and restored observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$GATE/evidence/save-result.json" "$GATE/evidence/restore-result.json" <<'PY'
+          import json, sys
+          save = json.load(open(sys.argv[1], encoding='utf-8'))
+          restore = json.load(open(sys.argv[2], encoding='utf-8'))
+          assert save['passed'] is True
+          assert save['phase'] == 'save'
+          assert save['schema_version'] == 1
+          assert save['reward_count'] == 1
+          assert save['damage_upgrade_selected'] is True
+          assert abs(save['effective_attack_damage'] - 40.8) < 0.001
+          assert save['save_bytes'] > 0
+          assert save['minie_native_loaded'] is True
+          assert save['gameplay_attack_action_executed'] is True
+          assert save['gameplay_interact_action_executed'] is True
+          assert save['stayed_inside_arena'] is True
+          assert save['observation_mutation_isolation'] is True
+          assert restore['passed'] is True
+          assert restore['phase'] == 'restore'
+          assert restore['schema_version'] == 1
+          assert restore['reward_count'] == 1
+          assert restore['damage_upgrade_selected'] is True
+          assert abs(restore['effective_attack_damage'] - 40.8) < 0.001
+          assert restore['fresh_runtime_restore_executed'] is True
+          assert restore['observation_mutation_isolation'] is True
+          for result in (save, restore):
+              assert result['direct_position_setter_exposed'] is False
+              assert result['direct_health_setter_exposed'] is False
+              assert result['direct_reward_grant_exposed'] is False
+              assert result['direct_upgrade_grant_exposed'] is False
+              assert result['write_save_directly_exposed'] is False
+          PY
+          sha256sum \
+            "$GATE/pom.xml" \
+            "$GATE/README.md" \
+            "$GATE/src/main/java/com/byjtt/benchmark/JmePersistenceGate.java" \
+            "$GATE/evidence/environment.txt" \
+            "$GATE/evidence/shortcut-scan.txt" \
+            "$GATE/evidence/build.log" \
+            "$GATE/evidence/dependency-tree.txt" \
+            "$GATE/evidence/save-runtime.log" \
+            "$GATE/evidence/restore-runtime.log" \
+            "$GATE/evidence/progression.j3o" \
+            "$GATE/evidence/save-result.json" \
+            "$GATE/evidence/restore-result.json" \
+            > "$GATE/evidence/SHA256SUMS.txt"
+
+      - name: Upload exact-head persistence evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-persistence-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/persistence-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
