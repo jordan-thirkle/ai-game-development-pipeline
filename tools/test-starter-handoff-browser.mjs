@@ -8,6 +8,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createStudioBundle } from './studio-bundle.mjs';
+import { runPipeline } from './run-pipeline.mjs';
 
 const execFile = promisify(execFileCallback);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,20 +21,27 @@ try {
   const outputDir = resolve(workspace, 'evidence');
   const extractedDir = resolve(workspace, 'extracted');
   await cp(resolve(repositoryRoot, 'examples/sample-game'), projectDir, { recursive: true });
-  await mkdir(outputDir, { recursive: true });
   await mkdir(extractedDir, { recursive: true });
   const manifest = JSON.parse(await readFile(resolve(projectDir, 'project.manifest.json'), 'utf8'));
 
-  const build = await execFile(process.execPath, ['build.mjs'], { cwd: projectDir });
-  assert.match(build.stdout, /built /);
-  const qa = await execFile(process.execPath, ['qa.mjs', 'dist'], { cwd: projectDir });
-  assert.match(qa.stdout, /QA passed/);
-  await writeFile(resolve(outputDir, 'release-candidate.json'), JSON.stringify({ dryRunOnly: true, dogfood: 'starter-handoff-browser' }, null, 2) + '\n');
+  const pipeline = await runPipeline({ projectDir, outputDir, dryRun: true, sourceRevision: 'starter-handoff-browser-dogfood' });
+  assert.equal(pipeline.status, 'pass', 'real sample pipeline did not pass before handoff packaging');
 
   const bundle = await createStudioBundle({ projectDir, outputDir, projectId: manifest.projectId });
   const archivePath = resolve(workspace, bundle.filename);
   await writeFile(archivePath, bundle.bytes);
   await execFile('tar', ['-xzf', archivePath, '-C', extractedDir]);
+
+  const verificationText = await readFile(resolve(extractedDir, 'VERIFICATION.txt'), 'utf8');
+  assert.match(verificationText, /Build executed: true/);
+  assert.match(verificationText, /Build status: pass/);
+  assert.match(verificationText, /QA executed: true/);
+  assert.match(verificationText, /QA status: pass/);
+  assert.match(verificationText, /Release candidate dry-run only: true/);
+  assert.match(verificationText, /Publication executed: false/);
+  assert.match(verificationText, /Secrets used: false/);
+  assert.match(verificationText, /Destination kind: local/);
+  assert.match(verificationText, /Destination: local:\/\//);
 
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -65,6 +73,8 @@ try {
     sample: 'examples/sample-game',
     projectId: manifest.projectId,
     projectName: manifest.name,
+    pipelineStatus: pipeline.status,
+    verificationEntry: 'VERIFICATION.txt',
     startEntry: 'START_HERE.html',
     verifiedPlayableEntry: 'starter/dist/index.html',
     browser: 'chrome',
