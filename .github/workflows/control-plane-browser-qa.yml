@@ -63,6 +63,9 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         with:
           node-version: '26'
+      - name: Dogfood solved-system summary against the real sample pipeline
+        if: steps.changes.outputs.run == 'true'
+        run: node --test tools/test-studio-solved-system-summary.mjs
       - name: Install pinned Playwright package
         if: steps.changes.outputs.run == 'true'
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
