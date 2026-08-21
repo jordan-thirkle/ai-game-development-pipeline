@@ -49,4 +49,4 @@ jobs:
           npm run validate:record -- pipeline-run /tmp/byjtt-records/pipeline.json
           npm run validate:record -- game-graduation /tmp/byjtt-records/graduation.json
           npm run validate:record -- game-status /tmp/byjtt-records/status.json
-          npm run validate:record -- reuse-candidate /tmp/byjtt-records/reuse.json scaffold-reuse
+          npm run validate:record -- reuse-candidate /tmp/byjtt-records/reuse.json
