@@ -55,12 +55,34 @@ try {
   });
   page.on('pageerror', (error) => consoleErrors.push(error.message));
 
+  await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
+  await page.waitForSelector('h1');
+  assert.equal(await page.locator('h1').textContent(), 'Verified local starter');
+  const verificationPageText = await page.locator('body').textContent();
+  assert.match(verificationPageText, /Build\s+pass · executed/);
+  assert.match(verificationPageText, /QA\s+pass · executed/);
+  assert.match(verificationPageText, /Release candidate\s+dry-run only/);
+  assert.match(verificationPageText, /Publication\s+not executed/);
+  assert.match(verificationPageText, /Secrets\s+not used/);
+  assert.match(verificationPageText, /Destination\s+local · local:\/\//);
+  assert.match(verificationPageText, /does not claim store\/provider publication/);
+  const playableLink = page.getByRole('link', { name: 'Open verified starter' });
+  assert.equal(await playableLink.getAttribute('href'), 'starter/dist/index.html');
+  assert.equal(await page.getByRole('link', { name: 'Open plain-text verification' }).getAttribute('href'), 'VERIFICATION.txt');
+  assert.deepEqual(externalRequests, [], `verification page attempted network access: ${externalRequests.join(', ')}`);
+  assert.deepEqual(consoleErrors, [], `verification page emitted browser errors: ${consoleErrors.join('; ')}`);
+
+  await playableLink.click();
+  await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/starter/dist/index.html'));
+  await page.waitForSelector('#game');
+  assert.equal(await page.locator('#game').isVisible(), true, 'verified starter canvas did not become visible from verification page');
+  assert.match(await page.locator('.hud').textContent(), new RegExp(manifest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(await page.locator('#status').textContent(), /Ready to play/);
+
   await page.goto(pathToFileURL(resolve(extractedDir, 'START_HERE.html')).href, { waitUntil: 'load' });
   await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/starter/dist/index.html'));
   await page.waitForSelector('#game');
-  assert.equal(await page.locator('#game').isVisible(), true, 'verified starter canvas did not become visible');
-  assert.match(await page.locator('.hud').textContent(), new RegExp(manifest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(await page.locator('#status').textContent(), /Ready to play/);
+  assert.equal(await page.locator('#game').isVisible(), true, 'zero-terminal START_HERE handoff regressed');
   assert.deepEqual(externalRequests, [], `offline handoff attempted network access: ${externalRequests.join(', ')}`);
   assert.deepEqual(consoleErrors, [], `offline handoff emitted browser errors: ${consoleErrors.join('; ')}`);
 
@@ -68,20 +90,28 @@ try {
   const screenshotPath = resolve(artifacts, 'starter-handoff-offline.png');
   await page.screenshot({ path: screenshotPath, fullPage: true });
   const screenshotSha256 = `sha256:${createHash('sha256').update(await readFile(screenshotPath)).digest('hex')}`;
+  const verificationScreenshotPath = resolve(artifacts, 'starter-verification-offline.png');
+  await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
+  await page.screenshot({ path: verificationScreenshotPath, fullPage: true });
+  const verificationScreenshotSha256 = `sha256:${createHash('sha256').update(await readFile(verificationScreenshotPath)).digest('hex')}`;
   const evidence = {
     status: 'pass',
     sample: 'examples/sample-game',
     projectId: manifest.projectId,
     projectName: manifest.name,
     pipelineStatus: pipeline.status,
-    verificationEntry: 'VERIFICATION.txt',
+    verificationEntry: 'VERIFICATION.html',
+    plainTextVerificationEntry: 'VERIFICATION.txt',
+    verificationPageRendered: true,
+    verificationToPlayable: true,
     startEntry: 'START_HERE.html',
     verifiedPlayableEntry: 'starter/dist/index.html',
     browser: 'chrome',
     protocol: 'file:',
     externalNetworkRequests: externalRequests.length,
     bundleSha256: bundle.sha256,
-    screenshotSha256
+    screenshotSha256,
+    verificationScreenshotSha256
   };
   await writeFile(resolve(artifacts, 'starter-handoff-browser.json'), JSON.stringify(evidence, null, 2) + '\n');
   await page.close();
