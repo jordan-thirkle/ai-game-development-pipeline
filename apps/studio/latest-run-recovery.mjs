@@ -1,3 +1,5 @@
+import { publishingPlanProjection } from '../../tools/studio-starter-home-page.mjs';
+
 const runSteps = [
   ['intake', 'Intake & scaffold'],
   ['registry', 'Tool selection'],
@@ -80,6 +82,7 @@ export function buildInlineVerificationFacts(result) {
   const build = result.evidence.build;
   const qa = result.evidence.qa;
   const release = result.evidence.releaseCandidate;
+  const publishing = result.evidence.publishing;
   if (build?.executed !== true || build?.status !== 'pass') throw new Error('Recovered build evidence is incomplete.');
   if (qa?.executed !== true || qa?.status !== 'pass') throw new Error('Recovered QA evidence is incomplete.');
   if (release?.dryRunOnly !== true) throw new Error('Recovered release candidate is not dry-run only.');
@@ -90,6 +93,7 @@ export function buildInlineVerificationFacts(result) {
     result.safety?.destination?.kind !== 'local' ||
     !String(result.safety?.destination?.target).startsWith('local://')
   ) throw new Error('Recovered publishing safety evidence did not pass.');
+  const publishingPlan = publishingPlanProjection(publishing, String(result.safety.destination.target));
   const hashes = [build?.artifactSha256, qa?.artifactSha256, release?.build?.outputSha256];
   if (!hashes.every((value) => SHA256_PATTERN.test(String(value))) || !hashes.every((value) => value === hashes[0])) {
     throw new Error('Recovered artifact evidence is not revision-consistent.');
@@ -105,6 +109,8 @@ export function buildInlineVerificationFacts(result) {
     ['Publication', 'not executed'],
     ['Secrets', 'not used'],
     ['Destination', String(result.safety.destination.target)],
+    ['Publishing plan', publishingPlan.copy],
+    ['Publishing authority', 'none · external provider, device, or store action requires separately authorized credentialed execution evidence'],
     ['Verified artifact', hashes[0]],
     ['Starter bundle', result.download.sha256]
   ];
