@@ -166,12 +166,21 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true });
+        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true, latestRunReset: true });
       }
       if (request.url === LATEST_RUN_ROUTE) {
-        if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin latest-run recovery is not allowed.' });
-        return sendJson(response, 200, latestRunPayload ? { available: true, run: latestRunPayload } : { available: false });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin latest-run access is not allowed.' });
+        if (request.method === 'GET') return sendJson(response, 200, latestRunPayload ? { available: true, run: latestRunPayload } : { available: false });
+        if (request.method === 'DELETE') {
+          const contentLength = request.headers['content-length'];
+          if (request.headers['transfer-encoding'] || (contentLength !== undefined && contentLength !== '0')) return sendJson(response, 400, { error: 'Latest-run reset accepts no request body.' });
+          if (running) return sendJson(response, 409, { error: 'A local pipeline run is already in progress.' });
+          downloadableBundle = null;
+          playableArtifact = null;
+          latestRunPayload = null;
+          return sendJson(response, 200, { reset: true });
+        }
+        return sendJson(response, 405, { error: 'Method not allowed' });
       }
       if (new URL(request.url, 'http://localhost').pathname === PLAYABLE_ROUTE) {
         if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
