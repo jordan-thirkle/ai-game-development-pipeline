@@ -89,7 +89,7 @@ function readTarEntries(bytes) {
   return entries;
 }
 
-test('creates a bounded gzip tar with zero-terminal starter, portable brief, and artifact-bound verification', async () => {
+test('creates a bounded gzip tar with direct play, one project home, portable brief, and artifact-bound verification', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Harbour Run</h1>\n');
     const artifactSha256 = await writePassingEvidence(projectDir, outputDir);
@@ -97,9 +97,10 @@ test('creates a bounded gzip tar with zero-terminal starter, portable brief, and
     assert.equal(bundle.contentType, 'application/gzip');
     assert.equal(bundle.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
     assert.match(bundle.sha256, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(bundle.fileCount, 10);
+    assert.equal(bundle.fileCount, 11);
     const entries = readTarEntries(bundle.bytes);
     const requiredEntries = [
+      'OPEN_PROJECT.html',
       'START_HERE.html',
       'PROJECT_BRIEF.html',
       'VERIFICATION.html',
@@ -112,6 +113,21 @@ test('creates a bounded gzip tar with zero-terminal starter, portable brief, and
       'evidence/publishing-receipt.json'
     ];
     assert.deepEqual([...entries.keys()].sort(), [...requiredEntries].sort());
+    const homePage = entries.get('OPEN_PROJECT.html').toString('utf8');
+    assert.match(homePage, /Harbour Run/);
+    assert.match(homePage, /A small arcade game/);
+    assert.match(homePage, /collect/);
+    assert.match(homePage, /mobile requested · web executed locally/);
+    assert.match(homePage, /Build \+ QA[\s\S]*executed · pass/);
+    assert.match(homePage, /Publishing[\s\S]*not executed · local dry run/);
+    assert.match(homePage, new RegExp(artifactSha256));
+    assert.match(homePage, /starter\/dist\/index\.html/);
+    assert.match(homePage, /PROJECT_BRIEF\.html/);
+    assert.match(homePage, /VERIFICATION\.html/);
+    assert.match(homePage, /Content-Security-Policy/);
+    assert.doesNotMatch(homePage, /<script/i);
+    assert.doesNotMatch(homePage, /https?:\/\//i);
+    assert.doesNotMatch(homePage, /javascript:/i);
     const briefPage = entries.get('PROJECT_BRIEF.html').toString('utf8');
     assert.match(briefPage, /Harbour Run/);
     assert.match(briefPage, /A small arcade game/);
@@ -188,17 +204,22 @@ test('fails closed instead of summarizing a false publication or secret-backed r
   });
 });
 
-test('escapes project brief markup instead of executing it', async () => {
+test('escapes project brief and starter home markup instead of executing it', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
     await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, name: '<script>alert(1)</script>', objective: '<img src=x onerror=alert(2)> build me a game' })}\n`);
     const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'escaped-brief' });
-    const briefPage = readTarEntries(bundle.bytes).get('PROJECT_BRIEF.html').toString('utf8');
-    assert.match(briefPage, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-    assert.match(briefPage, /&lt;img src=x onerror=alert\(2\)&gt; build me a game/);
-    assert.doesNotMatch(briefPage, /<script>alert\(1\)<\/script>/);
-    assert.doesNotMatch(briefPage, /<img src=x onerror=alert\(2\)>/);
+    const entries = readTarEntries(bundle.bytes);
+    for (const filename of ['PROJECT_BRIEF.html', 'OPEN_PROJECT.html']) {
+      const page = entries.get(filename).toString('utf8');
+      assert.match(page, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+      assert.match(page, /&lt;img src=x onerror=alert\(2\)&gt; build me a game/);
+      assert.doesNotMatch(page, /<script>alert\(1\)<\/script>/);
+      assert.doesNotMatch(page, /<img src=x onerror=alert\(2\)>/);
+      assert.doesNotMatch(page, /https?:\/\//i);
+      assert.doesNotMatch(page, /javascript:/i);
+    }
   });
 });
 
