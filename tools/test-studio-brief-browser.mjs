@@ -41,6 +41,7 @@ try {
   assert.match(evidence, /Mechanic: dodge/);
   assert.match(evidence, /Project: brief-harbour-run/);
   assert.match(evidence, /Verified local starter/);
+  assert.match(evidence, /Verification summary/);
   assert.match(evidence, /Publication executed: false/);
   assert.match(evidence, /Secrets used: false/);
   assert.match(evidence, /Dry-run only: true/);
@@ -82,6 +83,13 @@ try {
   await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('Recovered the latest verified run'), null, { timeout: 10000 });
   assert.equal(pipelinePosts, 1, 'page refresh must not rebuild the project to recover the latest run');
   await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.locator('#brief-name').inputValue(), 'Harbour Run', 'refresh recovery did not restore the Creator Mode name');
+  assert.equal(await page.locator('#brief-objective').inputValue(), 'Build a small web-first arcade starter with a clear local verification trail.', 'refresh recovery did not restore the Creator Mode objective');
+  assert.equal(await page.locator('#brief-target').inputValue(), 'web', 'refresh recovery did not restore the requested target');
+  assert.equal(await page.locator('#brief-mechanic').inputValue(), 'dodge', 'refresh recovery did not restore the reviewed starter mechanic');
+  assert.equal(await page.locator('#creator-advanced').getAttribute('open'), '', 'refresh recovery did not reveal restored fine-tune values');
+  assert.match(await page.locator('#creator-suggestion').textContent(), /restored from the latest verified run/i);
+  assert.match(await page.locator('#run-message').textContent(), /No rebuild or re-entry was needed/i);
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'refresh recovery did not restore all six passing stages');
   assert.equal(await page.locator('#play-result').isVisible(), true, 'refresh recovery did not restore the playable result');
   const recoveredPlaySrc = await page.locator('#play-frame').getAttribute('src');
@@ -100,6 +108,7 @@ try {
     await popup.close();
   }
   assert.match(await page.locator('#run-evidence').textContent(), /Harbour Run/);
+  assert.match(await page.locator('#run-evidence').textContent(), /Verification summary/);
   const recoveredDownload = page.getByRole('link', { name: 'Download starter bundle' });
   assert.equal(await recoveredDownload.count(), 1, 'refresh recovery did not restore the verified starter download');
   assert.equal(await recoveredDownload.getAttribute('href'), new URL(href, baseURL).href, 'refresh recovery changed the in-session artifact handle');
@@ -132,9 +141,33 @@ try {
     await unsafePage.close();
   }
 
+  const malformedBriefPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await malformedBriefPage.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
+    await malformedBriefPage.route('**/api/pipeline/runs/latest', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...latestEnvelope,
+        run: {
+          ...latestEnvelope.run,
+          brief: { ...latestEnvelope.run.brief, targetPlatform: 'store' }
+        }
+      })
+    }));
+    const malformedResponse = await malformedBriefPage.goto(baseURL, { waitUntil: 'domcontentloaded' });
+    assert(malformedResponse?.ok(), `malformed brief recovery Studio HTTP ${malformedResponse?.status()}`);
+    await malformedBriefPage.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('Latest run was not restored'), null, { timeout: 10000 });
+    assert.match(await malformedBriefPage.locator('#run-message').textContent(), /brief target is invalid/i);
+    assert.equal(await malformedBriefPage.locator('#play-result').isVisible(), false, 'malformed recovered brief exposed a playable result');
+    assert.equal(await malformedBriefPage.locator('#run-evidence-panel').isVisible(), false, 'malformed recovered brief exposed recovered evidence');
+  } finally {
+    await malformedBriefPage.close();
+  }
+
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/desktop-brief-run-recovered.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed through Creator Mode fine-tuning with serialized controls, verified starter download, recovered playable actions, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
+  console.log('Studio brief browser dogfood passed through Creator Mode fine-tuning with serialized controls, verified starter download, recovered playable actions and brief values, zero-rebuild/re-entry refresh recovery, and fail-closed recovered destinations/briefs.');
 } finally {
   await browser.close();
 }
