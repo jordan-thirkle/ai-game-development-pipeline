@@ -6,30 +6,12 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { gunzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { createStudioBundle } from './studio-bundle.mjs';
 
 const execFile = promisify(execFileCallback);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = resolve(process.env.BROWSER_ARTIFACTS || 'artifacts/control-plane-browser');
-
-function readTarEntries(bytes) {
-  const tar = gunzipSync(bytes);
-  const entries = new Map();
-  for (let offset = 0; offset + 512 <= tar.length;) {
-    const header = tar.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
-    const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
-    const sizeText = header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim();
-    const size = Number.parseInt(sizeText || '0', 8);
-    assert(Number.isSafeInteger(size) && size >= 0, `invalid TAR size for ${name}`);
-    const bodyStart = offset + 512;
-    entries.set(name, Buffer.from(tar.subarray(bodyStart, bodyStart + size)));
-    offset = bodyStart + Math.ceil(size / 512) * 512;
-  }
-  return entries;
-}
 
 const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-starter-handoff-browser-'));
 let browser;
@@ -49,14 +31,9 @@ try {
   await writeFile(resolve(outputDir, 'release-candidate.json'), JSON.stringify({ dryRunOnly: true, dogfood: 'starter-handoff-browser' }, null, 2) + '\n');
 
   const bundle = await createStudioBundle({ projectDir, outputDir, projectId: manifest.projectId });
-  const entries = readTarEntries(bundle.bytes);
-  for (const name of ['START_HERE.html', 'starter/dist/index.html']) {
-    const body = entries.get(name);
-    assert(body, `bundle missing ${name}`);
-    const destination = resolve(extractedDir, name);
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, body);
-  }
+  const archivePath = resolve(workspace, bundle.filename);
+  await writeFile(archivePath, bundle.bytes);
+  await execFile('tar', ['-xzf', archivePath, '-C', extractedDir]);
 
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
