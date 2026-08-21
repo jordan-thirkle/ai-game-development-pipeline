@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir } from 'node:fs/promises';
-import { relative, resolve, sep } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 export class StudioBundleError extends Error {
@@ -17,13 +17,14 @@ const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
 const VERIFIED_PLAYABLE_PATH = 'starter/dist/index.html';
 const START_HERE_PATH = 'START_HERE.html';
 const VERIFICATION_SUMMARY_PATH = 'VERIFICATION.txt';
+const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const START_HERE_BYTES = Buffer.from(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=starter/dist/index.html"><title>Open verified starter</title></head><body><p>Opening the verified local starter. <a href="starter/dist/index.html">Open it manually</a> if your browser does not continue automatically.</p></body></html>
 `, 'utf8');
 
 function pathContains(basePath, candidatePath) {
   const rest = relative(resolve(basePath), resolve(candidatePath));
-  return rest === '' || (rest !== '..' && !rest.startsWith(`..${sep}`));
+  return rest === '' || (rest !== '..' && !rest.startsWith(`..${sep}`) && !isAbsolute(rest));
 }
 
 function safeArchivePath(value) {
@@ -31,8 +32,16 @@ function safeArchivePath(value) {
     throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
   }
   const normalized = value.replaceAll('\\', '/');
-  if (normalized.startsWith('/') || normalized.split('/').includes('..')) {
+  if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized) || normalized.split('/').includes('..')) {
     throw new StudioBundleError(`Unsafe archive path: ${value}`, 'PATH_CONTAINMENT');
+  }
+  return normalized;
+}
+
+function safeRelativeArtifactPath(value) {
+  const normalized = safeArchivePath(value);
+  if (normalized === '.' || normalized === '') {
+    throw new StudioBundleError('Verified artifact path must not be the project root', 'EVIDENCE_INCOMPLETE');
   }
   return normalized;
 }
@@ -81,7 +90,8 @@ async function collectFiles(root, archiveRoot, { excludeNames = new Set(), exclu
     }
     if (!stat.isFile()) throw new StudioBundleError(`Unsupported filesystem entry in local bundle: ${relativePath}`, 'UNSUPPORTED_ENTRY');
     const body = await readFile(current);
-    files.push({ path: safeArchivePath(`${archiveRoot}/${relativePath}`), body });
+    const archivePath = relativePath ? `${archiveRoot}/${relativePath}` : archiveRoot;
+    files.push({ path: safeArchivePath(archivePath), body });
     if (files.length > MAX_FILES) throw new StudioBundleError(`Local bundle exceeds ${MAX_FILES} files`, 'BUNDLE_TOO_LARGE');
     const total = files.reduce((sum, file) => sum + file.body.length, 0);
     if (total > MAX_UNCOMPRESSED_BYTES) throw new StudioBundleError(`Local bundle exceeds ${MAX_UNCOMPRESSED_BYTES} uncompressed bytes`, 'BUNDLE_TOO_LARGE');
@@ -90,29 +100,26 @@ async function collectFiles(root, archiveRoot, { excludeNames = new Set(), exclu
   return files;
 }
 
-async function readJsonEvidence(outputDir, filename) {
-  let parsed;
+function parseEvidenceFile(evidenceFiles, filename) {
+  const entry = evidenceFiles.find((file) => file.path === `evidence/${filename}`);
+  if (!entry) throw new StudioBundleError(`Verified local starter is missing valid ${filename}`, 'EVIDENCE_INCOMPLETE');
   try {
-    parsed = JSON.parse(await readFile(resolve(outputDir, filename), 'utf8'));
-  } catch (error) {
-    if (error?.code === 'ENOENT' || error instanceof SyntaxError) {
-      throw new StudioBundleError(`Verified local starter is missing valid ${filename}`, 'EVIDENCE_INCOMPLETE');
-    }
-    throw error;
+    return JSON.parse(entry.body.toString('utf8'));
+  } catch {
+    throw new StudioBundleError(`Verified local starter is missing valid ${filename}`, 'EVIDENCE_INCOMPLETE');
   }
-  return parsed;
 }
 
-async function createVerificationSummary(outputDir) {
-  const [build, qa, releaseCandidate, publishing] = await Promise.all([
-    readJsonEvidence(outputDir, 'build-result.json'),
-    readJsonEvidence(outputDir, 'qa-result.json'),
-    readJsonEvidence(outputDir, 'release-candidate.json'),
-    readJsonEvidence(outputDir, 'publishing-receipt.json')
-  ]);
+function assertEvidenceContract(evidenceFiles) {
+  const build = parseEvidenceFile(evidenceFiles, 'build-result.json');
+  const qa = parseEvidenceFile(evidenceFiles, 'qa-result.json');
+  const releaseCandidate = parseEvidenceFile(evidenceFiles, 'release-candidate.json');
+  const publishing = parseEvidenceFile(evidenceFiles, 'publishing-receipt.json');
   const destination = publishing?.destination;
   const destinationTarget = typeof destination?.target === 'string' ? destination.target : '';
-  const safe = build?.executed === true
+  const artifactPaths = [build?.artifactPath, qa?.artifactPath, releaseCandidate?.build?.artifactPath];
+  const artifactHashes = [build?.artifactSha256, qa?.artifactSha256, releaseCandidate?.build?.outputSha256];
+  const evidenceSafe = build?.executed === true
     && build?.status === 'pass'
     && qa?.executed === true
     && qa?.status === 'pass'
@@ -120,22 +127,81 @@ async function createVerificationSummary(outputDir) {
     && publishing?.executed === false
     && publishing?.secretsUsed === false
     && destination?.kind === 'local'
-    && destinationTarget.startsWith('local://');
-  if (!safe) {
-    throw new StudioBundleError('Verified local starter evidence does not satisfy the local dry-run safety contract', 'EVIDENCE_INCOMPLETE');
+    && destinationTarget.startsWith('local://')
+    && artifactPaths.every((value) => typeof value === 'string' && value.length > 0)
+    && artifactPaths.every((value) => value === artifactPaths[0])
+    && artifactHashes.every((value) => typeof value === 'string' && SHA256_PATTERN.test(value))
+    && artifactHashes.every((value) => value === artifactHashes[0]);
+  if (!evidenceSafe) {
+    throw new StudioBundleError('Verified local starter evidence does not satisfy the local dry-run artifact contract', 'EVIDENCE_INCOMPLETE');
   }
+  return {
+    build,
+    qa,
+    releaseCandidate,
+    publishing,
+    destination,
+    destinationTarget,
+    artifactPath: safeRelativeArtifactPath(artifactPaths[0]),
+    evidenceArtifactSha256: artifactHashes[0]
+  };
+}
+
+async function snapshotVerifiedArtifact(projectDir, artifactPath) {
+  const project = resolve(projectDir);
+  const absoluteArtifact = resolve(project, artifactPath);
+  if (!pathContains(project, absoluteArtifact) || absoluteArtifact === project) {
+    throw new StudioBundleError('Verified artifact path escaped the project', 'EVIDENCE_INCOMPLETE');
+  }
+  let rootStat;
+  try {
+    rootStat = await lstat(absoluteArtifact);
+  } catch {
+    throw new StudioBundleError('Verified artifact is no longer available for packaging', 'EVIDENCE_INCOMPLETE');
+  }
+  const files = [];
+  const hash = createHash('sha256');
+  const archiveRoot = safeArchivePath(`starter/${artifactPath}`);
+  async function visit(current, hashRelativePath, archiveRelativePath) {
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink()) throw new StudioBundleError(`Verified artifact contains a symbolic link: ${archiveRelativePath || '.'}`, 'EVIDENCE_INCOMPLETE');
+    if (stat.isDirectory()) {
+      hash.update(`directory\0${hashRelativePath}\0`);
+      const names = (await readdir(current)).sort((a, b) => Buffer.from(a).compare(Buffer.from(b)));
+      for (const name of names) {
+        const nextHashPath = hashRelativePath ? `${hashRelativePath}/${name}` : name;
+        const nextArchivePath = archiveRelativePath ? `${archiveRelativePath}/${name}` : name;
+        await visit(resolve(current, name), nextHashPath, nextArchivePath);
+      }
+      return;
+    }
+    if (!stat.isFile()) throw new StudioBundleError(`Verified artifact contains an unsupported entry: ${archiveRelativePath || '.'}`, 'EVIDENCE_INCOMPLETE');
+    const body = await readFile(current);
+    hash.update(`file\0${hashRelativePath}\0${stat.size}\0`);
+    hash.update(body);
+    files.push({ path: safeArchivePath(rootStat.isDirectory() ? `${archiveRoot}/${archiveRelativePath}` : archiveRoot), body });
+  }
+  await visit(absoluteArtifact, rootStat.isDirectory() ? '' : 'artifact', rootStat.isDirectory() ? '' : 'artifact');
+  return { absoluteArtifact, files, sha256: `sha256:${hash.digest('hex')}` };
+}
+
+function createVerificationSummary(evidence, bundledArtifactSha256) {
+  const { build, qa, releaseCandidate, publishing, destination, destinationTarget } = evidence;
   const lines = [
     'BYJTT VERIFIED LOCAL STARTER',
     '',
     'This is a portable summary of the machine-readable records in evidence/.',
+    'It is bound to the artifact bytes packaged in this archive by the SHA-256 shown below.',
     'It does not claim store/provider publication, secret-backed execution, real requested-device execution, or human playability.',
     '',
     `Build executed: ${build.executed}`,
     `Build status: ${build.status}`,
-    `Build artifact SHA-256: ${build.artifactSha256 || 'not recorded'}`,
+    `Build artifact SHA-256: ${build.artifactSha256}`,
     `QA executed: ${qa.executed}`,
     `QA status: ${qa.status}`,
-    `QA artifact SHA-256: ${qa.artifactSha256 || 'not recorded'}`,
+    `QA artifact SHA-256: ${qa.artifactSha256}`,
+    `Release candidate artifact SHA-256: ${releaseCandidate.build.outputSha256}`,
+    `Bundled artifact SHA-256: ${bundledArtifactSha256}`,
     `Release candidate dry-run only: ${releaseCandidate.dryRunOnly}`,
     `Publication executed: ${publishing.executed}`,
     `Secrets used: ${publishing.secretsUsed}`,
@@ -151,19 +217,25 @@ async function createVerificationSummary(outputDir) {
 export async function createStudioBundle({ projectDir, outputDir, projectId = 'starter' }) {
   const project = resolve(projectDir);
   const output = resolve(outputDir);
+  const evidenceFiles = await collectFiles(output, 'evidence');
+  const evidence = assertEvidenceContract(evidenceFiles);
+  const artifactSnapshot = await snapshotVerifiedArtifact(project, evidence.artifactPath);
+  if (artifactSnapshot.sha256 !== evidence.evidenceArtifactSha256) {
+    throw new StudioBundleError('Verified artifact bytes no longer match build, QA, and release-candidate evidence', 'EVIDENCE_INCOMPLETE');
+  }
   const projectFiles = await collectFiles(project, 'starter', {
     excludeNames: EXCLUDED_PROJECT_NAMES,
-    excludePaths: pathContains(project, output) ? [output] : []
+    excludePaths: [artifactSnapshot.absoluteArtifact, ...(pathContains(project, output) ? [output] : [])]
   });
-  const evidenceFiles = await collectFiles(output, 'evidence');
-  if (!projectFiles.some((file) => file.path === VERIFIED_PLAYABLE_PATH)) {
+  const allProjectFiles = [...projectFiles, ...artifactSnapshot.files];
+  if (!allProjectFiles.some((file) => file.path === VERIFIED_PLAYABLE_PATH)) {
     throw new StudioBundleError('Verified local starter is missing dist/index.html', 'PLAYABLE_MISSING');
   }
-  const verificationSummary = await createVerificationSummary(output);
+  const verificationSummary = createVerificationSummary(evidence, artifactSnapshot.sha256);
   const files = [
     { path: START_HERE_PATH, body: START_HERE_BYTES },
     { path: VERIFICATION_SUMMARY_PATH, body: verificationSummary },
-    ...projectFiles,
+    ...allProjectFiles,
     ...evidenceFiles
   ].sort((a, b) => Buffer.from(a.path).compare(Buffer.from(b.path)));
   if (files.length === 0) throw new StudioBundleError('Local bundle would be empty', 'EMPTY_BUNDLE');
