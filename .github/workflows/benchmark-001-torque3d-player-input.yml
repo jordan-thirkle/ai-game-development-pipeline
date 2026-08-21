@@ -1,0 +1,201 @@
+name: benchmark-001-torque3d-player-input
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/torque3d/player-input-gate/**'
+      - '.github/workflows/benchmark-001-torque3d-player-input.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-input-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      EVIDENCE_DIR: artifacts/torque3d-player-input
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/torque3d/player-input-gate
+      ASSET_NAME: Torque3D_403_LinBinaries.zip
+      ASSET_URL: https://github.com/TorqueGameEngines/Torque3D/releases/download/v4.0.3/Torque3D_403_LinBinaries.zip
+      EXPECTED_SHA256: 42513ac8f8390790acef91742f2ec962df9ced55d6b1f4dcd38f321af13eeb5b
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact head and static contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf '%s\n' "$actual" | tee "$EVIDENCE_DIR/candidate-head.txt"
+          test "$actual" = "$expected"
+          uname -a > "$EVIDENCE_DIR/uname.txt"
+          cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
+          python3 - <<'PY' | tee "$EVIDENCE_DIR/contract-check.txt"
+          import json
+          from pathlib import Path
+          c=json.loads(Path('experiments/BYJTT-LAB-001/shared/contract.json').read_text())
+          assert c['arena']['width']==24 and c['arena']['depth']==32
+          assert c['arena']['player_spawn']==[0,0,10]
+          assert c['player']['walk_speed']==3.5
+          print('shared_contract_read_only=pass')
+          PY
+          test "$(grep -R --include='*.tscript' -c 'setTransform' "$CANDIDATE_DIR/data/BYJTTBenchmark" | awk -F: '{s+=$2} END {print s+0}')" -eq 1
+          ! grep -R -E 'mClamp|setPosition|setTransform.*schedule|post.?physics.*clamp' "$CANDIDATE_DIR/data/BYJTTBenchmark" --include='*.tscript'
+
+      - name: Install desktop proof dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb openbox wmctrl xdotool x11-utils mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            libegl1 libegl-mesa0 imagemagick unzip file libopenal1 libsdl2-2.0-0
+
+      - name: Acquire and verify official Torque3D package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --location --retry 3 "$ASSET_URL" -o "$EVIDENCE_DIR/$ASSET_NAME"
+          actual_sha="$(sha256sum "$EVIDENCE_DIR/$ASSET_NAME" | awk '{print $1}')"
+          printf '%s  %s\n' "$actual_sha" "$ASSET_NAME" | tee "$EVIDENCE_DIR/observed-sha256.txt"
+          test "$actual_sha" = "$EXPECTED_SHA256"
+
+      - name: Execute real Player through physical keyboard and native collision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export SDL_VIDEO_X11_FORCE_EGL=1
+          extract_dir="$RUNNER_TEMP/torque3d-player-input"
+          mkdir -p "$extract_dir"
+          unzip -q "$EVIDENCE_DIR/$ASSET_NAME" -d "$extract_dir"
+          cp -a "$CANDIDATE_DIR/data/BYJTTBenchmark" "$extract_dir/data/"
+          binary="$extract_dir/Torque3D"
+          chmod +x "$binary"
+          file "$binary" | tee "$EVIDENCE_DIR/binary-file.txt"
+          grep -Eq 'ELF .*executable' "$EVIDENCE_DIR/binary-file.txt"
+          ldd "$binary" > "$EVIDENCE_DIR/ldd.txt" 2>&1 || true
+
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp +extension GLX +render -noreset > "$EVIDENCE_DIR/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          openbox > "$EVIDENCE_DIR/openbox.log" 2>&1 &
+          openbox_pid=$!
+          cleanup() {
+            if [[ -n "${runtime_pid:-}" ]]; then
+              kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+              sleep 1
+              kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
+            kill "$openbox_pid" "$xvfb_pid" 2>/dev/null || true
+            rm -rf "$extract_dir"
+          }
+          trap cleanup EXIT
+          sleep 2
+          xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt" 2>&1
+          glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1
+          grep -Eiq 'llvmpipe|softpipe|Mesa' "$EVIDENCE_DIR/glxinfo.txt"
+
+          cd "$extract_dir"
+          setsid timeout --signal=TERM --kill-after=2s 24s ./Torque3D > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
+          runtime_pid=$!
+          cd "$GITHUB_WORKSPACE"
+
+          window_id=''
+          : > "$EVIDENCE_DIR/windows.txt"
+          for i in $(seq 1 18); do
+            sleep 1
+            wmctrl -lx > "$EVIDENCE_DIR/windows-${i}.txt" 2>/dev/null || true
+            cat "$EVIDENCE_DIR/windows-${i}.txt" >> "$EVIDENCE_DIR/windows.txt"
+            window_id="$(awk '/Torque3D - OpenGL/ {print $1; exit}' "$EVIDENCE_DIR/windows-${i}.txt")"
+            [[ -n "$window_id" ]] && break
+            kill -0 "$runtime_pid" 2>/dev/null || break
+          done
+          test -n "$window_id"
+          printf '%s\n' "$window_id" > "$EVIDENCE_DIR/window-id.txt"
+          xwininfo -id "$window_id" > "$EVIDENCE_DIR/window-info.txt" 2>&1
+
+          ready=false
+          for _ in $(seq 1 20); do
+            grep -q 'BYJTT_PLAYER_READY' "$EVIDENCE_DIR/runtime.log" && { ready=true; break; }
+            sleep 0.5
+          done
+          test "$ready" = true
+          grep -q 'Attempting to create GFX device:.*OpenGL\|Initializing GFXCardProfiler (OpenGL)\|Torque3D - OpenGL' "$EVIDENCE_DIR/runtime.log" "$EVIDENCE_DIR/windows.txt"
+          ! grep -Eqi 'Attempting to create GFX device: GFX Null Device|The OpenGL renderer doesn.t seem to be available.*GFXNulDevice|Couldn.t find matching GLX visual' "$EVIDENCE_DIR/runtime.log"
+
+          wmctrl -ia "$window_id"
+          xdotool windowactivate --sync "$window_id"
+          import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/before-input.png"
+          test -s "$EVIDENCE_DIR/before-input.png"
+
+          xdotool keydown d
+          sleep 8
+          xdotool keyup d
+          sleep 2
+          import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/after-release.png"
+          test -s "$EVIDENCE_DIR/after-release.png"
+
+          set +e
+          wait "$runtime_pid"
+          runtime_rc=$?
+          set -e
+          printf '%s\n' "$runtime_rc" > "$EVIDENCE_DIR/runtime-exit-code.txt"
+          test "$runtime_rc" -eq 0
+
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          log=Path('artifacts/torque3d-player-input/runtime.log').read_text(errors='replace')
+          matches=list(re.finditer(r'BYJTT_RESULT final_x=([-+0-9.eE]+) max_x=([-+0-9.eE]+) release_x=([-+0-9.eE]+) release_drift=([-+0-9.eE]+) press_count=(\d+) release_count=(\d+)',log))
+          if not matches: raise SystemExit('missing BYJTT_RESULT')
+          m=matches[-1]
+          final_x,max_x,release_x,drift=map(float,m.group(1,2,3,4))
+          press,release=map(int,m.group(5,6))
+          expected=11.6
+          result={
+            'status':'pass', 'runtime_executed':True, 'renderer':'OpenGL',
+            'player_class':'Player', 'player_datablock':'BYJTTPlayerData',
+            'external_input_executed':True, 'input_path':'OS D -> Torque ActionMap -> $mvRightAction -> Player',
+            'arena_width_m':24.0, 'arena_depth_m':32.0,
+            'logical_spawn':[0.0,0.0,10.0], 'torque_spawn':[0.0,10.0,0.0],
+            'walk_speed_mps':3.5, 'expected_east_stop_x':expected,
+            'final_x':final_x, 'max_x':max_x, 'release_x':release_x, 'release_drift':drift,
+            'press_count':press, 'release_count':release,
+            'native_wall_stop_observed': abs(final_x-expected)<=0.18 and max_x<=11.82,
+            'release_stable': drift<=0.05,
+            'post_physics_arena_clamp':False,
+            'passed': press>=1 and release>=1 and abs(final_x-expected)<=0.18 and max_x<=11.82 and drift<=0.05,
+          }
+          result['status']='pass' if result['passed'] else 'fail'
+          Path('artifacts/torque3d-player-input/runtime-result.json').write_text(json.dumps(result,indent=2)+'\n')
+          if not result['passed']: raise SystemExit(json.dumps(result))
+          PY
+          cat "$EVIDENCE_DIR/runtime-result.json"
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -d "$EVIDENCE_DIR" ]]; then
+            find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
+          fi
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: torque3d-player-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/torque3d-player-input
+          if-no-files-found: error
+          retention-days: 30
