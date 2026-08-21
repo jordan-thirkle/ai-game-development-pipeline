@@ -113,7 +113,7 @@ await init();
 const meshInstances = floor.render?.meshInstances ?? [];
 if (meshInstances.length === 0) throw new Error('PlayCanvas floor did not expose mesh instances');
 
-const generation = pcToSoloNavMesh(meshInstances, {
+const generation = pcToSoloNavMesh([...meshInstances], {
   cs: 0.2,
   ch: 0.1,
   walkableSlopeAngle: 45,
