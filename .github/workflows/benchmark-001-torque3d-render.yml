@@ -127,12 +127,18 @@ jobs:
             if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
           done
 
-          null_renderer=false
+          null_renderer_selected=false
           glx_visual_failure=false
-          opengl_marker=false
-          if grep -Eqi 'GFX Null Device|GFXNulDevice|Null device found' "$EVIDENCE_DIR/runtime.log"; then null_renderer=true; fi
+          opengl_selected=false
+          # Torque enumerates both Null and OpenGL devices during normal startup. Treat
+          # Null as a failure only if it is actually selected, not merely enumerated.
+          if grep -Eqi 'Attempting to create GFX device: GFX Null Device|The OpenGL renderer doesn.t seem to be available.*GFXNulDevice' "$EVIDENCE_DIR/runtime.log"; then
+            null_renderer_selected=true
+          fi
           if grep -Fqi "Couldn't find matching GLX visual" "$EVIDENCE_DIR/runtime.log"; then glx_visual_failure=true; fi
-          if grep -Eqi 'OpenGL renderer|GFXGL|OpenGL.*device|Attempting to create GFX device:.*OpenGL' "$EVIDENCE_DIR/runtime.log"; then opengl_marker=true; fi
+          if grep -Eqi 'Attempting to create GFX device:.*OpenGL|Initializing GFXCardProfiler \(OpenGL\)|Torque3D - OpenGL' "$EVIDENCE_DIR/runtime.log" "$EVIDENCE_DIR/windows.txt"; then
+            opengl_selected=true
+          fi
 
           window_seen=false
           screenshot_captured=false
@@ -149,7 +155,7 @@ jobs:
           if kill -0 "$runtime_pid" 2>/dev/null; then survived_five_seconds=true; fi
 
           passed=false
-          if [[ "$null_renderer" == false && "$glx_visual_failure" == false && "$opengl_marker" == true && "$window_seen" == true && "$screenshot_captured" == true && "$survived_five_seconds" == true ]]; then
+          if [[ "$null_renderer_selected" == false && "$glx_visual_failure" == false && "$opengl_selected" == true && "$window_seen" == true && "$screenshot_captured" == true && "$survived_five_seconds" == true ]]; then
             passed=true
           fi
 
@@ -157,16 +163,16 @@ jobs:
             --arg status "$( [[ "$passed" == true ]] && echo pass || echo render-blocked )" \
             --arg transport 'x11-egl-opengl' \
             --argjson runtime_executed true \
-            --argjson null_renderer "$null_renderer" \
+            --argjson null_renderer_selected "$null_renderer_selected" \
             --argjson glx_visual_failure "$glx_visual_failure" \
-            --argjson opengl_marker "$opengl_marker" \
+            --argjson opengl_selected "$opengl_selected" \
             --argjson window_seen "$window_seen" \
             --argjson screenshot_captured "$screenshot_captured" \
             --argjson survived_five_seconds "$survived_five_seconds" \
             --argjson player_execution false \
             --argjson external_input_executed false \
             --argjson passed "$passed" \
-            '{status:$status,transport:$transport,runtime_executed:$runtime_executed,null_renderer:$null_renderer,glx_visual_failure:$glx_visual_failure,opengl_marker:$opengl_marker,window_seen:$window_seen,screenshot_captured:$screenshot_captured,survived_five_seconds:$survived_five_seconds,player_execution:$player_execution,external_input_executed:$external_input_executed,passed:$passed}' \
+            '{status:$status,transport:$transport,runtime_executed:$runtime_executed,null_renderer_selected:$null_renderer_selected,glx_visual_failure:$glx_visual_failure,opengl_selected:$opengl_selected,window_seen:$window_seen,screenshot_captured:$screenshot_captured,survived_five_seconds:$survived_five_seconds,player_execution:$player_execution,external_input_executed:$external_input_executed,passed:$passed}' \
             > "$EVIDENCE_DIR/runtime-result.json"
 
           test "$passed" = true
