@@ -10,7 +10,7 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function publishingPlanProjection(publishing, destinationTarget) {
+export function publishingPlanProjection(publishing, destinationTarget) {
   if (publishing?.plan === undefined) {
     const legacySafe = publishing?.executed === false
       && publishing?.secretsUsed === false
