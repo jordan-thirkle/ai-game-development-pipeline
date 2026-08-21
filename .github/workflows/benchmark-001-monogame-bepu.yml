@@ -1,0 +1,125 @@
+name: Benchmark 001 MonoGame BEPU runtime gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/monogame-bepu/runtime-gate/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-monogame-bepu.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/monogame-bepu/runtime-gate
+      EVIDENCE: experiments/BYJTT-LAB-001/candidates/monogame-bepu/runtime-gate/artifacts/runtime-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Install Linux desktop proof dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb openbox xdotool x11-utils imagemagick mesa-utils libgl1-mesa-dri libsdl2-2.0-0 libopenal1 libasound2t64
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$EVIDENCE"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "dotnet_sdk=$(dotnet --version)"
+            echo "os=$(uname -a)"
+          } | tee "$EVIDENCE/environment.txt"
+          dotnet --info >> "$EVIDENCE/environment.txt"
+      - name: Restore and freeze dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          dotnet restore MonoGameBepuGate.csproj --use-lock-file | tee artifacts/runtime-gate/restore-bootstrap.log
+          cp packages.lock.json artifacts/runtime-gate/packages.lock.json
+          dotnet restore MonoGameBepuGate.csproj --locked-mode | tee artifacts/runtime-gate/restore-locked.log
+          dotnet list MonoGameBepuGate.csproj package --include-transitive > artifacts/runtime-gate/dependency-tree.txt
+      - name: Strict release build
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          dotnet build MonoGameBepuGate.csproj -c Release --no-restore /warnaserror | tee artifacts/runtime-gate/build.log
+      - name: Execute real MonoGame DesktopGL and physical keyboard path
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x800x24 > artifacts/runtime-gate/xvfb.log 2>&1 &
+          XVFB_PID=$!
+          trap 'kill ${GAME_PID:-} ${OPENBOX_PID:-} ${XVFB_PID:-} 2>/dev/null || true' EXIT
+          sleep 2
+          openbox > artifacts/runtime-gate/openbox.log 2>&1 &
+          OPENBOX_PID=$!
+          glxinfo -B | tee artifacts/runtime-gate/glxinfo.txt
+
+          timeout 30s dotnet run --project MonoGameBepuGate.csproj -c Release --no-build -- artifacts/runtime-gate/result.json > artifacts/runtime-gate/runtime.log 2>&1 &
+          GAME_PID=$!
+
+          WINDOW_ID=''
+          for _ in $(seq 1 100); do
+            WINDOW_ID="$(xdotool search --onlyvisible --name '^BYJTT MonoGame BEPU Gate$' 2>/dev/null | head -n1 || true)"
+            if [ -n "$WINDOW_ID" ]; then break; fi
+            if ! kill -0 "$GAME_PID" 2>/dev/null; then break; fi
+            sleep 0.1
+          done
+          test -n "$WINDOW_ID"
+          {
+            echo "window_id=$WINDOW_ID"
+            xdotool getwindowname "$WINDOW_ID"
+            xdotool getwindowgeometry --shell "$WINDOW_ID"
+          } | tee artifacts/runtime-gate/window.txt
+          xdotool windowfocus --sync "$WINDOW_ID"
+          import -window "$WINDOW_ID" artifacts/runtime-gate/before-input.png
+          test -s artifacts/runtime-gate/before-input.png
+
+          xdotool keydown d
+          sleep 5
+          import -window "$WINDOW_ID" artifacts/runtime-gate/during-input.png
+          test -s artifacts/runtime-gate/during-input.png
+          xdotool keyup d
+
+          set +e
+          wait "$GAME_PID"
+          STATUS=$?
+          set -e
+          test "$STATUS" -eq 0
+          test -s artifacts/runtime-gate/result.json
+      - name: Assert exact-head machine-readable evidence
+        run: |
+          node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const ok=r.passed===true&&r.monogame_runtime_executed===true&&r.bepu_simulation_executed===true&&r.external_input_executed===true&&r.post_physics_arena_clamp===false&&r.observation_copy_isolated===true&&r.key_d_press_count>=1&&r.key_d_release_count>=1&&r.native_wall_stop_observed===true&&r.maximum_observed_x<=r.expected_east_wall_center_ceiling+0.08&&r.maximum_observed_x>=r.expected_east_wall_center_ceiling-0.15&&r.release_drift<=0.03&&r.timed_out===false;if(!ok){console.error(r);process.exit(1)}' "$EVIDENCE/result.json"
+          sha256sum \
+            "$CANDIDATE/MonoGameBepuGate.csproj" \
+            "$CANDIDATE/Program.cs" \
+            "$CANDIDATE/README.md" \
+            "$EVIDENCE/environment.txt" \
+            "$EVIDENCE/packages.lock.json" \
+            "$EVIDENCE/dependency-tree.txt" \
+            "$EVIDENCE/build.log" \
+            "$EVIDENCE/glxinfo.txt" \
+            "$EVIDENCE/window.txt" \
+            "$EVIDENCE/runtime.log" \
+            "$EVIDENCE/result.json" \
+            "$EVIDENCE/before-input.png" \
+            "$EVIDENCE/during-input.png" \
+            > "$EVIDENCE/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-monogame-bepu-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/monogame-bepu/runtime-gate/artifacts/runtime-gate/**
+          if-no-files-found: error
+          retention-days: 30
