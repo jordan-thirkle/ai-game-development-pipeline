@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/studio-brief.mjs'
+      - 'examples/sample-game/project.manifest.json'
       - 'examples/sample-game/build.mjs'
       - 'examples/sample-game/qa.mjs'
       - 'tools/test-studio-target-truth.mjs'
