@@ -58,11 +58,40 @@ await record('Creator Mode is idea-first with optional progressive disclosure',a
   assert.equal(await page.locator('#brief-mechanic').isVisible(),false,'mechanic leaked into the default beginner surface');
   assert.equal(await page.locator('#brief-target').inputValue(),'web','Creator Mode default target changed');
   assert.equal(await page.locator('#brief-mechanic').inputValue(),'collect','Creator Mode default mechanic changed');
+  assert.match(await page.locator('#creator-suggestion').textContent(),/Collect a beacon.*No AI model is used/i);
   const summary=page.locator('#creator-advanced summary');
   await summary.focus();
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('#brief-target').isVisible(),true,'advanced target was not keyboard-revealed');
   assert.equal(await page.locator('#brief-mechanic').isVisible(),true,'advanced mechanic was not keyboard-revealed');
+  assert.deepEqual(consoleErrors,[]);
+  await page.close();
+});
+
+await record('Creator Mode maps obvious idea language locally and preserves manual override',async()=>{
+  const {page,consoleErrors}=await open({width:1280,height:800});
+  await page.locator('[data-view="local-run"]').click();
+  const idea=page.locator('#brief-objective');
+  const mechanic=page.locator('#brief-mechanic');
+  const suggestion=page.locator('#creator-suggestion');
+
+  await idea.fill('Survive waves of enemies and stay alive for as long as possible.');
+  assert.equal(await mechanic.inputValue(),'survive','survival language did not select the reviewed survive starter');
+  assert.match(await suggestion.textContent(),/Survive 10 seconds.*suggested locally.*No AI model is used/i);
+
+  await idea.fill('Dodge hazards and escape through the exit without touching obstacles.');
+  assert.equal(await mechanic.inputValue(),'dodge','dodge/escape language did not select the reviewed dodge starter');
+  assert.match(await suggestion.textContent(),/Dodge to an exit.*suggested locally/i);
+
+  await idea.fill('Make a small arcade game with a simple clear goal.');
+  assert.equal(await mechanic.inputValue(),'collect','neutral wording did not fall back to the reviewed collect starter');
+
+  await page.locator('#creator-advanced summary').click();
+  await mechanic.selectOption('survive');
+  assert.match(await suggestion.textContent(),/Survive 10 seconds.*chosen in Fine-tune/i);
+  await idea.fill('Dodge every obstacle and escape quickly.');
+  assert.equal(await mechanic.inputValue(),'survive','idea remapping overrode an explicit Fine-tune choice');
+  assert.match(await suggestion.textContent(),/chosen in Fine-tune/i);
   assert.deepEqual(consoleErrors,[]);
   await page.close();
 });
@@ -222,6 +251,7 @@ await record('mobile layout and navigation stay usable',async()=>{
   assert.equal(await page.locator('#run-sample').isVisible(),true,'mobile sample runner is unreachable');
   assert.equal(await page.locator('#brief-name').isVisible(),true,'mobile Creator Mode name input is unreachable');
   assert.equal(await page.locator('#brief-objective').isVisible(),true,'mobile Creator Mode idea input is unreachable');
+  assert.equal(await page.locator('#creator-suggestion').isVisible(),true,'mobile Creator Mode suggestion is unreachable');
   await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
