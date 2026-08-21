@@ -1,0 +1,179 @@
+name: Benchmark 001 raylib Jolt gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/raylib-jolt/**'
+      - '.github/workflows/benchmark-001-raylib-jolt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  raylib-jolt-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DISPLAY: ':99'
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          printf '%s\n' "$actual" | tee candidate-head.txt
+          test "$actual" = "$expected"
+
+      - name: Install build and desktop dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git \
+            libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev \
+            libxcursor-dev libxinerama-dev \
+            xvfb openbox xdotool x11-utils mesa-utils imagemagick jq
+          {
+            uname -a
+            cmake --version
+            c++ --version
+            ninja --version
+          } | tee environment.txt
+
+      - name: Configure exact upstream releases
+        working-directory: experiments/BYJTT-LAB-001/candidates/raylib-jolt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release 2>&1 | tee configure.log
+          {
+            printf 'raylib_ref='; git -C build/_deps/raylib-src rev-parse HEAD
+            printf 'raylib_tag='; git -C build/_deps/raylib-src describe --tags --exact-match
+            printf 'jolt_ref='; git -C build/_deps/joltphysics-src rev-parse HEAD
+            printf 'jolt_tag='; git -C build/_deps/joltphysics-src describe --tags --exact-match
+          } | tee provenance.txt
+          grep -qx 'raylib_tag=6.0' provenance.txt
+          grep -qx 'jolt_tag=v5.5.0' provenance.txt
+
+      - name: Warnings-as-errors release build
+        working-directory: experiments/BYJTT-LAB-001/candidates/raylib-jolt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --target raylib_jolt_gate --parallel 2 2>&1 | tee build.log
+
+      - name: Start virtual desktop and prove OpenGL
+        shell: bash
+        run: |
+          set -euo pipefail
+          Xvfb :99 -screen 0 1280x900x24 -ac +extension GLX +render -noreset >xvfb.log 2>&1 &
+          echo $! > xvfb.pid
+          for i in $(seq 1 40); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
+          xdpyinfo -display :99 > xdpyinfo.txt
+          openbox >openbox.log 2>&1 &
+          echo $! > openbox.pid
+          sleep 1
+          glxinfo -B | tee glxinfo.txt
+          grep -Eq 'OpenGL version string: [3-9]|OpenGL core profile version string: [3-9]' glxinfo.txt
+
+      - name: Execute physical-keyboard rendered gate
+        working-directory: experiments/BYJTT-LAB-001/candidates/raylib-jolt
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f runtime-result.json before.png after.png runtime.log window.txt
+          timeout 20s ./build/raylib_jolt_gate >runtime.log 2>&1 &
+          app_pid=$!
+          window=''
+          for i in $(seq 1 80); do
+            window="$(xdotool search --onlyvisible --name 'BYJTT raylib 6.0 + Jolt 5.5 gate' 2>/dev/null | head -n1 || true)"
+            if [ -n "$window" ]; then break; fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+            sleep 0.25
+          done
+          test -n "$window"
+          xdotool getwindowgeometry --shell "$window" | tee window.txt
+          xdotool windowactivate --sync "$window"
+          sleep 0.5
+          import -display :99 -window "$window" before.png
+          test -s before.png
+          xdotool keydown --window "$window" d
+          sleep 5
+          xdotool keyup --window "$window" d
+          sleep 2
+          if kill -0 "$app_pid" 2>/dev/null; then
+            wait "$app_pid"
+          else
+            wait "$app_pid"
+          fi
+          test -s runtime-result.json
+          jq . runtime-result.json | tee runtime-result.pretty.json
+          jq -e '.passed == true' runtime-result.json
+          jq -e '.external_input_executed == true' runtime-result.json
+          jq -e '.native_jolt_collision == true' runtime-result.json
+          jq -e '.post_physics_arena_clamp == false' runtime-result.json
+          jq -e '.press_transitions == 1 and .release_transitions == 1' runtime-result.json
+          jq -e '.release_steps >= 60 and .release_drift <= 0.01' runtime-result.json
+          jq -e '.max_x <= 11.63 and .final_x >= 11.52' runtime-result.json
+          # Capture the final rendered state if the window is still alive; the pre-input image is mandatory.
+          if xdotool getwindowname "$window" >/dev/null 2>&1; then
+            import -display :99 -window "$window" after.png || true
+          fi
+
+      - name: Hash exact-head evidence
+        if: always()
+        working-directory: experiments/BYJTT-LAB-001/candidates/raylib-jolt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$GITHUB_WORKSPACE/candidate-head.txt" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/environment.txt" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/xdpyinfo.txt" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/glxinfo.txt" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/xvfb.log" . 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/openbox.log" . 2>/dev/null || true
+          find . -maxdepth 1 -type f \( \
+            -name 'candidate-head.txt' -o -name 'environment.txt' -o -name 'configure.log' -o \
+            -name 'provenance.txt' -o -name 'build.log' -o -name 'xdpyinfo.txt' -o \
+            -name 'glxinfo.txt' -o -name 'xvfb.log' -o -name 'openbox.log' -o \
+            -name 'window.txt' -o -name 'runtime.log' -o -name 'runtime-result.json' -o \
+            -name 'runtime-result.pretty.json' -o -name 'before.png' -o -name 'after.png' \
+          \) -print0 | sort -z | xargs -0 -r sha256sum > sha256sums.txt
+          cat sha256sums.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-raylib-jolt-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/candidate-head.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/environment.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/configure.log
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/provenance.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/build.log
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/xdpyinfo.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/glxinfo.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/xvfb.log
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/openbox.log
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/window.txt
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/runtime.log
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/runtime-result.json
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/runtime-result.pretty.json
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/before.png
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/after.png
+            experiments/BYJTT-LAB-001/candidates/raylib-jolt/sha256sums.txt
+          if-no-files-found: warn
