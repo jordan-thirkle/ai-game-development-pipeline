@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.byjtt.benchmark</groupId>
+  <artifactId>jmonkeyengine-minie-persistence-gate</artifactId>
+  <version>1.0.0</version>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jme.version>3.9.0-stable</jme.version>
+    <minie.version>9.0.3</minie.version>
+  </properties>
+  <dependencies>
+    <dependency><groupId>org.jmonkeyengine</groupId><artifactId>jme3-core</artifactId><version>${jme.version}</version></dependency>
+    <dependency><groupId>org.jmonkeyengine</groupId><artifactId>jme3-desktop</artifactId><version>${jme.version}</version></dependency>
+    <dependency><groupId>com.github.stephengold</groupId><artifactId>Minie</artifactId><version>${minie.version}</version></dependency>
+  </dependencies>
+  <build><plugins>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version><configuration><release>${maven.compiler.release}</release><showWarnings>true</showWarnings><compilerArgs><arg>-Xlint:all</arg><arg>-Werror</arg></compilerArgs></configuration></plugin>
+    <plugin><groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.5.1</version><configuration><mainClass>com.byjtt.benchmark.JmePersistenceGate</mainClass></configuration></plugin>
+  </plugins></build>
+</project>
