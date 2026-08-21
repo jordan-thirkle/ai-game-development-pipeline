@@ -81,6 +81,21 @@ try {
   await page.locator('[data-view="local-run"]').click();
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'refresh recovery did not restore all six passing stages');
   assert.equal(await page.locator('#play-result').isVisible(), true, 'refresh recovery did not restore the playable result');
+  const recoveredPlaySrc = await page.locator('#play-frame').getAttribute('src');
+  const expectedPlayableUrl = new URL(playSrc, baseURL).href;
+  assert.equal(recoveredPlaySrc, expectedPlayableUrl, 'refresh recovery changed the playable artifact handle');
+  const recoveredPlayableResponse = await page.request.get(recoveredPlaySrc);
+  assert.equal(recoveredPlayableResponse.ok(), true, `recovered playable result HTTP ${recoveredPlayableResponse.status()}`);
+  assert.match(recoveredPlayableResponse.headers()['x-byjtt-artifact-sha256'], /^sha256:[a-f0-9]{64}$/);
+  const popupPromise = page.waitForEvent('popup');
+  await page.locator('#open-result').click();
+  const popup = await popupPromise;
+  try {
+    await popup.waitForLoadState('domcontentloaded');
+    assert.equal(popup.url(), expectedPlayableUrl, 'recovered open-result action targeted the wrong artifact');
+  } finally {
+    await popup.close();
+  }
   assert.match(await page.locator('#run-evidence').textContent(), /Harbour Run/);
   const recoveredDownload = page.getByRole('link', { name: 'Download starter bundle' });
   assert.equal(await recoveredDownload.count(), 1, 'refresh recovery did not restore the verified starter download');
@@ -116,7 +131,7 @@ try {
 
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/desktop-brief-run-recovered.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed with serialized controls, verified starter download, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
+  console.log('Studio brief browser dogfood passed with serialized controls, verified starter download, recovered playable actions, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
 } finally {
   await browser.close();
 }
