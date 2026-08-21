@@ -4,7 +4,6 @@ project(byjtt_raylib_jolt_gate LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 
 include(FetchContent)
 
@@ -41,6 +40,7 @@ FetchContent_MakeAvailable(raylib JoltPhysics)
 
 add_executable(raylib_jolt_gate main.cpp)
 target_link_libraries(raylib_jolt_gate PRIVATE raylib Jolt)
+set_property(TARGET raylib_jolt_gate PROPERTY COMPILE_WARNING_AS_ERROR ON)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(raylib_jolt_gate PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
+  target_compile_options(raylib_jolt_gate PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror)
 endif()
