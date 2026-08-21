@@ -25,6 +25,7 @@ public final class RenderedAttackInputGate extends SimpleApplication implements 
     private static final float PLAYER_ATTACK_COOLDOWN = 0.55f;
     private static final float FIXTURE_DISTANCE = 1.5f;
     private static final float MAX_RUNTIME_SECONDS = 8.0f;
+    private static final float POST_ATTACK_RENDER_SECONDS = 0.60f;
 
     private final Path resultPath;
     private int enemyHealth = 100;
@@ -35,6 +36,7 @@ public final class RenderedAttackInputGate extends SimpleApplication implements 
     private long renderedFrames;
     private float elapsedSeconds;
     private float lastAttackTime = -100.0f;
+    private float lastReleaseTime = -100.0f;
     private int healthAfterFirstAttack = 100;
     private int healthAfterEarlyAttack = 100;
     private int healthAfterSecondAttack = 100;
@@ -92,13 +94,18 @@ public final class RenderedAttackInputGate extends SimpleApplication implements 
             attemptAttack();
         } else {
             releaseCallbacks += 1;
+            lastReleaseTime = elapsedSeconds;
         }
     }
 
     @Override
     public void simpleUpdate(float tpf) {
         elapsedSeconds += tpf;
-        if (!resultWritten && pressCallbacks >= 3 && releaseCallbacks >= 3 && successfulAttacks >= 2) {
+        boolean proofComplete = pressCallbacks >= 3
+                && releaseCallbacks >= 3
+                && successfulAttacks >= 2
+                && elapsedSeconds - lastReleaseTime >= POST_ATTACK_RENDER_SECONDS;
+        if (!resultWritten && proofComplete) {
             finish(false);
         } else if (!resultWritten && elapsedSeconds >= MAX_RUNTIME_SECONDS) {
             finish(true);
