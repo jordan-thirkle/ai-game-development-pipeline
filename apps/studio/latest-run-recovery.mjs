@@ -8,6 +8,9 @@ const runSteps = [
 ];
 
 const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const REGISTRY_ENTRY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const REGISTRY_EVIDENCE_LABELS = new Set(['EXECUTED', 'SOURCE-VERIFIED', 'VENDOR-CLAIM', 'PAPER-CLAIM', 'UNKNOWN']);
+const REGISTRY_SELECTION_MODES = new Set(['requested', 'deterministic-source-verified-default']);
 const RECOVERABLE_TARGETS = new Set(['web', 'desktop', 'mobile']);
 const RECOVERABLE_MECHANICS = new Set(['collect', 'dodge', 'survive']);
 const MECHANIC_LABELS = {
@@ -40,10 +43,40 @@ export function recoverableBriefValues(result) {
   return { name, objective, targetPlatform, mechanic };
 }
 
+function boundedRegistryText(value, label, maxLength) {
+  if (typeof value !== 'string' || !value.trim() || value.length > maxLength || NAME_CONTROL_CHARACTER_PATTERN.test(value)) {
+    throw new Error(`Recovered registry ${label} is invalid.`);
+  }
+  return value.trim();
+}
+
+export function buildSolvedSystemFacts(registry) {
+  if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('Recovered registry evidence is malformed.');
+  if (!SHA256_PATTERN.test(String(registry.registryRevision))) throw new Error('Recovered registry revision is invalid.');
+  if (!REGISTRY_SELECTION_MODES.has(registry.selectionMode)) throw new Error('Recovered registry selection mode is invalid.');
+  if (!Array.isArray(registry.entries) || registry.entries.length === 0 || registry.entries.length > 16) throw new Error('Recovered registry evidence is incomplete.');
+  const ids = new Set();
+  const selected = registry.entries.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Recovered registry entry is malformed.');
+    const entryId = boundedRegistryText(entry.entry_id, 'entry id', 160);
+    if (!REGISTRY_ENTRY_ID_PATTERN.test(entryId) || ids.has(entryId)) throw new Error('Recovered registry entry id is invalid or duplicated.');
+    ids.add(entryId);
+    const name = boundedRegistryText(entry.name, 'entry name', 200);
+    const evidence = boundedRegistryText(entry.execution_status, 'evidence label', 40);
+    if (!REGISTRY_EVIDENCE_LABELS.has(evidence)) throw new Error('Recovered registry evidence label is invalid.');
+    const licenceReview = boundedRegistryText(entry.license_review_status, 'licence review status', 160);
+    return `${name} (${entryId}) · registry evidence ${evidence} · licence review ${licenceReview} · selection is not this run's runtime execution`;
+  });
+  return [
+    ['Solved-system selection', selected.join('; ')],
+    ['Registry provenance', `${registry.selectionMode} · ${registry.registryRevision}`]
+  ];
+}
+
 export function buildInlineVerificationFacts(result) {
   if (result?.status !== 'pass' || !result.evidence) throw new Error('Latest run is not a passing evidence record.');
   if (result.evidence.intake?.validation?.status !== 'pass') throw new Error('Recovered intake evidence is not passing.');
-  if (!Array.isArray(result.evidence.registry?.entries) || result.evidence.registry.entries.length === 0) throw new Error('Recovered registry evidence is incomplete.');
+  const solvedSystemFacts = buildSolvedSystemFacts(result.evidence.registry);
   const build = result.evidence.build;
   const qa = result.evidence.qa;
   const release = result.evidence.releaseCandidate;
@@ -65,6 +98,7 @@ export function buildInlineVerificationFacts(result) {
     throw new Error('Verified local starter download was not produced.');
   }
   return [
+    ...solvedSystemFacts,
     ['Build', 'executed · pass'],
     ['QA', 'executed · pass'],
     ['Release candidate', 'dry-run only'],
@@ -112,6 +146,7 @@ function textRow(title, status, detail) {
 function verificationText(result) {
   return [
     'Human-readable summary of the same machine evidence used by this local run.',
+    'Solved-system selection below is registry/provenance evidence, not a claim that the selected external system executed in this run.',
     'This does not claim store/provider publication, secret-backed execution, requested native/device execution, or human playability.',
     '',
     ...buildInlineVerificationFacts(result).map(([label, value]) => `${label}: ${value}`),
