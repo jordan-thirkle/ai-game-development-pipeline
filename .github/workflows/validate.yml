@@ -26,6 +26,8 @@ jobs:
         run: node --test tools/test-studio-brief.mjs
       - name: Validate downloadable local starter bundle
         run: node --test tools/test-studio-bundle.mjs
+      - name: Validate browser-readable verification page
+        run: node --test tools/test-studio-verification-page.mjs
       - name: Validate committed record fixtures
         run: |
           npm run validate:record -- pipeline-run examples/records/pipeline-run.valid.json
