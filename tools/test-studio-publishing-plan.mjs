@@ -120,3 +120,11 @@ test('legacy evidence without a plan stays visibly unavailable instead of invent
   assert.match(home, /NOT PUBLISHED/);
   assert.doesNotMatch(home, /Would publish release-candidate\.json/);
 });
+
+test('legacy evidence without a plan still rejects explicit provider authority', () => {
+  const { manifest, evidence } = fixture();
+  delete evidence.publishing.plan;
+  delete evidence.publishing.dryRun;
+  evidence.publishing.provider = 'example-provider';
+  assert.throws(() => createStarterHomePage(manifest, evidence, VALID_SHA), /truthful local-only dry-run publishing plan/);
+});

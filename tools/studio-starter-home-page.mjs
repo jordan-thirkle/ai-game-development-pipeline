@@ -12,6 +12,13 @@ function escapeHtml(value) {
 
 function publishingPlanProjection(publishing, destinationTarget) {
   if (publishing?.plan === undefined) {
+    const legacySafe = publishing?.executed === false
+      && publishing?.secretsUsed === false
+      && (publishing?.dryRun === undefined || publishing.dryRun === true)
+      && (publishing?.provider === undefined || publishing.provider === null)
+      && (publishing?.storeOperation === undefined || publishing.storeOperation === null)
+      && (publishing?.releaseCandidatePath === undefined || publishing.releaseCandidatePath === 'release-candidate.json');
+    if (!legacySafe) throw new Error('Starter home requires a truthful local-only dry-run publishing plan');
     return {
       available: false,
       copy: 'Publishing plan unavailable in this retained receipt. No publication is implied; inspect the machine-readable evidence before any external action.'
