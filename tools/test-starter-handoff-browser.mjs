@@ -81,8 +81,13 @@ try {
   await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/PROJECT_BRIEF.html'));
   assert.equal(await page.locator('h1').textContent(), manifest.name);
   assert.match(await page.locator('.lead').textContent(), new RegExp(manifest.objective.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.match(await page.locator('.panel').textContent(), new RegExp(manifest.starter.mechanic));
-  assert.match(await page.locator('.panel').textContent(), new RegExp(`${manifest.starter.requestedTargetPlatform}.*${manifest.starter.executedTargetPlatform}`, 'i'));
+  const briefPanelText = await page.locator('.panel').textContent();
+  assert.match(briefPanelText, new RegExp(manifest.starter.mechanic));
+  if (manifest.starter.requestedTargetPlatform === manifest.starter.executedTargetPlatform) {
+    assert.match(briefPanelText, new RegExp(`${manifest.starter.executedTargetPlatform}\\s*·\\s*executed locally`, 'i'));
+  } else {
+    assert.match(briefPanelText, new RegExp(`${manifest.starter.requestedTargetPlatform}\\s+requested\\s*·\\s*${manifest.starter.executedTargetPlatform}\\s+executed locally`, 'i'));
+  }
   assert.equal(await page.getByRole('link', { name: 'Open verified starter' }).getAttribute('href'), 'START_HERE.html');
   assert.equal(await page.getByRole('link', { name: 'View verification' }).getAttribute('href'), 'VERIFICATION.html');
   assert.deepEqual(externalRequests, [], `project brief attempted network access: ${externalRequests.join(', ')}`);
