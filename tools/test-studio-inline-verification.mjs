@@ -29,7 +29,16 @@ function safeResult() {
       },
       build: { executed: true, status: 'pass', artifactSha256: HASH },
       qa: { executed: true, status: 'pass', artifactSha256: HASH },
-      releaseCandidate: { dryRunOnly: true, build: { outputSha256: HASH } }
+      releaseCandidate: { dryRunOnly: true, build: { outputSha256: HASH } },
+      publishing: {
+        dryRun: true,
+        executed: false,
+        provider: null,
+        storeOperation: null,
+        secretsUsed: false,
+        releaseCandidatePath: 'release-candidate.json',
+        destination: { kind: 'local', target: 'local://planned/sample-game' }
+      }
     },
     safety: {
       dryRun: true,
@@ -55,6 +64,8 @@ test('summarizes only consistent passing local evidence', () => {
   assert.equal(facts.Publication, 'not executed');
   assert.equal(facts.Secrets, 'not used');
   assert.equal(facts.Destination, 'local://planned/sample-game');
+  assert.match(facts['Publishing plan'], /unavailable.*No publication is implied/i);
+  assert.match(facts['Publishing authority'], /^none · /);
   assert.equal(facts['Verified artifact'], HASH);
   assert.equal(facts['Starter bundle'], BUNDLE_HASH);
 });

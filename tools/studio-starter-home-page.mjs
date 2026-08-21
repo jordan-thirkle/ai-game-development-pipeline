@@ -10,7 +10,14 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function publishingPlanProjection(publishing, destinationTarget) {
+export function publishingPlanProjection(publishing, destinationTarget) {
+  const publishingDestinationTarget = typeof publishing?.destination?.target === 'string' ? publishing.destination.target : '';
+  const destinationSafe = publishing?.destination?.kind === 'local'
+    && destinationTarget.startsWith('local://')
+    && publishingDestinationTarget.startsWith('local://')
+    && publishingDestinationTarget === destinationTarget;
+  if (!destinationSafe) throw new Error('Starter home requires a truthful local-only dry-run publishing plan');
+
   if (publishing?.plan === undefined) {
     const legacySafe = publishing?.executed === false
       && publishing?.secretsUsed === false
