@@ -19,7 +19,24 @@ async function withWorkspace(callback) {
   }
 }
 
-test('creates a bounded gzip tar with starter and evidence content', async () => {
+function readTarEntries(bytes) {
+  const tar = gunzipSync(bytes);
+  const entries = new Map();
+  for (let offset = 0; offset + 512 <= tar.length;) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) break;
+    const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
+    const sizeText = header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim();
+    const size = Number.parseInt(sizeText || '0', 8);
+    assert(Number.isSafeInteger(size) && size >= 0, `invalid TAR size for ${name}`);
+    const bodyStart = offset + 512;
+    entries.set(name, tar.subarray(bodyStart, bodyStart + size));
+    offset = bodyStart + Math.ceil(size / 512) * 512;
+  }
+  return entries;
+}
+
+test('creates a bounded gzip tar with a zero-terminal starter entry point and evidence content', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"Harbour Run"}\n');
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Harbour Run</h1>\n');
@@ -28,12 +45,28 @@ test('creates a bounded gzip tar with starter and evidence content', async () =>
     assert.equal(bundle.contentType, 'application/gzip');
     assert.equal(bundle.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
     assert.match(bundle.sha256, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(bundle.fileCount, 3);
-    const tar = gunzipSync(bundle.bytes);
-    assert.equal(tar.includes(Buffer.from('starter/project.manifest.json')), true);
-    assert.equal(tar.includes(Buffer.from('starter/dist/index.html')), true);
-    assert.equal(tar.includes(Buffer.from('evidence/release-candidate.json')), true);
-    assert.equal(tar.includes(Buffer.from('Harbour Run')), true);
+    assert.equal(bundle.fileCount, 4);
+    const entries = readTarEntries(bundle.bytes);
+    assert.equal(entries.has('START_HERE.html'), true);
+    assert.equal(entries.has('starter/project.manifest.json'), true);
+    assert.equal(entries.has('starter/dist/index.html'), true);
+    assert.equal(entries.has('evidence/release-candidate.json'), true);
+    const startHere = entries.get('START_HERE.html').toString('utf8');
+    assert.match(startHere, /starter\/dist\/index\.html/);
+    assert.doesNotMatch(startHere, /https?:\/\//i);
+    assert.doesNotMatch(startHere, /javascript:/i);
+    assert.equal(entries.get('starter/dist/index.html').toString('utf8'), '<h1>Harbour Run</h1>\n');
+  });
+});
+
+test('fails closed instead of exporting a launcher without the verified playable artifact', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"No build"}\n');
+    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
+    await assert.rejects(
+      createStudioBundle({ projectDir, outputDir, projectId: 'missing-playable' }),
+      (error) => error instanceof StudioBundleError && error.code === 'PLAYABLE_MISSING'
+    );
   });
 });
 
