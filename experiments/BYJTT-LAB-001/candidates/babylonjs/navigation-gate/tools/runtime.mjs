@@ -54,7 +54,8 @@ try {
   await page.screenshot({ path: `${evidenceDir}/runtime.png`, fullPage: true });
   if (!result) throw new Error('Missing observation');
   if (result.babylonVersion !== '9.20.0') throw new Error(`Unexpected Babylon version ${result.babylonVersion}`);
-  if (result.recastPlugin !== 'RecastJSPlugin') throw new Error(`Unexpected navigation plugin ${result.recastPlugin}`);
+  if (result.recastPlugin !== 'RecastNavigationJSPlugin') throw new Error(`Unexpected navigation plugin ${result.recastPlugin}`);
+  if (result.recastVersion !== '0.43.1') throw new Error(`Unexpected Recast version ${result.recastVersion}`);
   if (result.arena.width !== 24 || result.arena.depth !== 32) throw new Error('Shared arena constants changed');
   if (result.pathPoints.length < 2) throw new Error('Native Recast path was not found');
   if (Math.abs(result.pathLength - 16) > 0.75) throw new Error(`Unexpected path length ${result.pathLength}`);
