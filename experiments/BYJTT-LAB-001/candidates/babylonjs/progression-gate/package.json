@@ -1,0 +1,19 @@
+{
+  "name": "byjtt-babylon-progression-gate",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "proof": "node proof.mjs"
+  },
+  "dependencies": {
+    "@babylonjs/core": "9.20.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.3"
+  }
+}
