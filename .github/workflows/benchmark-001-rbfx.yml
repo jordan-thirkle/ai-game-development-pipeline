@@ -40,6 +40,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build git pkg-config \
+            libdbus-1-dev \
             libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
             libgl1-mesa-dev libasound2-dev libpulse-dev libudev-dev
           {
@@ -47,6 +48,7 @@ jobs:
             cmake --version
             c++ --version
             ninja --version
+            pkg-config --modversion dbus-1
           } | tee environment.txt
 
       - name: Acquire exact rbfx source
