@@ -42,7 +42,9 @@ jobs:
           npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-install.log
           npm ls --all --json > evidence/npm-tree.json
           node -e "const p=require('./node_modules/@babylonjs/core/package.json'); if(p.version!=='9.20.0') throw new Error(p.version)"
-          node -e "const p=require('./node_modules/recast-detour/package.json'); if(p.version!=='1.6.4') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/@babylonjs/addons/package.json'); if(p.version!=='9.20.0') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/@recast-navigation/core/package.json'); if(p.version!=='0.43.1') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/@recast-navigation/generators/package.json'); if(p.version!=='0.43.1') throw new Error(p.version)"
 
       - name: Strict TypeScript
         shell: bash
