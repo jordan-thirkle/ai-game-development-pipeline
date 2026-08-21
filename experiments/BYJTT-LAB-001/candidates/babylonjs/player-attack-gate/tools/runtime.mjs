@@ -2,11 +2,14 @@ import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 const port = 4178;
 const evidenceDir = process.env.EVIDENCE_DIR ?? 'evidence';
 await mkdir(evidenceDir, { recursive: true });
-const server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', '--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] });
+const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
+const server = spawn(process.execPath, [viteBin, '--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] });
+const serverExit = new Promise((resolve) => server.once('exit', resolve));
 let serverLog = '';
 server.stdout.on('data', (chunk) => { serverLog += chunk; });
 server.stderr.on('data', (chunk) => { serverLog += chunk; });
@@ -77,6 +80,7 @@ try {
   console.log(json);
 } finally {
   if (browser) await browser.close();
-  server.kill('SIGTERM');
+  if (server.exitCode === null && !server.killed) server.kill('SIGTERM');
+  await Promise.race([serverExit, new Promise((resolve) => setTimeout(resolve, 2000))]);
   await writeFile(`${evidenceDir}/vite.log`, serverLog);
 }
