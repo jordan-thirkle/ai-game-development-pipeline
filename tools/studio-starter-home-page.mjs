@@ -57,14 +57,19 @@ export function createStarterHomePage(manifest, evidence, bundledArtifactSha256)
   const mechanic = typeof starter?.mechanic === 'string' ? starter.mechanic : '';
   const requestedTarget = typeof starter?.requestedTargetPlatform === 'string' ? starter.requestedTargetPlatform : '';
   const executedTarget = typeof starter?.executedTargetPlatform === 'string' ? starter.executedTargetPlatform : '';
-  const artifactHashes = [
-    evidence?.build?.artifactSha256,
-    evidence?.qa?.artifactSha256,
-    evidence?.releaseCandidate?.build?.outputSha256,
-    bundledArtifactSha256
-  ];
-  const artifactProofSafe = artifactHashes.every((value) => SHA256_PATTERN.test(String(value)))
+  const buildArtifactSha256 = evidence?.build?.artifactSha256;
+  const qaArtifactSha256 = evidence?.qa?.artifactSha256;
+  const candidateArtifactSha256 = evidence?.releaseCandidate?.build?.outputSha256;
+  const currentArtifactProofSupplied = buildArtifactSha256 !== undefined || qaArtifactSha256 !== undefined;
+  const artifactHashes = [buildArtifactSha256, qaArtifactSha256, candidateArtifactSha256, bundledArtifactSha256];
+  const artifactProofComplete = artifactHashes.every((value) => SHA256_PATTERN.test(String(value)))
     && artifactHashes.every((value) => value === artifactHashes[0]);
+  if (currentArtifactProofSupplied && !artifactProofComplete) {
+    throw new Error('Starter home requires matching build, QA, release-candidate, and packaged artifact SHA-256 evidence');
+  }
+  const legacyArtifactProofSafe = !currentArtifactProofSupplied
+    && SHA256_PATTERN.test(String(candidateArtifactSha256))
+    && SHA256_PATTERN.test(String(bundledArtifactSha256));
   const evidenceSafe = name.length > 0
     && objective.length > 0
     && mechanic.length > 0
@@ -80,7 +85,7 @@ export function createStarterHomePage(manifest, evidence, bundledArtifactSha256)
     && evidence?.destination?.kind === 'local'
     && typeof evidence?.destinationTarget === 'string'
     && evidence.destinationTarget.startsWith('local://')
-    && artifactProofSafe;
+    && (artifactProofComplete || legacyArtifactProofSafe);
   if (!evidenceSafe) throw new Error('Starter home requires validated local dry-run project and evidence state');
 
   const releaseCandidate = releaseCandidateProjection(evidence);
@@ -94,6 +99,9 @@ export function createStarterHomePage(manifest, evidence, bundledArtifactSha256)
   const releaseProvenance = releaseCandidate.provenanceComplete
     ? 'Explicit candidate identity and local destination provenance are present.'
     : 'Legacy evidence does not carry explicit candidate identity/destination; those fields remain unavailable rather than inferred.';
+  const qaArtifactProofBody = artifactProofComplete
+    ? `<section class="panel qa-proof" aria-label="QA artifact proof"><div><div class="eyebrow">QA artifact proof</div><h2>The same bytes passed build, QA, and promotion</h2></div><div class="qa-proof-facts"><div class="fact"><span>Build</span><b>executed · pass</b></div><div class="fact"><span>QA</span><b>executed · pass</b></div><div class="fact"><span>Build SHA-256</span><b>${escapeHtml(buildArtifactSha256)}</b></div><div class="fact"><span>QA SHA-256</span><b>${escapeHtml(qaArtifactSha256)}</b></div><div class="fact"><span>Promoted candidate SHA-256</span><b>${escapeHtml(releaseCandidate.outputSha256)}</b></div></div><p class="qa-proof-note">All three evidence records and the packaged playable resolve to this identical SHA-256. The project home fails closed if those artifact identities disagree.</p></section>`
+    : `<section class="panel qa-proof" aria-label="QA artifact proof"><div><div class="eyebrow">QA artifact proof</div><h2>Artifact binding unavailable in legacy evidence</h2></div><p class="qa-proof-note">This retained starter predates explicit build/QA artifact hashes. No byte-identity proof is inferred. Use machine-readable evidence before relying on build → QA → promotion identity.</p></section>`;
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -113,7 +121,7 @@ export function createStarterHomePage(manifest, evidence, bundledArtifactSha256)
 <a class="action" href="VERIFICATION.html"><b>Verification</b><span>See evidence and artifact digest.</span></a>
 </section>
 <section class="panel facts"><div class="fact"><span>Reviewed mechanic</span><b>${escapeHtml(mechanic)}</b></div><div class="fact"><span>Target status</span><b>${escapeHtml(targetStatus)}</b></div><div class="fact"><span>Build + QA</span><b>executed · pass</b></div><div class="fact"><span>Publishing</span><b>not executed · local dry run</b></div><div class="fact"><span>Secrets used</span><b>no</b></div><div class="fact"><span>Artifact SHA-256</span><b>${escapeHtml(bundledArtifactSha256)}</b></div></section>
-<section class="panel qa-proof" aria-label="QA artifact proof"><div><div class="eyebrow">QA artifact proof</div><h2>The same bytes passed build, QA, and promotion</h2></div><div class="qa-proof-facts"><div class="fact"><span>Build</span><b>executed · pass</b></div><div class="fact"><span>QA</span><b>executed · pass</b></div><div class="fact"><span>Build SHA-256</span><b>${escapeHtml(evidence.build.artifactSha256)}</b></div><div class="fact"><span>QA SHA-256</span><b>${escapeHtml(evidence.qa.artifactSha256)}</b></div><div class="fact"><span>Promoted candidate SHA-256</span><b>${escapeHtml(releaseCandidate.outputSha256)}</b></div></div><p class="qa-proof-note">All three evidence records and the packaged playable resolve to this identical SHA-256. The project home fails closed if those artifact identities disagree.</p></section>
+${qaArtifactProofBody}
 <section class="panel release" aria-label="Release candidate"><div><div class="eyebrow">Release candidate</div><h2>What QA actually promoted</h2></div><div class="release-facts"><div class="fact"><span>Candidate ID</span><b>${escapeHtml(releaseCandidate.candidateId)}</b></div><div class="fact"><span>State</span><b>dry-run only</b></div><div class="fact"><span>Artifact</span><b>${escapeHtml(releaseCandidate.artifactPath)}</b></div><div class="fact"><span>Destination</span><b>${escapeHtml(releaseCandidate.destinationTarget)}</b></div><div class="fact"><span>Candidate SHA-256</span><b>${escapeHtml(releaseCandidate.outputSha256)}</b></div></div><p class="release-note">${escapeHtml(releaseProvenance)} This is release-candidate evidence only; it does not grant publishing authority.</p></section>
 <section class="panel publishing" aria-label="Dry-run publishing plan"><div><div class="eyebrow">Dry-run publishing plan</div><h2>What would happen next</h2></div>${publishingPlanBody}<div class="proof-gate"><b>External proof gate:</b> a real provider, device, or store action requires a separately authorized workflow and its own credentialed execution evidence. This verified starter contains no such authority.</div></section>
 <section class="panel boundary"><b>Evidence boundary.</b> This home page summarizes the already validated local bundle. It does not prove native desktop/mobile execution, provider or store publication, secret-backed operations, or human playability.</section>
