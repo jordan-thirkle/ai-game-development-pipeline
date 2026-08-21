@@ -19,6 +19,19 @@ async function withWorkspace(callback) {
   }
 }
 
+async function writePassingEvidence(outputDir, overrides = {}) {
+  const records = {
+    'build-result.json': { executed: true, status: 'pass', artifactSha256: 'sha256:' + '1'.repeat(64) },
+    'qa-result.json': { executed: true, status: 'pass', artifactSha256: 'sha256:' + '1'.repeat(64) },
+    'release-candidate.json': { dryRunOnly: true },
+    'publishing-receipt.json': { executed: false, secretsUsed: false, destination: { kind: 'local', target: 'local://release-candidate' } },
+    ...overrides
+  };
+  for (const [filename, value] of Object.entries(records)) {
+    await writeFile(resolve(outputDir, filename), `${JSON.stringify(value)}\n`);
+  }
+}
+
 function readTarEntries(bytes) {
   const tar = gunzipSync(bytes);
   const entries = new Map();
@@ -36,25 +49,37 @@ function readTarEntries(bytes) {
   return entries;
 }
 
-test('creates a bounded gzip tar with a zero-terminal starter entry point and evidence content', async () => {
+test('creates a bounded gzip tar with zero-terminal starter and portable verification entry points', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"Harbour Run"}\n');
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Harbour Run</h1>\n');
-    await writeFile(resolve(outputDir, 'release-candidate.json'), '{"dryRunOnly":true}\n');
+    await writePassingEvidence(outputDir);
     const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'brief-harbour-run' });
     assert.equal(bundle.contentType, 'application/gzip');
     assert.equal(bundle.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
     assert.match(bundle.sha256, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(bundle.fileCount, 4);
+    assert.equal(bundle.fileCount, 8);
     const entries = readTarEntries(bundle.bytes);
     assert.equal(entries.has('START_HERE.html'), true);
+    assert.equal(entries.has('VERIFICATION.txt'), true);
     assert.equal(entries.has('starter/project.manifest.json'), true);
     assert.equal(entries.has('starter/dist/index.html'), true);
+    assert.equal(entries.has('evidence/build-result.json'), true);
+    assert.equal(entries.has('evidence/qa-result.json'), true);
     assert.equal(entries.has('evidence/release-candidate.json'), true);
+    assert.equal(entries.has('evidence/publishing-receipt.json'), true);
     const startHere = entries.get('START_HERE.html').toString('utf8');
     assert.match(startHere, /starter\/dist\/index\.html/);
     assert.doesNotMatch(startHere, /https?:\/\//i);
     assert.doesNotMatch(startHere, /javascript:/i);
+    const verification = entries.get('VERIFICATION.txt').toString('utf8');
+    assert.match(verification, /Build executed: true/);
+    assert.match(verification, /QA status: pass/);
+    assert.match(verification, /Release candidate dry-run only: true/);
+    assert.match(verification, /Publication executed: false/);
+    assert.match(verification, /Secrets used: false/);
+    assert.match(verification, /Destination: local:\/\/release-candidate/);
+    assert.match(verification, /does not claim store\/provider publication/);
     assert.equal(entries.get('starter/dist/index.html').toString('utf8'), '<h1>Harbour Run</h1>\n');
   });
 });
@@ -62,7 +87,7 @@ test('creates a bounded gzip tar with a zero-terminal starter entry point and ev
 test('fails closed instead of exporting a launcher without the verified playable artifact', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"No build"}\n');
-    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
+    await writePassingEvidence(outputDir);
     await assert.rejects(
       createStudioBundle({ projectDir, outputDir, projectId: 'missing-playable' }),
       (error) => error instanceof StudioBundleError && error.code === 'PLAYABLE_MISSING'
@@ -70,11 +95,37 @@ test('fails closed instead of exporting a launcher without the verified playable
   });
 });
 
+test('fails closed when portable verification evidence is missing', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Missing QA</h1>\n');
+    await writePassingEvidence(outputDir);
+    await rm(resolve(outputDir, 'qa-result.json'));
+    await assert.rejects(
+      createStudioBundle({ projectDir, outputDir, projectId: 'missing-evidence' }),
+      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE'
+    );
+  });
+});
+
+test('fails closed instead of summarizing a false publication or secret-backed result', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Unsafe</h1>\n');
+    await writePassingEvidence(outputDir, {
+      'publishing-receipt.json': { executed: true, secretsUsed: true, destination: { kind: 'remote', target: 'https://example.invalid' } }
+    });
+    await assert.rejects(
+      createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-evidence' }),
+      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE'
+    );
+  });
+});
+
 test('refuses symbolic links instead of exporting paths outside the reviewed sandbox', async () => {
   await withWorkspace(async ({ projectDir, outputDir, root }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(outputDir);
     await writeFile(resolve(root, 'outside.txt'), 'secret-like external content');
     await symlink(resolve(root, 'outside.txt'), resolve(projectDir, 'outside-link.txt'));
-    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
     await assert.rejects(
       createStudioBundle({ projectDir, outputDir, projectId: 'unsafe' }),
       (error) => error instanceof StudioBundleError && error.code === 'SYMLINK_REFUSED'
@@ -84,8 +135,9 @@ test('refuses symbolic links instead of exporting paths outside the reviewed san
 
 test('rejects backslash-delimited traversal before archive serialization', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(outputDir);
     await writeFile(resolve(projectDir, 'nested\\..\\..\\..\\escape.txt'), 'must never enter archive');
-    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
     await assert.rejects(
       createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-path' }),
       (error) => error instanceof StudioBundleError && error.code === 'PATH_CONTAINMENT'
@@ -95,8 +147,9 @@ test('rejects backslash-delimited traversal before archive serialization', async
 
 test('fails closed when the local starter exceeds the fixed export budget', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(outputDir);
     await writeFile(resolve(projectDir, 'oversize.bin'), Buffer.alloc(8 * 1024 * 1024 + 1, 1));
-    await writeFile(resolve(outputDir, 'pipeline-run.json'), '{}\n');
     await assert.rejects(
       createStudioBundle({ projectDir, outputDir, projectId: 'oversize' }),
       (error) => error instanceof StudioBundleError && error.code === 'BUNDLE_TOO_LARGE'
