@@ -29,9 +29,11 @@ const CAPSULE_RADIUS = 0.4;
 const CENTER_Y = CAPSULE_HEIGHT / 2;
 const GRAVITY = new Vector3(0, -9.81, 0);
 
-const canvas = document.querySelector<HTMLCanvasElement>('#renderCanvas');
-const status = document.querySelector<HTMLDivElement>('#status');
-if (!canvas || !status) throw new Error('required DOM nodes missing');
+const canvasNode = document.querySelector<HTMLCanvasElement>('#renderCanvas');
+const statusNode = document.querySelector<HTMLDivElement>('#status');
+if (!canvasNode || !statusNode) throw new Error('required DOM nodes missing');
+const canvas = canvasNode;
+const status = statusNode;
 
 const keys = new Set<string>();
 let moveKeyDownCallbacks = 0;
