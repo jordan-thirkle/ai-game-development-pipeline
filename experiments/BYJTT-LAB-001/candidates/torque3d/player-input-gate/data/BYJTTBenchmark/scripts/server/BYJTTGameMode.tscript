@@ -1,0 +1,74 @@
+function BYJTTBenchmarkGameMode::onCreateGame()
+{
+   new ScriptObject(BYJTTBenchmarkGameMode) {};
+   return BYJTTBenchmarkGameMode;
+}
+
+function BYJTTBenchmarkGameMode::onMissionStart(%this) {}
+function BYJTTBenchmarkGameMode::onMissionEnded(%this) {}
+function BYJTTBenchmarkGameMode::onMissionReset(%this) {}
+
+function BYJTTBenchmarkGameMode::onClientLeaveGame(%this, %client)
+{
+   if (isObject(%client.player))
+      %client.player.delete();
+}
+
+function BYJTTBenchmarkGameMode::onClientEnterGame(%this, %client)
+{
+   echo("BYJTT_CLIENT_ENTER");
+
+   %player = new Player(BYJTTPlayer)
+   {
+      dataBlock = BYJTTPlayerData;
+   };
+   MissionCleanup.add(%player);
+
+   // Shared logical (x, y-up, z-depth) spawn (0, 0, 10)
+   // maps to Torque's Z-up coordinates (x, y-depth, z-up) = (0, 10, 0).
+   %player.setTransform("0 10 0 1 0 0 0");
+   %client.player = %player;
+   $BYJTT::player = %player;
+   $BYJTT::maxX = 0;
+   $BYJTT::releaseX = "";
+   %client.setControlObject(%player);
+
+   echo("BYJTT_PLAYER_READY x=" @ getWord(%player.getPosition(), 0));
+   BYJTTBenchmarkSample();
+   schedule(14000, 0, "BYJTTBenchmarkFinish");
+}
+
+function BYJTTBenchmarkSample()
+{
+   if (!isObject($BYJTT::player))
+      return;
+
+   %x = getWord($BYJTT::player.getPosition(), 0);
+   if (%x > $BYJTT::maxX)
+      $BYJTT::maxX = %x;
+
+   schedule(16, 0, "BYJTTBenchmarkSample");
+}
+
+function BYJTTBenchmarkFinish()
+{
+   if (!isObject($BYJTT::player))
+   {
+      echo("BYJTT_RESULT missing_player=1");
+      quit();
+      return;
+   }
+
+   %finalX = getWord($BYJTT::player.getPosition(), 0);
+   if ($BYJTT::releaseX $= "")
+      $BYJTT::releaseX = %finalX;
+   %drift = mAbs(%finalX - $BYJTT::releaseX);
+
+   echo("BYJTT_RESULT final_x=" @ %finalX @
+      " max_x=" @ $BYJTT::maxX @
+      " release_x=" @ $BYJTT::releaseX @
+      " release_drift=" @ %drift @
+      " press_count=" @ $BYJTT::pressCount @
+      " release_count=" @ $BYJTT::releaseCount);
+   quit();
+}
