@@ -4,6 +4,7 @@ import { buildInlineVerificationFacts, recoverableBriefValues } from '../apps/st
 
 const HASH = `sha256:${'a'.repeat(64)}`;
 const BUNDLE_HASH = `sha256:${'b'.repeat(64)}`;
+const REGISTRY_HASH = `sha256:${'c'.repeat(64)}`;
 
 function safeResult() {
   return {
@@ -16,7 +17,16 @@ function safeResult() {
     },
     evidence: {
       intake: { validation: { status: 'pass' } },
-      registry: { entries: [{ id: 'reviewed-starter' }] },
+      registry: {
+        registryRevision: REGISTRY_HASH,
+        selectionMode: 'requested',
+        entries: [{
+          entry_id: 'system.reviewed-starter',
+          name: 'Reviewed Starter',
+          execution_status: 'SOURCE-VERIFIED',
+          license_review_status: 'repository_only_verified'
+        }]
+      },
       build: { executed: true, status: 'pass', artifactSha256: HASH },
       qa: { executed: true, status: 'pass', artifactSha256: HASH },
       releaseCandidate: { dryRunOnly: true, build: { outputSha256: HASH } }
@@ -36,6 +46,9 @@ function safeResult() {
 
 test('summarizes only consistent passing local evidence', () => {
   const facts = Object.fromEntries(buildInlineVerificationFacts(safeResult()));
+  assert.match(facts['Solved-system selection'], /Reviewed Starter \(system\.reviewed-starter\)/);
+  assert.match(facts['Solved-system selection'], /selection is not this run's runtime execution/);
+  assert.equal(facts['Registry provenance'], `requested · ${REGISTRY_HASH}`);
   assert.equal(facts.Build, 'executed · pass');
   assert.equal(facts.QA, 'executed · pass');
   assert.equal(facts['Release candidate'], 'dry-run only');
@@ -98,7 +111,7 @@ test('rejects failed or unexecuted QA', () => {
 
 test('rejects artifact hash disagreement across build, QA, and release evidence', () => {
   const result = safeResult();
-  result.evidence.releaseCandidate.build.outputSha256 = `sha256:${'c'.repeat(64)}`;
+  result.evidence.releaseCandidate.build.outputSha256 = `sha256:${'d'.repeat(64)}`;
   assert.throws(() => buildInlineVerificationFacts(result), /revision-consistent/i);
 });
 
