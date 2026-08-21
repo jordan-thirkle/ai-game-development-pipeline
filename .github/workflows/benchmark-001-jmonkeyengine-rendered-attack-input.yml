@@ -1,0 +1,138 @@
+name: Benchmark 001 jMonkeyEngine rendered attack input gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/rendered-attack-input-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-rendered-attack-input.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rendered-attack-input-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PARENT: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/rendered-attack-input-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      DISPLAY: ':99'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: |
+            experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate/pom.xml
+            experiments/BYJTT-LAB-001/candidates/jmonkeyengine/rendered-attack-input-gate/pom.xml
+      - name: Install bounded desktop proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb openbox xdotool imagemagick mesa-utils
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "parent_player_attack_head=e3897a8e36b09d5bf59728748bd51087e2c97051"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Re-run unchanged headless player attack prerequisite
+        shell: bash
+        working-directory: ${{ env.PARENT }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-maven-verify.log"
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-runtime.log"
+          cp evidence/runtime-result.json "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-result.json"
+      - name: Assert parent player attack prerequisite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.minie_native_loaded || !r.acquisition_valid || !r.first_player_attack_valid || !r.early_player_attack_blocked || !r.second_player_attack_valid || r.enemy_health_after_second_attack !== 32 || !r.gameplay_attack_action_executed || r.direct_health_setter_exposed || r.post_physics_arena_clamp || r.external_input_executed) process.exit(1);' "$CANDIDATE/evidence/parent-result.json"
+      - name: Strict compile and package rendered attack gate
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee evidence/maven-verify.log
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=evidence/dependency-tree.txt
+          mvn --batch-mode --no-transfer-progress dependency:build-classpath -Dmdep.outputFile=evidence/classpath.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-lwjgl3:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' evidence/dependency-tree.txt
+      - name: Execute rendered engine with real OS attack input
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          ARTIFACTS="$PWD/evidence"
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -nolisten tcp >"$ARTIFACTS/xvfb.log" 2>&1 &
+          XVFB_PID=$!
+          sleep 1
+          openbox >"$ARTIFACTS/openbox.log" 2>&1 &
+          OPENBOX_PID=$!
+          cleanup() { kill "$OPENBOX_PID" "$XVFB_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          glxinfo -B >"$ARTIFACTS/glxinfo.txt" 2>&1
+          CLASSPATH="target/classes:$(cat "$ARTIFACTS/classpath.txt")"
+          java -cp "$CLASSPATH" com.byjtt.lab.RenderedAttackInputGate "$ARTIFACTS/runtime-result.json" >"$ARTIFACTS/runtime.log" 2>&1 &
+          APP_PID=$!
+          WINDOW_ID=""
+          for _ in $(seq 1 80); do
+            WINDOW_ID="$(xdotool search --onlyvisible --name '^BYJTT-LAB-001 jME Rendered Attack Input$' 2>/dev/null | head -n 1 || true)"
+            [ -n "$WINDOW_ID" ] && break
+            kill -0 "$APP_PID" 2>/dev/null || break
+            sleep 0.25
+          done
+          { echo "window_id=$WINDOW_ID"; xdotool getactivewindow getwindowname 2>&1 || true; } | tee "$ARTIFACTS/window-diagnostics.txt"
+          test -n "$WINDOW_ID"
+          xdotool windowactivate --sync "$WINDOW_ID"
+          xdotool windowfocus --sync "$WINDOW_ID"
+          sleep 0.4
+          import -window "$WINDOW_ID" "$ARTIFACTS/before-attack.png"
+          xdotool key --window "$WINDOW_ID" space
+          sleep 0.20
+          xdotool key --window "$WINDOW_ID" space
+          sleep 0.45
+          xdotool key --window "$WINDOW_ID" space
+          sleep 0.20
+          import -window "$WINDOW_ID" "$ARTIFACTS/after-attacks.png"
+          set +e
+          wait "$APP_PID"
+          APP_STATUS=$?
+          set -e
+          echo "app_exit_status=$APP_STATUS" >> "$ARTIFACTS/window-diagnostics.txt"
+          cat "$ARTIFACTS/runtime.log"
+          test "$APP_STATUS" -eq 0
+          if grep -Eq '(^|[^A-Za-z])(Exception|ERROR|SEVERE)([^A-Za-z]|$)' "$ARTIFACTS/runtime.log"; then exit 1; fi
+      - name: Assert machine-readable pass and hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$CANDIDATE/evidence/runtime-result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.external_input_executed || !r.rendered_window_executed || !r.gameplay_attack_action_executed || r.input_press_callbacks < 3 || r.input_release_callbacks < 3 || r.successful_player_attacks !== 2 || r.blocked_player_attacks < 1 || r.enemy_health_after_first_attack !== 66 || r.enemy_health_after_early_attack !== 66 || r.enemy_health_after_second_attack !== 32 || r.direct_health_setter_exposed || r.post_physics_arena_clamp || !r.observation_copy_isolated || r.timed_out || r.rendered_frames < 1) process.exit(1);' "$RESULT"
+          test -s "$CANDIDATE/evidence/before-attack.png"
+          test -s "$CANDIDATE/evidence/after-attacks.png"
+          sha256sum "$CANDIDATE/pom.xml" "$CANDIDATE/src/main/java/com/byjtt/lab/RenderedAttackInputGate.java" "$CANDIDATE/evidence/environment.txt" "$CANDIDATE/evidence/parent-result.json" "$CANDIDATE/evidence/dependency-tree.txt" "$CANDIDATE/evidence/runtime.log" "$RESULT" "$CANDIDATE/evidence/before-attack.png" "$CANDIDATE/evidence/after-attacks.png" > "$CANDIDATE/evidence/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-rendered-attack-input-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/rendered-attack-input-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
