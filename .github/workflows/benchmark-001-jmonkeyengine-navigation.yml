@@ -1,0 +1,85 @@
+name: Benchmark 001 jMonkeyEngine Recast navigation gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/navigation-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-navigation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  navigation-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/navigation-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/navigation-gate/pom.xml
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Strict compile verify and package
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee evidence/maven-verify.log
+      - name: Capture and assert dependency graph
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.recast4j:recast:jar:1.5.12' evidence/dependency-tree.txt
+          grep -F 'org.recast4j:detour:jar:1.5.12' evidence/dependency-tree.txt
+      - name: Execute jME geometry through Recast and Detour
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee evidence/runtime.log
+      - name: Assert machine-readable navigation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$CANDIDATE/evidence/runtime-result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.jme_geometry_executed || !r.detour_executed || r.straight_path_points < 2 || r.path_length_metres < 15.5 || r.path_length_metres > 16.5 || r.start_endpoint_error_metres > 0.5 || r.end_endpoint_error_metres > 0.5 || !r.path_inside_arena || !r.observation_mutation_isolation || r.post_navigation_clamp || r.external_input_executed || r.combat_executed) process.exit(1);' "$RESULT"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/benchmark/JmeRecastNavigationGate.java" \
+            "$CANDIDATE/evidence/environment.txt" \
+            "$CANDIDATE/evidence/maven-verify.log" \
+            "$CANDIDATE/evidence/dependency-tree.txt" \
+            "$CANDIDATE/evidence/runtime.log" \
+            "$RESULT" \
+            > "$CANDIDATE/evidence/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-navigation-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/navigation-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
