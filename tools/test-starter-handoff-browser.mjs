@@ -58,14 +58,17 @@ try {
   await page.goto(pathToFileURL(resolve(extractedDir, 'VERIFICATION.html')).href, { waitUntil: 'load' });
   await page.waitForSelector('h1');
   assert.equal(await page.locator('h1').textContent(), 'Verified local starter');
-  const verificationPageText = await page.locator('body').textContent();
-  assert.match(verificationPageText, /Build\s+pass · executed/);
-  assert.match(verificationPageText, /QA\s+pass · executed/);
-  assert.match(verificationPageText, /Release candidate\s+dry-run only/);
-  assert.match(verificationPageText, /Publication\s+not executed/);
-  assert.match(verificationPageText, /Secrets\s+not used/);
-  assert.match(verificationPageText, /Destination\s+local · local:\/\//);
-  assert.match(verificationPageText, /does not claim store\/provider publication/);
+  const facts = await page.locator('.fact').evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => [
+    node.querySelector('dt')?.textContent?.trim(),
+    node.querySelector('dd')?.textContent?.trim()
+  ])));
+  assert.equal(facts.Build, 'pass · executed');
+  assert.equal(facts.QA, 'pass · executed');
+  assert.equal(facts['Release candidate'], 'dry-run only');
+  assert.equal(facts.Publication, 'not executed');
+  assert.equal(facts.Secrets, 'not used');
+  assert.match(facts.Destination, /^local · local:\/\//);
+  assert.match(await page.locator('.boundary').textContent(), /does not claim store\/provider publication/);
   const playableLink = page.getByRole('link', { name: 'Open verified starter' });
   assert.equal(await playableLink.getAttribute('href'), 'starter/dist/index.html');
   assert.equal(await page.getByRole('link', { name: 'Open plain-text verification' }).getAttribute('href'), 'VERIFICATION.txt');
