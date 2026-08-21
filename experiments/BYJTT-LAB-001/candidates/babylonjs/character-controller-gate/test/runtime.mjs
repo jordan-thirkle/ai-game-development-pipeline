@@ -10,6 +10,7 @@ const serverLog = [];
 const server = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['exec', '--', 'vite', '--host', '127.0.0.1', '--port', '4173'], {
   stdio: ['ignore', 'pipe', 'pipe'],
   env: process.env,
+  detached: process.platform !== 'win32',
 });
 server.stdout.on('data', (chunk) => serverLog.push(chunk.toString()));
 server.stderr.on('data', (chunk) => serverLog.push(chunk.toString()));
@@ -100,6 +101,16 @@ try {
   throw error;
 } finally {
   if (browser) await browser.close();
-  server.kill('SIGTERM');
+  try {
+    if (process.platform === 'win32') server.kill('SIGTERM');
+    else process.kill(-server.pid, 'SIGTERM');
+  } catch {}
+  await Promise.race([
+    new Promise((resolve) => server.once('exit', resolve)),
+    sleep(2000),
+  ]);
+  try {
+    if (process.platform !== 'win32') process.kill(-server.pid, 'SIGKILL');
+  } catch {}
   await writeFile(path.join(evidenceDir, 'vite.log'), serverLog.join(''));
 }
