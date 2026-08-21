@@ -15,6 +15,7 @@ const LOOPBACK_HOST = '127.0.0.1';
 const MAX_BRIEF_BYTES = 4096;
 const BRIEF_BODY_TIMEOUT_MS = 1000;
 const PLAYABLE_ROUTE = '/play/sample/';
+const LATEST_RUN_ROUTE = '/api/pipeline/runs/latest';
 const JSON_FILES = [
   ['intake', 'intake.json'],
   ['registry', 'registry-selection.json'],
@@ -114,6 +115,7 @@ async function staticFileFor(url) {
   const requested = pathname === '/' ? '/apps/studio/index.html' : pathname.endsWith('/') ? `${pathname}index.html` : pathname;
   const publicPaths = new Set([
     '/apps/studio/index.html',
+    '/apps/studio/latest-run-recovery.mjs',
     '/fixtures/control-plane/BYJTT-LAB-001.json',
     '/tools/control-plane-freshness.mjs'
   ]);
@@ -159,11 +161,17 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
   let running = false;
   let downloadableBundle = null;
   let playableArtifact = null;
+  let latestRunPayload = null;
   return createServer(async (request, response) => {
     try {
       if (request.url === '/api/pipeline/capabilities') {
         if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
-        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
+        return sendJson(response, 200, { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true });
+      }
+      if (request.url === LATEST_RUN_ROUTE) {
+        if (request.method !== 'GET') return sendJson(response, 405, { error: 'Method not allowed' });
+        if (!validLocalRequest(request)) return sendJson(response, 403, { error: 'Cross-origin latest-run recovery is not allowed.' });
+        return sendJson(response, 200, latestRunPayload ? { available: true, run: latestRunPayload } : { available: false });
       }
       if (new URL(request.url, 'http://localhost').pathname === PLAYABLE_ROUTE) {
         if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
@@ -196,9 +204,11 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         running = true;
         downloadableBundle = null;
         playableArtifact = null;
+        latestRunPayload = null;
         try {
           const result = await execute();
           const payload = exposeArtifacts(result, (bundle) => { downloadableBundle = bundle; }, (playable) => { playableArtifact = playable; });
+          if (result.status === 'pass') latestRunPayload = payload;
           return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
@@ -211,12 +221,14 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
         running = true;
         downloadableBundle = null;
         playableArtifact = null;
+        latestRunPayload = null;
         try {
           let brief;
           try { brief = await readBriefBody(request); }
           catch (error) { if (error instanceof BriefError) return sendJson(response, 400, { error: error.message }); throw error; }
           const result = await execute({ brief });
           const payload = exposeArtifacts(result, (bundle) => { downloadableBundle = bundle; }, (playable) => { playableArtifact = playable; });
+          if (result.status === 'pass') latestRunPayload = payload;
           return sendJson(response, result.status === 'pass' ? 201 : 422, payload);
         }
         catch (error) { return sendJson(response, 500, { error: error?.message || 'Pipeline run failed.' }); }
@@ -225,7 +237,12 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
       if (!['GET', 'HEAD'].includes(request.method)) return sendJson(response, 405, { error: 'Method not allowed' });
       const file = await staticFileFor(request.url);
       if (!file) return sendJson(response, 404, { error: 'Not found' });
-      const body = await readFile(file);
+      let body = await readFile(file);
+      if (file.endsWith(`${sep}apps${sep}studio${sep}index.html`)) {
+        const source = body.toString('utf8');
+        const recoveryTag = '<script type="module" src="/apps/studio/latest-run-recovery.mjs"></script>';
+        if (!source.includes(recoveryTag)) body = Buffer.from(source.replace('</body>', `${recoveryTag}</body>`), 'utf8');
+      }
       response.writeHead(200, { 'content-type': MIME.get(extname(file)) || 'application/octet-stream', 'cache-control': 'no-store' });
       response.end(request.method === 'HEAD' ? undefined : body);
     } catch (error) {

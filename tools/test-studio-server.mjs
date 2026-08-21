@@ -75,7 +75,7 @@ test('capabilities disclose the fail-closed publishing boundary', async () => {
   await withServer({}, async (base) => {
     const response = await fetch(`${base}/api/pipeline/capabilities`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true });
+    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true });
   });
 });
 
@@ -149,13 +149,47 @@ test('a passing run exposes the exact playable artifact through the local play r
   });
 });
 
-test('a fresh failed run invalidates the previous successful playable result', async () => {
+test('latest run is explicitly unavailable before success and recovers exact in-memory artifact handles', async () => {
+  await withServer({}, async (base) => {
+    const empty = await fetch(`${base}/api/pipeline/runs/latest`);
+    assert.equal(empty.status, 200);
+    assert.deepEqual(await empty.json(), { available: false });
+    const run = await fetch(`${base}/api/pipeline/brief-runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Recovery Run', objective: 'Prove refresh recovery.', targetPlatform: 'web', mechanic: 'dodge' })
+    });
+    assert.equal(run.status, 201);
+    const created = await run.json();
+    const latestResponse = await fetch(`${base}/api/pipeline/runs/latest`);
+    assert.equal(latestResponse.status, 200);
+    const latest = await latestResponse.json();
+    assert.deepEqual(latest, { available: true, run: created });
+    assert.equal((await fetch(`${base}${latest.run.playable.launchUrl}`)).status, 200);
+    assert.equal((await fetch(`${base}${latest.run.download.url}`)).status, 200);
+  });
+});
+
+test('latest-run recovery rejects cross-origin reads and non-GET methods', async () => {
+  await withServer({}, async (base) => {
+    assert.equal((await fetch(`${base}/api/pipeline/runs/latest`, { method: 'POST' })).status, 405);
+    const port = new URL(base).port;
+    const crossOrigin = await fetch(`${base}/api/pipeline/runs/latest`, { headers: { host: `evil.test:${port}`, origin: `http://evil.test:${port}` } });
+    assert.equal(crossOrigin.status, 403);
+  });
+});
+
+test('a fresh failed run invalidates the previous successful playable result and recovery payload', async () => {
   let runNumber = 0;
   await withServer({ execute: () => ++runNumber === 1 ? executeSampleRun() : failureRun('qa') }, async (base) => {
     assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 201);
     assert.equal((await fetch(`${base}/play/sample/`)).status, 200);
+    assert.deepEqual(await (await fetch(`${base}/api/pipeline/runs/latest`)).json(), { available: true, run: await (await fetch(`${base}/api/pipeline/runs/latest`)).json().then((value) => value.run) });
     assert.equal((await fetch(`${base}/api/pipeline/runs`, { method: 'POST' })).status, 422);
     assert.equal((await fetch(`${base}/play/sample/`)).status, 404);
+    const latest = await fetch(`${base}/api/pipeline/runs/latest`);
+    assert.equal(latest.status, 200);
+    assert.deepEqual(await latest.json(), { available: false });
   });
 });
 
