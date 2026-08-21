@@ -15,7 +15,8 @@ const MECHANIC_LABELS = {
   dodge: 'Dodge to an exit',
   survive: 'Survive 10 seconds'
 };
-const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const NAME_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
+const MULTILINE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
 
 export function recoverableBriefValues(result) {
   const brief = result?.brief;
@@ -26,13 +27,13 @@ export function recoverableBriefValues(result) {
     typeof name !== 'string' ||
     name.trim().length < 1 ||
     name.length > 80 ||
-    CONTROL_CHARACTER_PATTERN.test(name)
+    NAME_CONTROL_CHARACTER_PATTERN.test(name)
   ) throw new Error('Recovered brief name is invalid.');
   if (
     typeof objective !== 'string' ||
     objective.trim().length < 1 ||
     objective.length > 500 ||
-    CONTROL_CHARACTER_PATTERN.test(objective)
+    MULTILINE_CONTROL_CHARACTER_PATTERN.test(objective)
   ) throw new Error('Recovered brief objective is invalid.');
   if (!RECOVERABLE_TARGETS.has(targetPlatform)) throw new Error('Recovered brief target is invalid.');
   if (!RECOVERABLE_MECHANICS.has(mechanic)) throw new Error('Recovered brief mechanic is invalid.');
