@@ -1,0 +1,105 @@
+name: Benchmark 001 jMonkeyEngine Minie player attack gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-player-attack.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  player-attack-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      PARENT: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/combat-gate
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: |
+            experiments/BYJTT-LAB-001/candidates/jmonkeyengine/combat-gate/pom.xml
+            experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate/pom.xml
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "parent_combat_head=f2fb1d1a5aacf74aa9e2143d27ab73b5052c34c6"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Re-run unchanged enemy combat prerequisite
+        shell: bash
+        working-directory: ${{ env.PARENT }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-maven-verify.log"
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-combat-runtime.log"
+          cp evidence/runtime-result.json "$GITHUB_WORKSPACE/$CANDIDATE/evidence/parent-combat-result.json"
+      - name: Assert parent enemy combat evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.minie_native_loaded || !r.acquisition_valid || !r.attack_entry_valid || !r.first_attack_valid || !r.cooldown_blocked_early_attack || !r.second_attack_valid || r.final_player_health !== 60 || r.post_physics_arena_clamp || r.external_input_executed || r.player_attack_executed) process.exit(1);' "$CANDIDATE/evidence/parent-combat-result.json"
+      - name: Strict compile verify and package player attack gate
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee evidence/maven-verify.log
+      - name: Capture and assert dependency graph
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-desktop:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' evidence/dependency-tree.txt
+      - name: Execute native Minie player attack gate
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee evidence/runtime.log
+      - name: Assert machine-readable player attack evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$CANDIDATE/evidence/runtime-result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.minie_native_loaded || r.initial_separation_metres < 15.99 || r.initial_separation_metres > 16.01 || !r.acquisition_valid || r.last_pre_acquisition_distance_metres <= 12 || r.acquisition_distance_metres > 12 || r.acquisition_distance_metres < 11.9 || !r.attack_range_valid || r.attack_entry_distance_metres > 1.6 || !r.first_player_attack_valid || r.enemy_health_before_first_attack !== 100 || r.enemy_health_after_first_attack !== 66 || !r.enemy_response_valid || r.player_health_before_exchange !== 100 || r.player_health_after_exchange !== 80 || !r.early_player_attack_blocked || r.enemy_health_after_early_attempt !== 66 || !r.second_player_attack_valid || r.enemy_health_before_second_attack !== 66 || r.enemy_health_after_second_attack !== 32 || r.player_attacks_executed !== 2 || !r.enemy_cooldown_held || r.player_health_after_second_attack !== 80 || r.enemy_attacks_executed !== 1 || r.second_attack_time_seconds < 0.549 || !r.commanded_speed_valid || !r.stayed_inside_arena || !r.observation_mutation_isolation || !r.gameplay_attack_action_executed || r.direct_health_setter_exposed || r.post_physics_arena_clamp || r.external_input_executed) process.exit(1);' "$RESULT"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/benchmark/JmeMiniePlayerAttackGate.java" \
+            "$CANDIDATE/evidence/environment.txt" \
+            "$CANDIDATE/evidence/parent-maven-verify.log" \
+            "$CANDIDATE/evidence/parent-combat-runtime.log" \
+            "$CANDIDATE/evidence/parent-combat-result.json" \
+            "$CANDIDATE/evidence/maven-verify.log" \
+            "$CANDIDATE/evidence/dependency-tree.txt" \
+            "$CANDIDATE/evidence/runtime.log" \
+            "$RESULT" \
+            > "$CANDIDATE/evidence/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-player-attack-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/player-attack-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
