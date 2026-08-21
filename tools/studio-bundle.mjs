@@ -3,6 +3,7 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createProjectBriefPage } from './studio-project-brief-page.mjs';
+import { createStarterHomePage } from './studio-starter-home-page.mjs';
 import { createVerificationPage } from './studio-verification-page.mjs';
 
 export class StudioBundleError extends Error {
@@ -18,6 +19,7 @@ const MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024;
 const EXCLUDED_PROJECT_NAMES = new Set(['.git', 'node_modules']);
 const VERIFIED_PLAYABLE_PATH = 'starter/dist/index.html';
 const START_HERE_PATH = 'START_HERE.html';
+const STARTER_HOME_PATH = 'OPEN_PROJECT.html';
 const PROJECT_BRIEF_PAGE_PATH = 'PROJECT_BRIEF.html';
 const VERIFICATION_SUMMARY_PATH = 'VERIFICATION.txt';
 const VERIFICATION_PAGE_PATH = 'VERIFICATION.html';
@@ -222,7 +224,8 @@ async function createPortableProjectBrief(project) {
   let manifest;
   try {
     manifest = JSON.parse(await readFile(resolve(project, 'project.manifest.json'), 'utf8'));
-    return createProjectBriefPage(manifest);
+    const page = createProjectBriefPage(manifest);
+    return { manifest, page };
   } catch (error) {
     throw new StudioBundleError(`Verified local starter is missing a valid portable project brief: ${error.message}`, 'BRIEF_INCOMPLETE');
   }
@@ -245,11 +248,18 @@ export async function createStudioBundle({ projectDir, outputDir, projectId = 's
   if (!allProjectFiles.some((file) => file.path === VERIFIED_PLAYABLE_PATH)) {
     throw new StudioBundleError('Verified local starter is missing dist/index.html', 'PLAYABLE_MISSING');
   }
-  const projectBriefPage = await createPortableProjectBrief(project);
+  const { manifest, page: projectBriefPage } = await createPortableProjectBrief(project);
   const verificationSummary = createVerificationSummary(evidence, artifactSnapshot.sha256);
   const verificationPage = createVerificationPage(evidence, artifactSnapshot.sha256);
+  let starterHomePage;
+  try {
+    starterHomePage = createStarterHomePage(manifest, evidence, artifactSnapshot.sha256);
+  } catch (error) {
+    throw new StudioBundleError(`Verified local starter could not create its project home: ${error.message}`, 'EVIDENCE_INCOMPLETE');
+  }
   const files = [
     { path: START_HERE_PATH, body: START_HERE_BYTES },
+    { path: STARTER_HOME_PATH, body: starterHomePage },
     { path: PROJECT_BRIEF_PAGE_PATH, body: projectBriefPage },
     { path: VERIFICATION_PAGE_PATH, body: verificationPage },
     { path: VERIFICATION_SUMMARY_PATH, body: verificationSummary },
