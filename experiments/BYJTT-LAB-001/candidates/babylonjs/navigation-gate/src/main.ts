@@ -6,8 +6,9 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import { RecastJSPlugin } from '@babylonjs/core/Navigation/Plugins/recastJSPlugin';
-import Recast from 'recast-detour';
+import { CreateNavigationPluginAsync } from '@babylonjs/addons/navigation/factory/factory.single-thread';
+import * as RecastCore from '@recast-navigation/core';
+import * as RecastGenerators from '@recast-navigation/generators';
 
 const ARENA_WIDTH = 24;
 const ARENA_DEPTH = 32;
@@ -18,6 +19,7 @@ interface Observation {
   ready: boolean;
   babylonVersion: string;
   recastPlugin: string;
+  recastVersion: string;
   arena: { width: number; depth: number };
   pathPoints: Array<{ x: number; y: number; z: number }>;
   pathLength: number;
@@ -63,8 +65,10 @@ async function main(): Promise<void> {
   material.diffuseColor = new Color3(0.18, 0.32, 0.2);
   arena.material = material;
 
-  const recast = await Recast();
-  const navigation = new RecastJSPlugin(recast);
+  await RecastCore.init();
+  const navigation = await CreateNavigationPluginAsync({
+    instance: { ...RecastCore, ...RecastGenerators },
+  });
   navigation.createNavMesh([arena], {
     cs: 0.25,
     ch: 0.25,
@@ -91,6 +95,7 @@ async function main(): Promise<void> {
     ready: true,
     babylonVersion: Engine.Version,
     recastPlugin: navigation.name,
+    recastVersion: '0.43.1',
     arena: { width: ARENA_WIDTH, depth: ARENA_DEPTH },
     pathPoints: path.map((point) => ({ x: point.x, y: point.y, z: point.z })),
     pathLength,
