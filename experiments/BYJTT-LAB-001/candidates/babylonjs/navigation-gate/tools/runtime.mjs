@@ -21,13 +21,35 @@ if (Date.now() >= deadline) throw new Error(`Vite server did not become ready:\n
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const consoleErrors = [];
+const consoleMessages = [];
 const pageErrors = [];
-page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+page.on('console', (message) => {
+  consoleMessages.push(`[${message.type()}] ${message.text()}`);
+  if (message.type() === 'error') consoleErrors.push(message.text());
+});
 page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 try {
   await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle', timeout: 30_000 });
-  await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().ready === true, null, { timeout: 30_000 });
+  try {
+    await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().ready === true, null, { timeout: 30_000 });
+  } catch (error) {
+    await page.screenshot({ path: `${evidenceDir}/runtime-failure.png`, fullPage: true }).catch(() => undefined);
+    const diagnostics = {
+      error: String(error),
+      url: page.url(),
+      title: await page.title().catch(() => ''),
+      bodyText: await page.locator('body').innerText().catch(() => ''),
+      consoleErrors,
+      consoleMessages,
+      pageErrors,
+      observationType: await page.evaluate(() => typeof window.__BYJTT_OBSERVE__).catch(() => 'evaluation-failed'),
+    };
+    await writeFile(`${evidenceDir}/runtime-failure.json`, `${JSON.stringify(diagnostics, null, 2)}\n`);
+    await writeFile(`${evidenceDir}/runtime.log`, serverLog);
+    throw new Error(`Runtime did not become ready: ${JSON.stringify(diagnostics)}`);
+  }
+
   const result = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
   await page.screenshot({ path: `${evidenceDir}/runtime.png`, fullPage: true });
   if (!result) throw new Error('Missing observation');
