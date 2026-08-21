@@ -1,0 +1,40 @@
+function BYJTTBenchmark::onCreate(%this)
+{
+   schedule(2500, 0, "BYJTTBenchmarkStart");
+}
+
+function BYJTTBenchmark::onDestroy(%this) {}
+
+function BYJTTBenchmark::initServer(%this)
+{
+   %this.queueExec("./scripts/server/BYJTTGameMode");
+   %this.queueExec("./scripts/server/BYJTTPlayerData");
+}
+
+function BYJTTBenchmark::initClient(%this)
+{
+   %this.queueExec("./scripts/client/BYJTTInput");
+}
+
+function BYJTTBenchmark::onCreateGameServer(%this)
+{
+   %this.registerDatablock("./scripts/server/BYJTTPlayerData");
+}
+
+function BYJTTBenchmark::onCreateClientConnection(%this)
+{
+   if (isObject(BYJTTMoveMap))
+      BYJTTMoveMap.push();
+}
+
+function BYJTTBenchmark::onDestroyClientConnection(%this)
+{
+   if (isObject(BYJTTMoveMap))
+      BYJTTMoveMap.pop();
+}
+
+function BYJTTBenchmarkStart()
+{
+   echo("BYJTT_BOOTSTRAP_START");
+   StartGame("BYJTTBenchmark:BYJTTLevel", "SinglePlayer");
+}
