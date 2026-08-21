@@ -69,7 +69,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" --editor --quit 2>&1 | tee "$EVIDENCE_DIR/parse.log"
-          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Cannot open file' "$EVIDENCE_DIR/parse.log"
+          if grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Cannot open file' "$EVIDENCE_DIR/parse.log"; then
+            echo "Godot parse errors detected" >&2
+            exit 1
+          fi
 
       - name: Start X11 OpenGL proof environment
         shell: bash
@@ -124,9 +127,8 @@ jobs:
           test -n "$window_id"
           printf '%s\n' "$window_id" > "$EVIDENCE_DIR/window-id.txt"
           xwininfo -id "$window_id" > "$EVIDENCE_DIR/window-info.txt" 2>&1
-          # Openbox on the hosted Xvfb runner does not expose _NET_ACTIVE_WINDOW.
-          # Use direct X11 focus instead of the EWMH activation path, then prove the
-          # actual focused window before sending any physical key events.
+          # Focus the actual Godot X11 window, then send untargeted key events so
+          # xdotool uses the focused input path rather than XSendEvent --window.
           xdotool windowfocus --sync "$window_id"
           focused_window="$(xdotool getwindowfocus)"
           printf 'target_window=%s\nfocused_window=%s\n' "$window_id" "$focused_window" | tee "$EVIDENCE_DIR/focus.txt"
@@ -135,11 +137,11 @@ jobs:
           import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/before-input.png"
           test -s "$EVIDENCE_DIR/before-input.png"
 
-          xdotool keydown --window "$window_id" d
+          xdotool keydown d
           sleep 4.5
           import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/during-input.png"
           test -s "$EVIDENCE_DIR/during-input.png"
-          xdotool keyup --window "$window_id" d
+          xdotool keyup d
           sleep 0.4
           import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/after-release.png"
           test -s "$EVIDENCE_DIR/after-release.png"
@@ -181,7 +183,10 @@ jobs:
             .release_drift <= 0.02 and
             .rendered_frames > 0
           ' "$EVIDENCE_DIR/runtime-result.json"
-          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Condition' "$EVIDENCE_DIR/runtime.log"
+          if grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Condition' "$EVIDENCE_DIR/runtime.log"; then
+            echo "Godot runtime errors detected" >&2
+            exit 1
+          fi
 
       - name: Hash retained exact-head evidence
         if: always()
@@ -189,9 +194,12 @@ jobs:
         run: |
           set -u
           if [[ -d "$EVIDENCE_DIR" ]]; then
-            find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
-              | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
-            cat "$EVIDENCE_DIR/sha256-manifest.txt"
+            (
+              cd "$EVIDENCE_DIR"
+              find . -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
+                | sort -z | xargs -0 -r sha256sum > sha256-manifest.txt
+              cat sha256-manifest.txt
+            )
           fi
 
       - name: Upload exact-head evidence
