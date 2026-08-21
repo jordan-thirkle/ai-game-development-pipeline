@@ -54,7 +54,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$range")"
           printf '%s\n' "$changed"
-          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/(studio-server|studio-brief|studio-bundle|studio-verification-page|studio-starter-home-page|test-studio-server|test-studio-brief|test-studio-brief-browser|test-studio-bundle|test-studio-verification-page|test-starter-handoff-browser|test-control-plane-browser|run-pipeline|control-plane-freshness)\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^(apps/studio/|fixtures/control-plane/|tools/(studio-server|studio-brief|studio-bundle|studio-verification-page|studio-starter-home-page|test-studio-server|test-studio-brief|test-studio-brief-browser|test-studio-bundle|test-studio-verification-page|test-studio-solved-system-summary|test-starter-handoff-browser|test-control-plane-browser|run-pipeline|control-plane-freshness)\.mjs$|\.github/workflows/control-plane-browser-qa\.yml$)'; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
