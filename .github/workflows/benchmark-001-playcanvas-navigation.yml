@@ -19,7 +19,7 @@ jobs:
       EVIDENCE_DIR: evidence/playcanvas-navigation
     steps:
       - name: Checkout exact candidate head
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af68
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
