@@ -65,12 +65,20 @@ test('rejects malformed recovered brief fields', () => {
   const mechanic = safeResult();
   mechanic.brief.mechanic = 'arbitrary-code';
   assert.throws(() => recoverableBriefValues(mechanic), /mechanic is invalid/i);
-  const name = safeResult();
-  name.brief.name = `Bad\u0000Name`;
-  assert.throws(() => recoverableBriefValues(name), /name is invalid/i);
+  for (const control of ['\u0000', '\t', '\n', '\r', '\u0085']) {
+    const name = safeResult();
+    name.brief.name = `Bad${control}Name`;
+    assert.throws(() => recoverableBriefValues(name), /name is invalid/i);
+  }
   const objective = safeResult();
   objective.brief.objective = 'x'.repeat(501);
   assert.throws(() => recoverableBriefValues(objective), /objective is invalid/i);
+});
+
+test('keeps multiline objective whitespace distinct from single-line name rules', () => {
+  const result = safeResult();
+  result.brief.objective = 'Build a small starter.\nKeep the local proof boundary visible.\tNo publication.';
+  assert.equal(recoverableBriefValues(result).objective, result.brief.objective);
 });
 
 test('rejects a false publication claim', () => {
