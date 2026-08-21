@@ -12,7 +12,7 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-if node tools/studio-launcher.mjs; then
+if node tools/studio-launcher.mjs "$@"; then
   exit 0
 else
   status=$?
