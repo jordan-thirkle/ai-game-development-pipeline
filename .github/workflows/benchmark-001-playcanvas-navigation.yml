@@ -1,0 +1,137 @@
+name: BYJTT-LAB-001 PlayCanvas navigation
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/playcanvas/navigation-gate/**'
+      - '.github/workflows/benchmark-001-playcanvas-navigation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  navigation-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/playcanvas/navigation-gate
+      EVIDENCE_DIR: evidence/playcanvas-navigation
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af68
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Bind proof to exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED='${{ github.event.pull_request.head.sha || github.sha }}'
+          ACTUAL="$(git rev-parse HEAD)"
+          test "$ACTUAL" = "$EXPECTED"
+          echo "CANDIDATE_HEAD_SHA=$ACTUAL" >> "$GITHUB_ENV"
+          mkdir -p "$EVIDENCE_DIR"
+          printf '%s\n' "$ACTUAL" > "$EVIDENCE_DIR/candidate-head.txt"
+
+      - name: Set up Node 26
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26'
+
+      - name: Capture environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            node --version
+            npm --version
+            uname -a
+          } | tee "$EVIDENCE_DIR/environment.txt"
+
+      - name: Bootstrap or verify dependency lock
+        id: dependency-lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE_DIR"
+          EXPECTED="$(tr -d '[:space:]' < expected-lock-sha256.txt)"
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts
+          fi
+          ACTUAL="$(sha256sum package-lock.json | awk '{print $1}')"
+          cp package-lock.json "$GITHUB_WORKSPACE/$EVIDENCE_DIR/package-lock.json"
+          printf '%s  package-lock.json\n' "$ACTUAL" > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/package-lock.sha256"
+          if [ "$EXPECTED" = 'BOOTSTRAP' ]; then
+            echo "Dependency lock bootstrap required: $ACTUAL" >&2
+            exit 42
+          fi
+          test "$ACTUAL" = "$EXPECTED"
+          npm ci --ignore-scripts
+          npm ls --all > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/npm-tree.txt"
+
+      - name: Strict TypeScript
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE_DIR"
+          npm run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/$EVIDENCE_DIR/typecheck.log"
+
+      - name: Production build
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE_DIR"
+          npm run build 2>&1 | tee "$GITHUB_WORKSPACE/$EVIDENCE_DIR/build.log"
+
+      - name: Install exact Playwright Chromium
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE_DIR"
+          npx playwright install --with-deps chromium 2>&1 | tee "$GITHUB_WORKSPACE/$EVIDENCE_DIR/playwright-install.log"
+
+      - name: Real browser navigation execution
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE_DIR"
+          EVIDENCE_DIR="$GITHUB_WORKSPACE/$EVIDENCE_DIR" CANDIDATE_HEAD_SHA="$CANDIDATE_HEAD_SHA" timeout 120s npm run test:browser 2>&1 | tee "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log"
+
+      - name: Validate machine-readable result
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - "$EVIDENCE_DIR/runtime-result.json" "$CANDIDATE_HEAD_SHA" <<'NODE'
+          const fs = require('fs');
+          const [file, head] = process.argv.slice(2);
+          const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (result.candidate_head !== head) throw new Error('result is not bound to exact head');
+          if (result.passed !== true) throw new Error('runtime result did not pass');
+          if (result.observation?.arena?.width !== 24 || result.observation?.arena?.depth !== 32) throw new Error('shared arena changed');
+          if (result.observation?.start?.z !== -6 || result.observation?.end?.z !== 10) throw new Error('shared spawns changed');
+          if (result.checks?.post_navigation_clamp !== false) throw new Error('post-navigation clamp detected');
+          if (result.checks?.external_input_executed !== false) throw new Error('evidence boundary changed');
+          NODE
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$EVIDENCE_DIR" -type f ! -name sha256sums.txt -print0 | sort -z | xargs -0 sha256sum > "$EVIDENCE_DIR/sha256sums.txt"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-playcanvas-navigation-${{ github.run_id }}
+          path: evidence/playcanvas-navigation
+          if-no-files-found: error
+          retention-days: 30
