@@ -11,19 +11,62 @@ function fact(label, value, tone = 'neutral') {
   return `<div class="fact fact-${tone}"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
 }
 
+const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+
+export function releaseCandidateProjection(evidence) {
+  const candidate = evidence?.releaseCandidate;
+  const safetyDestination = evidence?.destination;
+  const destinationTarget = evidence?.destinationTarget;
+  const candidateId = candidate?.candidateId;
+  const candidateDestination = candidate?.destination;
+  const artifactPath = candidate?.build?.artifactPath;
+  const outputSha256 = candidate?.build?.outputSha256;
+
+  const valid = typeof candidateId === 'string'
+    && candidateId.length > 0
+    && candidateId.length <= 160
+    && !CONTROL_CHARACTER_PATTERN.test(candidateId)
+    && candidate?.dryRunOnly === true
+    && safetyDestination?.kind === 'local'
+    && typeof destinationTarget === 'string'
+    && destinationTarget.startsWith('local://')
+    && candidateDestination?.kind === 'local'
+    && candidateDestination?.target === destinationTarget
+    && typeof artifactPath === 'string'
+    && artifactPath.length > 0
+    && artifactPath.length <= 512
+    && !CONTROL_CHARACTER_PATTERN.test(artifactPath)
+    && SHA256_PATTERN.test(outputSha256 || '');
+
+  if (!valid) throw new Error('Release candidate evidence is incomplete or contradicts the verified local dry-run boundary.');
+
+  return {
+    candidateId,
+    artifactPath,
+    outputSha256,
+    destinationTarget,
+    dryRunOnly: true
+  };
+}
+
 export function createVerificationPage(evidence, bundledArtifactSha256) {
-  const { build, qa, releaseCandidate, publishing, destination, destinationTarget } = evidence;
+  const { build, qa, publishing, destination, destinationTarget } = evidence;
+  const releaseCandidate = releaseCandidateProjection(evidence);
   const facts = [
     fact('Build', `${build.status} · executed`, 'pass'),
     fact('QA', `${qa.status} · executed`, 'pass'),
-    fact('Release candidate', releaseCandidate.dryRunOnly ? 'dry-run only' : 'not dry-run', releaseCandidate.dryRunOnly ? 'safe' : 'warn'),
+    fact('Release candidate ID', releaseCandidate.candidateId, 'safe'),
+    fact('Release candidate', 'dry-run only', 'safe'),
+    fact('Candidate artifact', releaseCandidate.artifactPath),
+    fact('Candidate destination', releaseCandidate.destinationTarget),
     fact('Publication', publishing.executed ? 'executed' : 'not executed', publishing.executed ? 'warn' : 'safe'),
     fact('Secrets', publishing.secretsUsed ? 'used' : 'not used', publishing.secretsUsed ? 'warn' : 'safe'),
     fact('Destination', `${destination.kind} · ${destinationTarget}`),
     fact('Verified artifact SHA-256', bundledArtifactSha256),
     fact('Build artifact SHA-256', build.artifactSha256),
     fact('QA artifact SHA-256', qa.artifactSha256),
-    fact('Release candidate SHA-256', releaseCandidate.build.outputSha256)
+    fact('Release candidate SHA-256', releaseCandidate.outputSha256)
   ].join('');
 
   return Buffer.from(`<!doctype html>
@@ -60,7 +103,7 @@ export function createVerificationPage(evidence, bundledArtifactSha256) {
       <h2 id="facts-title">Verification facts</h2>
       <dl class="facts">${facts}</dl>
     </section>
-    <div class="boundary"><strong>Evidence boundary:</strong> this is a local dry-run result. It does not claim store/provider publication, secret-backed execution, real requested-device execution, or human playability.</div>
+    <div class="boundary"><strong>Evidence boundary:</strong> this release candidate is local and dry-run only. It does not claim store/provider publication, secret-backed execution, real requested-device execution, or human playability.</div>
     <p class="foot">For full provenance, inspect the JSON records under <code>evidence/</code>. This page contains no scripts and its Content Security Policy blocks network resources.</p>
   </main>
 </body>
