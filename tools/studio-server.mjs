@@ -117,7 +117,8 @@ async function staticFileFor(url) {
     '/apps/studio/index.html',
     '/apps/studio/latest-run-recovery.mjs',
     '/fixtures/control-plane/BYJTT-LAB-001.json',
-    '/tools/control-plane-freshness.mjs'
+    '/tools/control-plane-freshness.mjs',
+    '/tools/studio-starter-home-page.mjs'
   ]);
   if (!publicPaths.has(requested)) return null;
   const candidate = resolve(REPOSITORY_ROOT, `.${requested}`);
