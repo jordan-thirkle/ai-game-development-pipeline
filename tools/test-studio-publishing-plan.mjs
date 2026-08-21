@@ -39,7 +39,12 @@ function fixture() {
     evidence: {
       build: { executed: true, status: 'pass' },
       qa: { executed: true, status: 'pass' },
-      releaseCandidate: { dryRunOnly: true },
+      releaseCandidate: {
+        candidateId: 'harbour-run-run-test',
+        dryRunOnly: true,
+        build: { artifactPath: 'dist', outputSha256: VALID_SHA },
+        destination: { kind: 'local', target: destinationTarget }
+      },
       publishing: {
         releaseCandidatePath: 'release-candidate.json',
         destination: { kind: 'local', target: destinationTarget },
