@@ -109,3 +109,27 @@ test('inline Studio verification fails closed when the retained plan points at a
     await rm(workspace, { recursive: true, force: true });
   }
 });
+
+test('inline Studio verification fails closed when publishing receipt destination contradicts the safety destination', async () => {
+  const { workspace, result } = await realSampleResult();
+  try {
+    const expectedTarget = result.safety.destination.target;
+    assert.deepEqual(result.evidence.publishing.plan, [`Would publish release-candidate.json to ${expectedTarget}`]);
+    result.evidence.publishing.destination = { kind: 'provider', target: 'https://example.invalid/release' };
+    assert.throws(() => factsObject(result), /truthful local-only dry-run publishing plan/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('inline Studio verification fails closed when two local publishing destinations disagree', async () => {
+  const { workspace, result } = await realSampleResult();
+  try {
+    const expectedTarget = result.safety.destination.target;
+    assert.deepEqual(result.evidence.publishing.plan, [`Would publish release-candidate.json to ${expectedTarget}`]);
+    result.evidence.publishing.destination = { kind: 'local', target: 'local://planned/other-project' };
+    assert.throws(() => factsObject(result), /truthful local-only dry-run publishing plan/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
