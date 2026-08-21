@@ -1,0 +1,65 @@
+//--- OBJECT WRITE BEGIN ---
+new Scene(BYJTTLevel) {
+   Enabled = "1";
+   gameModeName="BYJTTBenchmarkGameMode";
+
+   new LevelInfo(theLevelInfo) {
+      canvasClearColor = "25 35 45 255";
+      Enabled = "1";
+   };
+
+   new SkyBox(theSky) {
+      MaterialAsset = "Core_Rendering:BlankSkyMat";
+      drawBottom = "0";
+      Enabled = "1";
+   };
+
+   new Sun(theSun) {
+      azimuth="230";
+      elevation="45";
+      color="1 1 1 1";
+      ambient="0.3 0.3 0.3 1";
+      brightness="1.5";
+      Enabled="1";
+   };
+
+   new GroundPlane(BYJTTGround) {
+      MaterialAsset = "Prototyping:FloorGray";
+      position="0 0 0";
+      scale="1 1 1";
+      Enabled="1";
+   };
+
+   new TSStatic(BYJTTWallEast) {
+      ShapeAsset="Core_GameObjects:unit_cube";
+      collisionType="Visible Mesh";
+      position="12.2 0 1.5";
+      scale="0.4 32.8 3";
+      Enabled="1";
+   };
+
+   new TSStatic(BYJTTWallWest) {
+      ShapeAsset="Core_GameObjects:unit_cube";
+      collisionType="Visible Mesh";
+      position="-12.2 0 1.5";
+      scale="0.4 32.8 3";
+      Enabled="1";
+   };
+
+   new TSStatic(BYJTTWallNorth) {
+      ShapeAsset="Core_GameObjects:unit_cube";
+      collisionType="Visible Mesh";
+      position="0 16.2 1.5";
+      scale="24 0.4 3";
+      Enabled="1";
+   };
+
+   new TSStatic(BYJTTWallSouth) {
+      ShapeAsset="Core_GameObjects:unit_cube";
+      collisionType="Visible Mesh";
+      position="0 -16.2 1.5";
+      scale="24 0.4 3";
+      Enabled="1";
+   };
+};
+//--- OBJECT WRITE END ---
