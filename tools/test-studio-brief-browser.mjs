@@ -34,6 +34,7 @@ try {
   assert.equal(await page.locator('#run-brief').isEnabled(), true, 'brief control was not restored after the run');
   assert.equal(await page.locator('#run-sample').isEnabled(), true, 'sample control was not restored after a brief run');
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'brief flow did not prove all six local stages');
+  await page.waitForFunction(() => document.querySelector('#run-evidence')?.textContent.includes('Verification summary'), null, { timeout: 10000 });
   const evidence = await page.locator('#run-evidence').textContent();
   assert.match(evidence, /Applied brief/);
   assert.match(evidence, /Harbour Run/);
