@@ -5,10 +5,15 @@ import { fileURLToPath } from 'node:url';
 const project = dirname(fileURLToPath(import.meta.url));
 const output = resolve(project, 'dist');
 const manifest = JSON.parse(await readFile(resolve(project, 'project.manifest.json'), 'utf8'));
-const target = manifest.targetPlatforms?.[0] || 'web';
+const executedTargets = manifest.targetPlatforms;
+if (!Array.isArray(executedTargets) || executedTargets.length !== 1 || executedTargets[0] !== 'web') {
+  throw new Error('Local sample build refuses non-web execution claims.');
+}
+const executedTarget = 'web';
+const requestedTarget = manifest.starter?.requestedTargetPlatform || executedTarget;
 const mechanic = manifest.starter?.mechanic || 'collect';
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-const gameConfig = JSON.stringify({ name: manifest.name, objective: manifest.objective, target, mechanic }).replaceAll('<', '\\u003c');
+const gameConfig = JSON.stringify({ name: manifest.name, objective: manifest.objective, target: requestedTarget, executedTarget, mechanic }).replaceAll('<', '\\u003c');
 const mechanicCopy = {
   collect: 'Collect the green beacon',
   dodge: 'Reach the green exit while avoiding red hazards',
@@ -17,12 +22,12 @@ const mechanicCopy = {
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await writeFile(resolve(output, 'game.txt'), 'sample-game build artifact\n', 'utf8');
-await writeFile(resolve(output, 'build.json'), JSON.stringify({ name: manifest.name, objective: manifest.objective, target, mechanic, format: 'local-demo', version: 3 }, null, 2) + '\n', 'utf8');
+await writeFile(resolve(output, 'build.json'), JSON.stringify({ name: manifest.name, objective: manifest.objective, target: requestedTarget, executedTarget, mechanic, format: 'local-demo', version: 3 }, null, 2) + '\n', 'utf8');
 await writeFile(resolve(output, 'index.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(manifest.name)}</title><style>
-html,body{margin:0;height:100%;overflow:hidden;background:#0d1016;color:#fff;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}.hud{position:fixed;inset:16px auto auto 16px;max-width:min(560px,calc(100vw - 32px));padding:10px 12px;border:1px solid #ffffff30;border-radius:10px;background:#0b0d11dd}.hud b{color:#d7ff64;font-size:17px}.objective{margin:5px 0;color:#cbd2da}.target{color:#86b7ff}.win{color:#79d99b}.touch{display:${target === 'mobile' ? 'grid' : 'none'};position:fixed;right:22px;bottom:22px;grid-template:". up ." 58px "left down right" 58px/58px 58px 58px;gap:6px}.touch button{border:1px solid #ffffff40;border-radius:14px;background:#151a24dd;color:#fff;font-size:24px;touch-action:none}.touch [data-key="w"]{grid-area:up}.touch [data-key="a"]{grid-area:left}.touch [data-key="s"]{grid-area:down}.touch [data-key="d"]{grid-area:right}
-</style></head><body><canvas id="game"></canvas><div class="hud"><b>${escapeHtml(manifest.name)}</b><div class="objective">${escapeHtml(manifest.objective)}</div><span class="target">Target: ${escapeHtml(target)} · Mechanic: ${escapeHtml(mechanic)}</span><br>${target === 'mobile' ? 'Use the touch controls' : 'Move with WASD or arrow keys'} · ${escapeHtml(mechanicCopy)}<br><span id="status">Ready to play</span></div><div class="touch" aria-label="Touch movement controls"><button data-key="w" aria-label="Move up">▲</button><button data-key="a" aria-label="Move left">◀</button><button data-key="s" aria-label="Move down">▼</button><button data-key="d" aria-label="Move right">▶</button></div><script>
+html,body{margin:0;height:100%;overflow:hidden;background:#0d1016;color:#fff;font-family:system-ui,sans-serif}canvas{display:block;width:100%;height:100%}.hud{position:fixed;inset:16px auto auto 16px;max-width:min(560px,calc(100vw - 32px));padding:10px 12px;border:1px solid #ffffff30;border-radius:10px;background:#0b0d11dd}.hud b{color:#d7ff64;font-size:17px}.objective{margin:5px 0;color:#cbd2da}.target{color:#86b7ff}.win{color:#79d99b}.touch{display:${requestedTarget === 'mobile' ? 'grid' : 'none'};position:fixed;right:22px;bottom:22px;grid-template:". up ." 58px "left down right" 58px/58px 58px 58px;gap:6px}.touch button{border:1px solid #ffffff40;border-radius:14px;background:#151a24dd;color:#fff;font-size:24px;touch-action:none}.touch [data-key="w"]{grid-area:up}.touch [data-key="a"]{grid-area:left}.touch [data-key="s"]{grid-area:down}.touch [data-key="d"]{grid-area:right}
+</style></head><body><canvas id="game"></canvas><div class="hud"><b>${escapeHtml(manifest.name)}</b><div class="objective">${escapeHtml(manifest.objective)}</div><span class="target">Target: ${escapeHtml(requestedTarget)} (requested) · Local execution: ${escapeHtml(executedTarget)} · Mechanic: ${escapeHtml(mechanic)}</span><br>${requestedTarget === 'mobile' ? 'Use the touch controls' : 'Move with WASD or arrow keys'} · ${escapeHtml(mechanicCopy)}<br><span id="status">Ready to play</span></div><div class="touch" aria-label="Touch movement controls"><button data-key="w" aria-label="Move up">▲</button><button data-key="a" aria-label="Move left">◀</button><button data-key="s" aria-label="Move down">▼</button><button data-key="d" aria-label="Move right">▶</button></div><script>
 const config=${gameConfig};
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),keys=new Set(),player={x:80,y:120,r:16},goal={x:520,y:300,r:22},hazards=[{x:260,y:180,r:18,vx:130,vy:90},{x:430,y:390,r:20,vx:-110,vy:120},{x:650,y:220,r:16,vx:90,vy:-140}];let won=false,last=performance.now(),roundStarted=performance.now(),lives=3,statusUntil=0;
 function size(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);goal.x=Math.max(80,innerWidth-60);goal.y=Math.max(140,Math.min(300,innerHeight-70));for(const h of hazards){h.x=Math.max(h.r,Math.min(innerWidth-h.r,h.x));h.y=Math.max(h.r,Math.min(innerHeight-h.r,h.y))}}addEventListener('resize',size);size();

@@ -3,8 +3,13 @@
   "projectId": "sample-game",
   "name": "Pipeline Sample Game",
   "objective": "Prove a dependency-free build, QA, release-candidate, and publishing dry run.",
-  "targetPlatforms": ["local-node"],
-  "starter": { "mechanic": "collect" },
+  "targetPlatforms": ["web"],
+  "starter": {
+    "mechanic": "collect",
+    "requestedTargetPlatform": "web",
+    "executedTargetPlatform": "web",
+    "targetExecutionStatus": "executed-local-web"
+  },
   "registry": {
     "entryIds": ["system.gdevelop"]
   },

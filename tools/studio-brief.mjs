@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 const ALLOWED_FIELDS = new Set(['name', 'objective', 'targetPlatform', 'mechanic']);
 const TARGETS = new Set(['web', 'desktop', 'mobile']);
 const MECHANICS = new Set(['collect', 'dodge', 'survive']);
+const EXECUTED_LOCAL_TARGET = 'web';
 
 export class BriefError extends Error {
   constructor(message, code = 'INVALID_BRIEF') {
@@ -47,8 +48,15 @@ export async function applyStudioBrief(projectDir, value) {
   manifest.projectId = brief.projectId;
   manifest.name = brief.name;
   manifest.objective = brief.objective;
-  manifest.targetPlatforms = [brief.targetPlatform];
-  manifest.starter = { mechanic: brief.mechanic };
+  // The current local Studio path builds and QA-checks the browser starter only.
+  // Keep requested desktop/mobile as planning metadata; never promote it into an executed target claim.
+  manifest.targetPlatforms = [EXECUTED_LOCAL_TARGET];
+  manifest.starter = {
+    mechanic: brief.mechanic,
+    requestedTargetPlatform: brief.targetPlatform,
+    executedTargetPlatform: EXECUTED_LOCAL_TARGET,
+    targetExecutionStatus: brief.targetPlatform === EXECUTED_LOCAL_TARGET ? 'executed-local-web' : 'requested-not-executed'
+  };
   manifest.publish = { provider: 'local', destination: `local://planned/${brief.projectId}` };
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return brief;
