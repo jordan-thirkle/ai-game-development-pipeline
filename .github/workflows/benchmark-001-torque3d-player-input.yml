@@ -48,7 +48,10 @@ jobs:
           print('shared_contract_read_only=pass')
           PY
           test "$(grep -R --include='*.tscript' -c 'setTransform' "$CANDIDATE_DIR/data/BYJTTBenchmark" | awk -F: '{s+=$2} END {print s+0}')" -eq 1
-          ! grep -R -E 'mClamp|setPosition|setTransform.*schedule|post.?physics.*clamp' "$CANDIDATE_DIR/data/BYJTTBenchmark" --include='*.tscript'
+          if grep -R -E 'mClamp|setPosition|setTransform.*schedule|post.?physics.*clamp' "$CANDIDATE_DIR/data/BYJTTBenchmark" --include='*.tscript'; then
+            echo "post-physics movement control detected" >&2
+            exit 1
+          fi
 
       - name: Install desktop proof dependencies
         shell: bash
@@ -131,7 +134,10 @@ jobs:
           done
           test "$ready" = true
           grep -q 'Attempting to create GFX device:.*OpenGL\|Initializing GFXCardProfiler (OpenGL)\|Torque3D - OpenGL' "$EVIDENCE_DIR/runtime.log" "$EVIDENCE_DIR/windows.txt"
-          ! grep -Eqi 'Attempting to create GFX device: GFX Null Device|The OpenGL renderer doesn.t seem to be available.*GFXNulDevice|Couldn.t find matching GLX visual' "$EVIDENCE_DIR/runtime.log"
+          if grep -Eqi 'Attempting to create GFX device: GFX Null Device|The OpenGL renderer doesn.t seem to be available.*GFXNulDevice|Couldn.t find matching GLX visual' "$EVIDENCE_DIR/runtime.log"; then
+            echo "invalid renderer state detected" >&2
+            exit 1
+          fi
 
           wmctrl -ia "$window_id"
           xdotool windowactivate --sync "$window_id"
@@ -188,7 +194,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -d "$EVIDENCE_DIR" ]]; then
-            find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
+            (
+              cd "$EVIDENCE_DIR"
+              find . -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 |
+                sort -z |
+                xargs -0 -r sha256sum > sha256-manifest.txt
+            )
           fi
 
       - name: Upload exact-head evidence
