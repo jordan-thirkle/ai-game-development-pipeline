@@ -38,14 +38,14 @@ jobs:
           uname -a > "$EVIDENCE_DIR/uname.txt"
           cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
 
-      - name: Install GLX and desktop proof dependencies
+      - name: Install GLX EGL and desktop proof dependencies
         shell: bash
         run: |
           set -Eeuo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             xvfb openbox wmctrl x11-utils mesa-utils libgl1-mesa-dri libglx-mesa0 \
-            imagemagick unzip file libopenal1 libsdl2-2.0-0
+            libegl1 libegl-mesa0 imagemagick unzip file libopenal1 libsdl2-2.0-0
 
       - name: Acquire and verify official Torque3D package
         shell: bash
@@ -57,7 +57,7 @@ jobs:
           printf '%s  %s\n' "$actual_sha" "$ASSET_NAME" | tee "$EVIDENCE_DIR/observed-sha256.txt"
           test "$actual_sha" = "$EXPECTED_SHA256"
 
-      - name: Establish GLX-capable software renderer
+      - name: Establish GLX-capable Mesa software renderer
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -81,6 +81,11 @@ jobs:
           set -Eeuo pipefail
           export DISPLAY=:99
           export LIBGL_ALWAYS_SOFTWARE=1
+          # The first exact-head run proved GLX 4.5/llvmpipe was healthy but Torque's
+          # bundled SDL could not select its requested GLX visual. SDL itself provides
+          # a supported X11->EGL OpenGL fallback, so use that engine/runtime path rather
+          # than weakening the requirement to accept the Torque Null renderer.
+          export SDL_VIDEO_X11_FORCE_EGL=1
           extract_dir="$RUNNER_TEMP/torque3d-render"
           mkdir -p "$extract_dir"
           unzip -q "$EVIDENCE_DIR/$ASSET_NAME" -d "$extract_dir"
@@ -90,6 +95,8 @@ jobs:
           file "$binary" | tee "$EVIDENCE_DIR/binary-file.txt"
           grep -Eq 'ELF .*executable' "$EVIDENCE_DIR/binary-file.txt"
           ldd "$binary" > "$EVIDENCE_DIR/ldd.txt" 2>&1 || true
+          printf 'SDL_VIDEO_X11_FORCE_EGL=%s\nLIBGL_ALWAYS_SOFTWARE=%s\n' \
+            "$SDL_VIDEO_X11_FORCE_EGL" "$LIBGL_ALWAYS_SOFTWARE" > "$EVIDENCE_DIR/render-environment.txt"
 
           cleanup() {
             if [[ -n "${runtime_pid:-}" ]]; then
@@ -115,7 +122,7 @@ jobs:
             sleep 1
             wmctrl -lx > "$EVIDENCE_DIR/windows-${i}.txt" 2>/dev/null || true
             cat "$EVIDENCE_DIR/windows-${i}.txt" >> "$EVIDENCE_DIR/windows.txt"
-            window_id="$(awk 'NF >= 4 {print $1; exit}' "$EVIDENCE_DIR/windows-${i}.txt")"
+            window_id="$(awk '$4 != "N/A" && NF >= 4 {print $1; exit}' "$EVIDENCE_DIR/windows-${i}.txt")"
             if [[ -n "$window_id" ]]; then break; fi
             if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
           done
@@ -148,6 +155,7 @@ jobs:
 
           jq -n \
             --arg status "$( [[ "$passed" == true ]] && echo pass || echo render-blocked )" \
+            --arg transport 'x11-egl-opengl' \
             --argjson runtime_executed true \
             --argjson null_renderer "$null_renderer" \
             --argjson glx_visual_failure "$glx_visual_failure" \
@@ -158,7 +166,7 @@ jobs:
             --argjson player_execution false \
             --argjson external_input_executed false \
             --argjson passed "$passed" \
-            '{status:$status,runtime_executed:$runtime_executed,null_renderer:$null_renderer,glx_visual_failure:$glx_visual_failure,opengl_marker:$opengl_marker,window_seen:$window_seen,screenshot_captured:$screenshot_captured,survived_five_seconds:$survived_five_seconds,player_execution:$player_execution,external_input_executed:$external_input_executed,passed:$passed}' \
+            '{status:$status,transport:$transport,runtime_executed:$runtime_executed,null_renderer:$null_renderer,glx_visual_failure:$glx_visual_failure,opengl_marker:$opengl_marker,window_seen:$window_seen,screenshot_captured:$screenshot_captured,survived_five_seconds:$survived_five_seconds,player_execution:$player_execution,external_input_executed:$external_input_executed,passed:$passed}' \
             > "$EVIDENCE_DIR/runtime-result.json"
 
           test "$passed" = true
