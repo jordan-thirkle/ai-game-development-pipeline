@@ -53,6 +53,7 @@ export function createVerificationPage(evidence, bundledArtifactSha256) {
     <div class="status">Build + QA evidence passed</div>
     <div class="actions">
       <a class="button button-primary" href="starter/dist/index.html">Open verified starter</a>
+      <a class="button" href="PROJECT_BRIEF.html">View project brief</a>
       <a class="button" href="VERIFICATION.txt">Open plain-text verification</a>
     </div>
     <section class="panel" aria-labelledby="facts-title">
