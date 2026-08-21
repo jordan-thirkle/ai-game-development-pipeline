@@ -8,6 +8,36 @@ const runSteps = [
 ];
 
 const SHA256_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const RECOVERABLE_TARGETS = new Set(['web', 'desktop', 'mobile']);
+const RECOVERABLE_MECHANICS = new Set(['collect', 'dodge', 'survive']);
+const MECHANIC_LABELS = {
+  collect: 'Collect a beacon',
+  dodge: 'Dodge to an exit',
+  survive: 'Survive 10 seconds'
+};
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+
+export function recoverableBriefValues(result) {
+  const brief = result?.brief;
+  if (brief == null) return null;
+  if (typeof brief !== 'object' || Array.isArray(brief)) throw new Error('Recovered brief is malformed.');
+  const { name, objective, targetPlatform, mechanic } = brief;
+  if (
+    typeof name !== 'string' ||
+    name.trim().length < 1 ||
+    name.length > 80 ||
+    CONTROL_CHARACTER_PATTERN.test(name)
+  ) throw new Error('Recovered brief name is invalid.');
+  if (
+    typeof objective !== 'string' ||
+    objective.trim().length < 1 ||
+    objective.length > 500 ||
+    CONTROL_CHARACTER_PATTERN.test(objective)
+  ) throw new Error('Recovered brief objective is invalid.');
+  if (!RECOVERABLE_TARGETS.has(targetPlatform)) throw new Error('Recovered brief target is invalid.');
+  if (!RECOVERABLE_MECHANICS.has(mechanic)) throw new Error('Recovered brief mechanic is invalid.');
+  return { name, objective, targetPlatform, mechanic };
+}
 
 export function buildInlineVerificationFacts(result) {
   if (result?.status !== 'pass' || !result.evidence) throw new Error('Latest run is not a passing evidence record.');
@@ -53,6 +83,7 @@ function safeRelativeUrl(value, pattern) {
 
 function assertRecoverableRun(result) {
   buildInlineVerificationFacts(result);
+  recoverableBriefValues(result);
   const playable = safeRelativeUrl(result.playable?.launchUrl, /^\/play\/sample\/$/);
   const download = safeRelativeUrl(result.download?.url, /^\/api\/pipeline\/downloads\/[0-9a-f-]+$/i);
   if (!playable || !download) throw new Error('Recovered artifact handles are not safe.');
@@ -95,6 +126,26 @@ function appendInlineVerification(result, container = document.querySelector('#r
   const first = container.firstElementChild;
   if (first) first.insertAdjacentElement('afterend', row);
   else container.append(row);
+}
+
+function restoreBriefForm(result) {
+  const values = recoverableBriefValues(result);
+  if (!values) return;
+  const name = document.querySelector('#brief-name');
+  const objective = document.querySelector('#brief-objective');
+  const target = document.querySelector('#brief-target');
+  const mechanic = document.querySelector('#brief-mechanic');
+  const advanced = document.querySelector('#creator-advanced');
+  const suggestion = document.querySelector('#creator-suggestion');
+  if (!name || !objective || !target || !mechanic) return;
+  name.value = values.name;
+  objective.value = values.objective;
+  target.value = values.targetPlatform;
+  mechanic.value = values.mechanic;
+  if (advanced) advanced.open = true;
+  if (suggestion) {
+    suggestion.textContent = `Starter shape: ${MECHANIC_LABELS[values.mechanic]} · restored from the latest verified run.`;
+  }
 }
 
 function restoreJourney() {
@@ -147,12 +198,15 @@ async function recoverLatestRun() {
   if (envelope?.available !== true || !envelope.run) throw new Error('Latest-run recovery response was malformed.');
   const result = envelope.run;
   const { playable, download } = assertRecoverableRun(result);
+  restoreBriefForm(result);
   restoreJourney();
   restoreEvidence(result, download);
   const message = document.querySelector('#run-message');
   if (message) {
     message.className = 'notice pass';
-    message.textContent = 'Recovered the latest verified run from this Studio session. No rebuild was needed.';
+    message.textContent = result.brief
+      ? 'Recovered the latest verified run and its Creator Mode brief from this Studio session. No rebuild or re-entry was needed.'
+      : 'Recovered the latest verified run from this Studio session. No rebuild was needed.';
   }
   const frame = document.querySelector('#play-frame');
   const panel = document.querySelector('#play-result');
