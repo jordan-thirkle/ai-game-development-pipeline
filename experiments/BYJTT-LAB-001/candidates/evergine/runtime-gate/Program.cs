@@ -30,8 +30,8 @@ var setVelocity = typeof(CharacterController3D).GetMethods(BindingFlags.Public |
 var frameworkVersion = typeof(Application).Assembly.GetName().Version?.ToString() ?? "unknown";
 var bulletVersion = typeof(BulletPhysicManager3D).Assembly.GetName().Version?.ToString() ?? "unknown";
 var head = Environment.GetEnvironmentVariable("CANDIDATE_HEAD_SHA") ?? "unknown";
-
-var fixedStepMatches = Math.Abs(physics.FixedTimeStep - FixedDt) <= 1e-7f;
+var fixedTimeStepSeconds = physics.FixedTimeStep;
+var fixedStepMatches = Math.Abs(fixedTimeStepSeconds - FixedDt) <= 1e-7f;
 var constantsMatch = ArenaWidthM == 24.0f
     && ArenaDepthM == 32.0f
     && logicalSpawn == new Vector3(0.0f, 0.0f, 10.0f)
@@ -58,7 +58,7 @@ var result = new
     capsule_collider_instantiated = true,
     static_body_instantiated = true,
     set_velocity_api_present = setVelocity is not null,
-    fixed_timestep_seconds = physics.FixedTimeStep,
+    fixed_timestep_seconds = fixedTimeStepSeconds,
     fixed_timestep_matches_contract = fixedStepMatches,
     arena_width_m = ArenaWidthM,
     arena_depth_m = ArenaDepthM,
