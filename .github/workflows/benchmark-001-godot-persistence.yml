@@ -1,0 +1,176 @@
+name: Benchmark 001 Godot persistence gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/godot/persistence-gate/**'
+      - '.github/workflows/benchmark-001-godot-persistence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persistence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GODOT_RELEASE_TAG: 4.7.1-stable
+      GODOT_URL: https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      EXPECTED_GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+      XDG_DATA_HOME: /tmp/byjtt-godot-user-data
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          EXPECTED_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'checked_out_sha=%s\nexpected_sha=%s\n' "$HEAD_SHA" "$EXPECTED_SHA" | tee /tmp/revision.txt
+          test "$HEAD_SHA" = "$EXPECTED_SHA"
+
+      - name: Verify shared save contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTRACT=experiments/BYJTT-LAB-001/shared/contract.json
+          jq -e '
+            .arena.width == 24 and .arena.depth == 32 and
+            .arena.player_spawn == [0,0,10] and .arena.salvage_spawn == [5,0,0] and
+            .player.walk_speed == 3.5 and .player.attack_damage == 34 and
+            .salvage.reward_count == 1 and .salvage.pickup_radius == 1.25 and
+            .upgrade.id == "damage-up-1" and .upgrade.damage_multiplier == 1.2 and
+            .save_contract.required_fields == ["schema_version","reward_count","selected_upgrades"] and
+            .save_contract.must_survive_restart == ["reward_count","selected_upgrades"]
+          ' "$CONTRACT" | tee /tmp/shared-save-contract-check.txt
+
+      - name: Download and verify pinned Godot runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output /tmp/godot.zip "$GODOT_URL"
+          OBSERVED_SHA="$(sha256sum /tmp/godot.zip | awk '{print $1}')"
+          printf 'release_tag=%s\nurl=%s\nexpected_sha256=%s\nobserved_sha256=%s\n' "$GODOT_RELEASE_TAG" "$GODOT_URL" "$EXPECTED_GODOT_SHA256" "$OBSERVED_SHA" | tee /tmp/godot-provenance.txt
+          test "$OBSERVED_SHA" = "$EXPECTED_GODOT_SHA256"
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee /tmp/godot-version.txt
+
+      - name: Parse project and scripts
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --editor --quit 2>&1 | tee /tmp/godot-parse.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script' /tmp/godot-parse.log
+
+      - name: Re-run unchanged progression prerequisite
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script progression-gate/progression_tracer.gd 2>&1 | tee /tmp/godot-progression-prerequisite.log
+          mapfile -t lines < <(grep '^BYJTT_RESULT=' /tmp/godot-progression-prerequisite.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_RESULT=}" | tee /tmp/progression-prerequisite-result.json
+          jq -e '.result == "pass" and .reward_count == 1 and (.selected_upgrades | index("damage-up-1")) != null and (.effective_attack_damage - 40.8 | fabs) < 0.0001 and .persistence_executed == false and (.failures | length) == 0' /tmp/progression-prerequisite-result.json
+
+      - name: Execute first-process progression and save
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$XDG_DATA_HOME"
+          mkdir -p "$XDG_DATA_HOME"
+          "$GODOT_BIN" --headless --path . --script persistence-gate/persistence_save_tracer.gd 2>&1 | tee /tmp/godot-persistence-save.log
+          mapfile -t lines < <(grep '^BYJTT_SAVE_RESULT=' /tmp/godot-persistence-save.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_SAVE_RESULT=}" | tee /tmp/persistence-save-result.json
+          jq -e '
+            .result == "pass" and .engine_persistence_api == "ConfigFile" and
+            .schema_version == 1 and .reward_count == 1 and
+            (.selected_upgrades | index("damage-up-1")) != null and
+            (.effective_attack_damage - 40.8 | fabs) < 0.0001 and
+            .save_action_press_count == 1 and .save_count == 1 and .save_file_exists == true and
+            .progression_earned_through_action_input == true and .save_triggered_through_gameplay_action == true and
+            .observation_mutation_isolated == true and
+            .direct_save_file_write_exposed_to_harness == false and
+            .direct_reward_grant_exposed == false and .direct_upgrade_grant_exposed == false and
+            .test_only_gameplay_mutation_shortcut == false and
+            .physical_os_input_executed == false and .rendered_execution == false and
+            (.failures | length) == 0
+          ' /tmp/persistence-save-result.json
+
+      - name: Execute second-process restart and restore
+        working-directory: experiments/BYJTT-LAB-001/candidates/godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path . --script persistence-gate/persistence_restore_tracer.gd 2>&1 | tee /tmp/godot-persistence-restore.log
+          mapfile -t lines < <(grep '^BYJTT_RESTORE_RESULT=' /tmp/godot-persistence-restore.log)
+          test "${#lines[@]}" -eq 1
+          printf '%s\n' "${lines[0]#BYJTT_RESTORE_RESULT=}" | tee /tmp/persistence-restore-result.json
+          jq -e '
+            .result == "pass" and .engine_persistence_api == "ConfigFile" and
+            .second_process_restore_executed == true and .loaded_from_disk == true and .load_count == 1 and
+            .schema_version == 1 and .reward_count == 1 and
+            (.selected_upgrades | index("damage-up-1")) != null and
+            (.effective_attack_damage - 40.8 | fabs) < 0.0001 and .save_file_exists == true and
+            .observation_mutation_isolated == true and
+            .direct_save_file_write_exposed_to_harness == false and
+            .direct_reward_grant_exposed == false and .direct_upgrade_grant_exposed == false and
+            .test_only_gameplay_mutation_shortcut == false and
+            .physical_os_input_executed == false and .rendered_execution == false and
+            (.failures | length) == 0
+          ' /tmp/persistence-restore-result.json
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          : > /tmp/evidence-sha256.txt
+          for file in \
+            /tmp/revision.txt \
+            /tmp/shared-save-contract-check.txt \
+            /tmp/godot-provenance.txt \
+            /tmp/godot-version.txt \
+            /tmp/godot-parse.log \
+            /tmp/godot-progression-prerequisite.log \
+            /tmp/progression-prerequisite-result.json \
+            /tmp/godot-persistence-save.log \
+            /tmp/persistence-save-result.json \
+            /tmp/godot-persistence-restore.log \
+            /tmp/persistence-restore-result.json; do
+            if [ -f "$file" ]; then sha256sum "$file" >> /tmp/evidence-sha256.txt; fi
+          done
+          cat /tmp/evidence-sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: godot-persistence-gate-${{ github.run_id }}
+          path: |
+            /tmp/revision.txt
+            /tmp/shared-save-contract-check.txt
+            /tmp/godot-provenance.txt
+            /tmp/godot-version.txt
+            /tmp/godot-parse.log
+            /tmp/godot-progression-prerequisite.log
+            /tmp/progression-prerequisite-result.json
+            /tmp/godot-persistence-save.log
+            /tmp/persistence-save-result.json
+            /tmp/godot-persistence-restore.log
+            /tmp/persistence-restore-result.json
+            /tmp/evidence-sha256.txt
+          if-no-files-found: warn
