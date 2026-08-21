@@ -35,12 +35,15 @@ jobs:
           npm --version | tee evidence/npm-version.txt
           printf 'expected_head=%s\nactual_head=%s\n' "$EXPECTED_SHA" "$ACTUAL_SHA" | tee evidence/exact-head.txt
 
-      - name: Install exact direct dependencies
+      - name: Materialize and verify exact dependency graph
         shell: bash
         run: |
           set -euo pipefail
-          npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-install.log
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-lock-materialize.log
+          sha256sum -c package-lock.sha256 2>&1 | tee evidence/package-lock-verify.log
           cp package-lock.json evidence/package-lock.json
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-ci.log
           npm ls --all --json > evidence/npm-tree.json
           node -e "const p=require('./node_modules/phaser/package.json'); if(p.version!=='4.1.0') throw new Error(p.version)"
 
