@@ -1,0 +1,26 @@
+if (isObject(BYJTTMoveMap))
+   BYJTTMoveMap.delete();
+new ActionMap(BYJTTMoveMap);
+
+$BYJTT::pressCount = 0;
+$BYJTT::releaseCount = 0;
+
+function BYJTTMoveRight(%val)
+{
+   if (%val > 0)
+   {
+      $BYJTT::pressCount++;
+      echo("BYJTT_INPUT_PRESS count=" @ $BYJTT::pressCount);
+   }
+   else
+   {
+      $BYJTT::releaseCount++;
+      echo("BYJTT_INPUT_RELEASE count=" @ $BYJTT::releaseCount);
+      if (isObject($BYJTT::player))
+         $BYJTT::releaseX = getWord($BYJTT::player.getPosition(), 0);
+   }
+
+   $mvRightAction = %val * 3.5;
+}
+
+BYJTTMoveMap.bind(keyboard, "d", BYJTTMoveRight);
