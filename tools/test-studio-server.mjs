@@ -75,7 +75,7 @@ test('capabilities disclose the fail-closed publishing boundary', async () => {
   await withServer({}, async (base) => {
     const response = await fetch(`${base}/api/pipeline/capabilities`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true });
+    assert.deepEqual(await response.json(), { mode: 'local-sample', dryRunOnly: true, secretsRequired: false, publicationSupported: false, localBundleDownload: true, latestRunRecovery: true, latestRunReset: true });
   });
 });
 
@@ -170,11 +170,34 @@ test('latest run is explicitly unavailable before success and recovers exact in-
   });
 });
 
-test('latest-run recovery rejects cross-origin reads and non-GET methods', async () => {
+test('latest-run reset invalidates recovered evidence, playable, and download handles', async () => {
+  await withServer({}, async (base) => {
+    const run = await fetch(`${base}/api/pipeline/brief-runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'First Project', objective: 'Create then explicitly leave this project.', targetPlatform: 'web', mechanic: 'collect' })
+    });
+    assert.equal(run.status, 201);
+    const created = await run.json();
+    assert.equal((await fetch(`${base}${created.playable.launchUrl}`)).status, 200);
+    assert.equal((await fetch(`${base}${created.download.url}`)).status, 200);
+    const reset = await fetch(`${base}/api/pipeline/runs/latest`, { method: 'DELETE' });
+    assert.equal(reset.status, 200);
+    assert.deepEqual(await reset.json(), { reset: true });
+    assert.deepEqual(await (await fetch(`${base}/api/pipeline/runs/latest`)).json(), { available: false });
+    assert.equal((await fetch(`${base}${created.playable.launchUrl}`)).status, 404);
+    assert.equal((await fetch(`${base}${created.download.url}`)).status, 404);
+    const repeated = await fetch(`${base}/api/pipeline/runs/latest`, { method: 'DELETE' });
+    assert.equal(repeated.status, 200, 'reset should remain safely idempotent after state is cleared');
+  });
+});
+
+test('latest-run access rejects cross-origin requests, unsupported methods, and reset bodies', async () => {
   await withServer({}, async (base) => {
     assert.equal((await fetch(`${base}/api/pipeline/runs/latest`, { method: 'POST' })).status, 405);
+    assert.equal((await fetch(`${base}/api/pipeline/runs/latest`, { method: 'DELETE', body: 'unsafe' })).status, 400);
     const port = new URL(base).port;
-    const crossOrigin = await fetch(`${base}/api/pipeline/runs/latest`, { headers: { host: `evil.test:${port}`, origin: `http://evil.test:${port}` } });
+    const crossOrigin = await fetch(`${base}/api/pipeline/runs/latest`, { method: 'DELETE', headers: { host: `evil.test:${port}`, origin: `http://evil.test:${port}` } });
     assert.equal(crossOrigin.status, 403);
   });
 });
@@ -193,7 +216,7 @@ test('a fresh failed run invalidates the previous successful playable result and
   });
 });
 
-test('run endpoint rejects other methods and concurrent execution', async () => {
+test('run endpoint rejects other methods and concurrent execution, including reset during a run', async () => {
   let release;
   const pending = new Promise((resolve) => { release = resolve; });
   await withServer({ execute: () => pending }, async (base) => {
@@ -202,6 +225,8 @@ test('run endpoint rejects other methods and concurrent execution', async () => 
     await new Promise((resolve) => setTimeout(resolve, 20));
     const second = await fetch(`${base}/api/pipeline/runs`, { method: 'POST' });
     assert.equal(second.status, 409);
+    const reset = await fetch(`${base}/api/pipeline/runs/latest`, { method: 'DELETE' });
+    assert.equal(reset.status, 409);
     release({ status: 'pass' });
     assert.equal((await first).status, 201);
   });
