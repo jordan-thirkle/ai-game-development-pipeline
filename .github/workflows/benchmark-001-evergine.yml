@@ -1,0 +1,124 @@
+name: Benchmark 001 Evergine runtime gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/evergine/runtime-gate/**'
+      - '.github/workflows/benchmark-001-evergine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/evergine/runtime-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Record exact environment and lock state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/artifacts/runtime-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          if git ls-files --error-unmatch "$GATE/packages.lock.json" >/dev/null 2>&1; then
+            echo 'COMMITTED_LOCK=true' >> "$GITHUB_ENV"
+          else
+            echo 'COMMITTED_LOCK=false' >> "$GITHUB_ENV"
+          fi
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "dotnet_sdk=$(dotnet --version)"
+            echo "os=$(uname -a)"
+          } | tee "$GATE/artifacts/runtime-gate/environment.txt"
+          dotnet --info >> "$GATE/artifacts/runtime-gate/environment.txt"
+
+      - name: Resolve exact dependency graph
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$COMMITTED_LOCK" = true ]; then
+            dotnet restore EvergineRuntimeGate.csproj --locked-mode | tee artifacts/runtime-gate/restore.log
+          else
+            dotnet restore EvergineRuntimeGate.csproj --use-lock-file | tee artifacts/runtime-gate/restore.log
+          fi
+          cp packages.lock.json artifacts/runtime-gate/packages.lock.json
+          dotnet list EvergineRuntimeGate.csproj package --include-transitive | tee artifacts/runtime-gate/dependency-tree.txt
+
+      - name: Strict release build
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build EvergineRuntimeGate.csproj -c Release --no-restore /warnaserror | tee artifacts/runtime-gate/build.log
+
+      - name: Execute real Evergine engine assemblies
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project EvergineRuntimeGate.csproj -c Release --no-build -- artifacts/runtime-gate/result.json | tee artifacts/runtime-gate/runtime.log
+
+      - name: Assert machine-readable evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$GATE/artifacts/runtime-gate/result.json"
+          node - "$RESULT" "$CANDIDATE_HEAD_SHA" <<'NODE'
+          const fs = require('fs');
+          const [resultPath, head] = process.argv.slice(2);
+          const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          if (!r.passed || r.candidate_head_sha !== head) process.exit(1);
+          if (!r.application_executed || !r.bullet_physic_manager_instantiated || !r.character_controller_instantiated) process.exit(1);
+          if (!r.capsule_collider_instantiated || !r.static_body_instantiated || !r.set_velocity_api_present) process.exit(1);
+          if (!r.fixed_timestep_matches_contract || !r.shared_constants_match) process.exit(1);
+          if (r.native_physics_world_executed !== false || r.character_movement_executed !== false) process.exit(1);
+          if (r.external_input_executed !== false || r.rendered_execution !== false || r.post_physics_arena_clamp !== false) process.exit(1);
+          NODE
+          sha256sum \
+            "$GATE/EvergineRuntimeGate.csproj" \
+            "$GATE/Program.cs" \
+            "$GATE/README.md" \
+            "$GATE/artifacts/runtime-gate/environment.txt" \
+            "$GATE/artifacts/runtime-gate/packages.lock.json" \
+            "$GATE/artifacts/runtime-gate/dependency-tree.txt" \
+            "$GATE/artifacts/runtime-gate/restore.log" \
+            "$GATE/artifacts/runtime-gate/build.log" \
+            "$GATE/artifacts/runtime-gate/runtime.log" \
+            "$RESULT" \
+            > "$GATE/artifacts/runtime-gate/SHA256SUMS.txt"
+
+      - name: Require committed dependency lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$COMMITTED_LOCK" != true ]; then
+            echo 'Failing closed: packages.lock.json was generated by this run and must be committed unchanged before a successful exact-head proof.' >&2
+            exit 1
+          fi
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-evergine-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/evergine/runtime-gate/artifacts/runtime-gate/**
+          if-no-files-found: error
+          retention-days: 30
