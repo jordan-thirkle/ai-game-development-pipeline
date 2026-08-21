@@ -10,8 +10,12 @@ const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
+  let pipelinePosts = 0;
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && /\/api\/pipeline\/(brief-runs|runs)$/.test(new URL(request.url()).pathname)) pipelinePosts += 1;
+  });
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
   const response = await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Studio HTTP ${response?.status()}`);
@@ -64,10 +68,55 @@ try {
   const bundleBytes = await bundleResponse.body();
   assert.equal(bundleBytes[0], 0x1f);
   assert.equal(bundleBytes[1], 0x8b);
+  assert.equal(pipelinePosts, 1, 'initial brief flow should execute exactly one pipeline POST');
+
+  const latestResponse = await page.request.get(new URL('/api/pipeline/runs/latest', baseURL).href);
+  assert.equal(latestResponse.ok(), true, `latest run HTTP ${latestResponse.status()}`);
+  const latestEnvelope = await latestResponse.json();
+  assert.equal(latestEnvelope.available, true, 'latest run was not available for recovery checks');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('Recovered the latest verified run'), null, { timeout: 10000 });
+  assert.equal(pipelinePosts, 1, 'page refresh must not rebuild the project to recover the latest run');
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'refresh recovery did not restore all six passing stages');
+  assert.equal(await page.locator('#play-result').isVisible(), true, 'refresh recovery did not restore the playable result');
+  assert.match(await page.locator('#run-evidence').textContent(), /Harbour Run/);
+  const recoveredDownload = page.getByRole('link', { name: 'Download starter bundle' });
+  assert.equal(await recoveredDownload.count(), 1, 'refresh recovery did not restore the verified starter download');
+  assert.equal(await recoveredDownload.getAttribute('href'), new URL(href, baseURL).href, 'refresh recovery changed the in-session artifact handle');
+  assert.equal((await page.request.get(new URL(href, baseURL).href)).ok(), true, 'recovered starter handle was no longer usable');
+
+  const unsafePage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await unsafePage.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
+    await unsafePage.route('**/api/pipeline/runs/latest', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...latestEnvelope,
+        run: {
+          ...latestEnvelope.run,
+          safety: {
+            ...latestEnvelope.run.safety,
+            destination: { kind: 'remote', target: 'https://example.invalid/publish' }
+          }
+        }
+      })
+    }));
+    const unsafeResponse = await unsafePage.goto(baseURL, { waitUntil: 'domcontentloaded' });
+    assert(unsafeResponse?.ok(), `unsafe recovery Studio HTTP ${unsafeResponse?.status()}`);
+    await unsafePage.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('Latest run was not restored'), null, { timeout: 10000 });
+    assert.match(await unsafePage.locator('#run-message').textContent(), /publishing safety evidence did not pass/i);
+    assert.equal(await unsafePage.locator('#play-result').isVisible(), false, 'unsafe recovered destination exposed a playable result');
+    assert.equal(await unsafePage.locator('#run-evidence-panel').isVisible(), false, 'unsafe recovered destination exposed recovered evidence');
+  } finally {
+    await unsafePage.close();
+  }
 
   assert.deepEqual(errors, []);
-  await page.screenshot({ path: `${artifacts}/desktop-brief-run.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed with serialized controls and verified starter download.');
+  await page.screenshot({ path: `${artifacts}/desktop-brief-run-recovered.png`, fullPage: true });
+  console.log('Studio brief browser dogfood passed with serialized controls, verified starter download, zero-rebuild refresh recovery, and fail-closed recovered destinations.');
 } finally {
   await browser.close();
 }
