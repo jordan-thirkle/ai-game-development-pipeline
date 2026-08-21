@@ -1,0 +1,35 @@
+name: Verify Studio target truth
+
+on:
+  pull_request:
+    paths:
+      - 'tools/studio-brief.mjs'
+      - 'examples/sample-game/build.mjs'
+      - 'examples/sample-game/qa.mjs'
+      - 'tools/test-studio-target-truth.mjs'
+      - '.github/workflows/studio-target-truth.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  target-truth:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout candidate head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+      - name: Assert exact candidate revision
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install repository dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run adversarial target-truth tests and real sample dogfood
+        run: node --test tools/test-studio-target-truth.mjs
