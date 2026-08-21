@@ -124,7 +124,13 @@ jobs:
           test -n "$window_id"
           printf '%s\n' "$window_id" > "$EVIDENCE_DIR/window-id.txt"
           xwininfo -id "$window_id" > "$EVIDENCE_DIR/window-info.txt" 2>&1
-          xdotool windowactivate --sync "$window_id"
+          # Openbox on the hosted Xvfb runner does not expose _NET_ACTIVE_WINDOW.
+          # Use direct X11 focus instead of the EWMH activation path, then prove the
+          # actual focused window before sending any physical key events.
+          xdotool windowfocus --sync "$window_id"
+          focused_window="$(xdotool getwindowfocus)"
+          printf 'target_window=%s\nfocused_window=%s\n' "$window_id" "$focused_window" | tee "$EVIDENCE_DIR/focus.txt"
+          test "$focused_window" = "$window_id"
           sleep 1
           import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/before-input.png"
           test -s "$EVIDENCE_DIR/before-input.png"
