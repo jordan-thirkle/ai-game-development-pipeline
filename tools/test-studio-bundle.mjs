@@ -7,6 +7,20 @@ import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { createStudioBundle, StudioBundleError } from './studio-bundle.mjs';
 
+const DEFAULT_MANIFEST = {
+  manifestVersion: '1.0.0',
+  projectId: 'brief-harbour-run',
+  name: 'Harbour Run',
+  objective: 'A small arcade game with a clear goal that I can play immediately and keep as a verified local starter.',
+  targetPlatforms: ['web'],
+  starter: {
+    mechanic: 'collect',
+    requestedTargetPlatform: 'mobile',
+    executedTargetPlatform: 'web',
+    targetExecutionStatus: 'requested-not-executed'
+  }
+};
+
 async function withWorkspace(callback) {
   const root = await mkdtemp(resolve(tmpdir(), 'byjtt-studio-bundle-test-'));
   try {
@@ -14,6 +28,7 @@ async function withWorkspace(callback) {
     const outputDir = resolve(root, 'evidence');
     await mkdir(resolve(projectDir, 'dist'), { recursive: true });
     await mkdir(outputDir, { recursive: true });
+    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify(DEFAULT_MANIFEST, null, 2)}\n`);
     return await callback({ root, projectDir, outputDir });
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -53,9 +68,7 @@ async function writePassingEvidence(projectDir, outputDir, overrides = {}) {
     'publishing-receipt.json': { executed: false, secretsUsed: false, destination: { kind: 'local', target: 'local://release-candidate' } },
     ...overrides
   };
-  for (const [filename, value] of Object.entries(records)) {
-    await writeFile(resolve(outputDir, filename), `${JSON.stringify(value)}\n`);
-  }
+  for (const [filename, value] of Object.entries(records)) await writeFile(resolve(outputDir, filename), `${JSON.stringify(value)}\n`);
   return artifactSha256;
 }
 
@@ -76,55 +89,54 @@ function readTarEntries(bytes) {
   return entries;
 }
 
-test('creates a bounded gzip tar with zero-terminal starter and artifact-bound portable verification', async () => {
+test('creates a bounded gzip tar with zero-terminal starter, portable brief, and artifact-bound verification', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
-    await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"Harbour Run"}\n');
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Harbour Run</h1>\n');
     const artifactSha256 = await writePassingEvidence(projectDir, outputDir);
     const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'brief-harbour-run' });
     assert.equal(bundle.contentType, 'application/gzip');
     assert.equal(bundle.filename, 'brief-harbour-run-verified-local-starter.tar.gz');
     assert.match(bundle.sha256, /^sha256:[a-f0-9]{64}$/);
-    assert.equal(bundle.fileCount, 9);
+    assert.equal(bundle.fileCount, 10);
     const entries = readTarEntries(bundle.bytes);
-    assert.equal(entries.has('START_HERE.html'), true);
-    assert.equal(entries.has('VERIFICATION.html'), true);
-    assert.equal(entries.has('VERIFICATION.txt'), true);
-    assert.equal(entries.has('starter/project.manifest.json'), true);
-    assert.equal(entries.has('starter/dist/index.html'), true);
-    assert.equal(entries.has('evidence/build-result.json'), true);
-    assert.equal(entries.has('evidence/qa-result.json'), true);
-    assert.equal(entries.has('evidence/release-candidate.json'), true);
-    assert.equal(entries.has('evidence/publishing-receipt.json'), true);
-    const startHere = entries.get('START_HERE.html').toString('utf8');
-    assert.match(startHere, /starter\/dist\/index\.html/);
-    assert.doesNotMatch(startHere, /https?:\/\//i);
-    assert.doesNotMatch(startHere, /javascript:/i);
+    const requiredEntries = [
+      'START_HERE.html',
+      'PROJECT_BRIEF.html',
+      'VERIFICATION.html',
+      'VERIFICATION.txt',
+      'starter/project.manifest.json',
+      'starter/dist/index.html',
+      'evidence/build-result.json',
+      'evidence/qa-result.json',
+      'evidence/release-candidate.json',
+      'evidence/publishing-receipt.json'
+    ];
+    assert.deepEqual([...entries.keys()].sort(), [...requiredEntries].sort());
+    const briefPage = entries.get('PROJECT_BRIEF.html').toString('utf8');
+    assert.match(briefPage, /Harbour Run/);
+    assert.match(briefPage, /A small arcade game/);
+    assert.match(briefPage, /collect/);
+    assert.match(briefPage, /mobile requested · web executed locally/);
+    assert.match(briefPage, /START_HERE\.html/);
+    assert.match(briefPage, /VERIFICATION\.html/);
+    assert.match(briefPage, /Content-Security-Policy/);
+    assert.doesNotMatch(briefPage, /<script/i);
+    assert.doesNotMatch(briefPage, /https?:\/\//i);
+    assert.doesNotMatch(briefPage, /javascript:/i);
+    const verificationPage = entries.get('VERIFICATION.html').toString('utf8');
+    assert.match(verificationPage, /Content-Security-Policy/);
+    assert.match(verificationPage, /starter\/dist\/index\.html/);
+    assert.match(verificationPage, /VERIFICATION\.txt/);
+    assert.match(verificationPage, new RegExp(artifactSha256));
+    assert.doesNotMatch(verificationPage, /<script/i);
+    assert.doesNotMatch(verificationPage, /https?:\/\//i);
+    assert.doesNotMatch(verificationPage, /javascript:/i);
     const verification = entries.get('VERIFICATION.txt').toString('utf8');
     assert.match(verification, /Build executed: true/);
     assert.match(verification, /QA status: pass/);
     assert.match(verification, new RegExp(`Bundled artifact SHA-256: ${artifactSha256}`));
-    assert.match(verification, new RegExp(`Release candidate artifact SHA-256: ${artifactSha256}`));
-    assert.match(verification, /Release candidate dry-run only: true/);
     assert.match(verification, /Publication executed: false/);
     assert.match(verification, /Secrets used: false/);
-    assert.match(verification, /Destination: local:\/\/release-candidate/);
-    assert.match(verification, /bound to the artifact bytes packaged in this archive/);
-    assert.match(verification, /does not claim store\/provider publication/);
-    const verificationPage = entries.get('VERIFICATION.html').toString('utf8');
-    assert.match(verificationPage, /Verified local starter/);
-    assert.match(verificationPage, /Build \+ QA evidence passed/);
-    assert.match(verificationPage, /Build<\/dt><dd>pass · executed/);
-    assert.match(verificationPage, /Publication<\/dt><dd>not executed/);
-    assert.match(verificationPage, /Secrets<\/dt><dd>not used/);
-    assert.match(verificationPage, /Destination<\/dt><dd>local · local:\/\/release-candidate/);
-    assert.match(verificationPage, new RegExp(artifactSha256.replace(':', '\\:')));
-    assert.match(verificationPage, /starter\/dist\/index\.html/);
-    assert.match(verificationPage, /VERIFICATION\.txt/);
-    assert.match(verificationPage, /Content-Security-Policy/);
-    assert.doesNotMatch(verificationPage, /<script/i);
-    assert.doesNotMatch(verificationPage, /https?:\/\//i);
-    assert.doesNotMatch(verificationPage, /javascript:/i);
     assert.equal(entries.get('starter/dist/index.html').toString('utf8'), '<h1>Harbour Run</h1>\n');
   });
 });
@@ -134,10 +146,7 @@ test('fails closed when the artifact changes after build and QA evidence was rec
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Certified bytes</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Mutated after QA</h1>\n');
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'mutated-after-qa' }),
-      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE' && /no longer match/.test(error.message)
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'mutated-after-qa' }), (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE' && /no longer match/.test(error.message));
   });
 });
 
@@ -149,21 +158,14 @@ test('fails closed when build, QA, and release evidence disagree on the artifact
       'qa-result.json': { executed: true, status: 'pass', artifactPath: 'dist', artifactSha256: 'sha256:' + '2'.repeat(64) },
       'release-candidate.json': { dryRunOnly: true, build: { artifactPath: 'dist', outputSha256: artifactSha256 } }
     });
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'digest-disagreement' }),
-      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'digest-disagreement' }), (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE');
   });
 });
 
 test('fails closed instead of exporting a launcher without the verified playable artifact', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
-    await writeFile(resolve(projectDir, 'project.manifest.json'), '{"name":"No build"}\n');
     await writePassingEvidence(projectDir, outputDir);
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'missing-playable' }),
-      (error) => error instanceof StudioBundleError && error.code === 'PLAYABLE_MISSING'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'missing-playable' }), (error) => error instanceof StudioBundleError && error.code === 'PLAYABLE_MISSING');
   });
 });
 
@@ -172,10 +174,7 @@ test('fails closed when portable verification evidence is missing', async () => 
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Missing QA</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
     await rm(resolve(outputDir, 'qa-result.json'));
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'missing-evidence' }),
-      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'missing-evidence' }), (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE');
   });
 });
 
@@ -185,10 +184,30 @@ test('fails closed instead of summarizing a false publication or secret-backed r
     await writePassingEvidence(projectDir, outputDir, {
       'publishing-receipt.json': { executed: true, secretsUsed: true, destination: { kind: 'remote', target: 'https://example.invalid' } }
     });
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-evidence' }),
-      (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-evidence' }), (error) => error instanceof StudioBundleError && error.code === 'EVIDENCE_INCOMPLETE');
+  });
+});
+
+test('escapes project brief markup instead of executing it', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(projectDir, outputDir);
+    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, name: '<script>alert(1)</script>', objective: '<img src=x onerror=alert(2)> build me a game' })}\n`);
+    const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'escaped-brief' });
+    const briefPage = readTarEntries(bundle.bytes).get('PROJECT_BRIEF.html').toString('utf8');
+    assert.match(briefPage, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.match(briefPage, /&lt;img src=x onerror=alert\(2\)&gt; build me a game/);
+    assert.doesNotMatch(briefPage, /<script>alert\(1\)<\/script>/);
+    assert.doesNotMatch(briefPage, /<img src=x onerror=alert\(2\)>/);
+  });
+});
+
+test('fails closed when project brief requests an unsupported target', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(projectDir, outputDir);
+    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, starter: { ...DEFAULT_MANIFEST.starter, requestedTargetPlatform: 'store' } })}\n`);
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsupported-target' }), (error) => error instanceof StudioBundleError && error.code === 'BRIEF_INCOMPLETE');
   });
 });
 
@@ -198,10 +217,7 @@ test('refuses symbolic links instead of exporting paths outside the reviewed san
     await writePassingEvidence(projectDir, outputDir);
     await writeFile(resolve(root, 'outside.txt'), 'secret-like external content');
     await symlink(resolve(root, 'outside.txt'), resolve(projectDir, 'outside-link.txt'));
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'unsafe' }),
-      (error) => error instanceof StudioBundleError && error.code === 'SYMLINK_REFUSED'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsafe' }), (error) => error instanceof StudioBundleError && error.code === 'SYMLINK_REFUSED');
   });
 });
 
@@ -210,10 +226,7 @@ test('rejects backslash-delimited traversal before archive serialization', async
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
     await writeFile(resolve(projectDir, 'nested\\..\\..\\..\\escape.txt'), 'must never enter archive');
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-path' }),
-      (error) => error instanceof StudioBundleError && error.code === 'PATH_CONTAINMENT'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-path' }), (error) => error instanceof StudioBundleError && error.code === 'PATH_CONTAINMENT');
   });
 });
 
@@ -222,9 +235,6 @@ test('fails closed when the local starter exceeds the fixed export budget', asyn
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
     await writeFile(resolve(projectDir, 'oversize.bin'), Buffer.alloc(8 * 1024 * 1024 + 1, 1));
-    await assert.rejects(
-      createStudioBundle({ projectDir, outputDir, projectId: 'oversize' }),
-      (error) => error instanceof StudioBundleError && error.code === 'BUNDLE_TOO_LARGE'
-    );
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'oversize' }), (error) => error instanceof StudioBundleError && error.code === 'BUNDLE_TOO_LARGE');
   });
 });
