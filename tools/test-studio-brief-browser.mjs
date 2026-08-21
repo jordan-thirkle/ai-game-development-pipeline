@@ -32,8 +32,9 @@ try {
   assert.equal(await page.locator('#run-sample').isDisabled(), true, 'sample control remained active during a brief run');
   await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('opened below'), null, { timeout: 30000 });
   assert.equal(await page.locator('#run-brief').isEnabled(), true, 'brief control was not restored after the run');
-  assert.equal(await page.locator('#run-sample').isEnabled(), true, 'sample control was not restored after the run');
+  assert.equal(await page.locator('#run-sample').isEnabled(), true, 'sample control was not restored after a brief run');
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'brief flow did not prove all six local stages');
+  await page.waitForFunction(() => document.querySelector('#run-evidence')?.textContent.includes('Verification summary'), null, { timeout: 10000 });
   const evidence = await page.locator('#run-evidence').textContent();
   assert.match(evidence, /Applied brief/);
   assert.match(evidence, /Harbour Run/);
@@ -114,6 +115,20 @@ try {
   assert.equal(await recoveredDownload.getAttribute('href'), new URL(href, baseURL).href, 'refresh recovery changed the in-session artifact handle');
   assert.equal((await page.request.get(new URL(href, baseURL).href)).ok(), true, 'recovered starter handle was no longer usable');
 
+  const newProject = page.getByRole('button', { name: 'Start new project' });
+  assert.equal(await newProject.count(), 1, 'recovered result did not expose a Start new project action');
+  const reloaded = page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+  await newProject.click();
+  await reloaded;
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(pipelinePosts, 1, 'starting a new project must not execute another pipeline run');
+  assert.equal(await page.locator('#play-result').isVisible(), false, 'starting a new project left the previous playable visible');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(), false, 'starting a new project left previous evidence visible');
+  assert.match(await page.locator('#run-message').textContent(), /Ready\. Nothing has run yet\./);
+  assert.deepEqual(await (await page.request.get(new URL('/api/pipeline/runs/latest', baseURL).href)).json(), { available: false });
+  assert.equal((await page.request.get(expectedPlayableUrl)).status(), 404, 'reset did not invalidate the prior playable handle');
+  assert.equal((await page.request.get(new URL(href, baseURL).href)).status(), 404, 'reset did not invalidate the prior bundle handle');
+
   const unsafePage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   try {
     await unsafePage.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
@@ -166,8 +181,8 @@ try {
   }
 
   assert.deepEqual(errors, []);
-  await page.screenshot({ path: `${artifacts}/desktop-brief-run-recovered.png`, fullPage: true });
-  console.log('Studio brief browser dogfood passed through Creator Mode fine-tuning with serialized controls, verified starter download, recovered playable actions and brief values, zero-rebuild/re-entry refresh recovery, and fail-closed recovered destinations/briefs.');
+  await page.screenshot({ path: `${artifacts}/desktop-brief-run-reset.png`, fullPage: true });
+  console.log('Studio brief browser dogfood passed through Creator Mode, verified recovery, explicit zero-run Start new project reset with invalidated artifact handles, and fail-closed recovered destinations/briefs.');
 } finally {
   await browser.close();
 }
