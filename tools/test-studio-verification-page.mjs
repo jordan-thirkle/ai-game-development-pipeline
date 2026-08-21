@@ -31,11 +31,25 @@ test('renders concrete release candidate facts using only local, scriptless cont
   assert.match(html, />dist</);
   assert.match(html, /Candidate destination/);
   assert.match(html, /local:\/\/release-candidate/);
+  assert.match(html, /explicit candidate identity and destination provenance/);
   assert.match(html, /dry-run only/);
   assert.match(html, new RegExp(digest));
   assert.doesNotMatch(html, /<script/i);
   assert.doesNotMatch(html, /https?:\/\//i);
   assert.doesNotMatch(html, /javascript:/i);
+});
+
+test('renders legacy missing candidate identity and destination as unknown instead of inventing them', () => {
+  const evidence = safeEvidence();
+  delete evidence.releaseCandidate.candidateId;
+  delete evidence.releaseCandidate.destination;
+  const projection = releaseCandidateProjection(evidence);
+  assert.equal(projection.provenanceComplete, false);
+  assert.equal(projection.candidateId, 'unavailable in legacy evidence');
+  assert.equal(projection.destinationTarget, 'unavailable in legacy evidence');
+  const html = createVerificationPage(evidence, `sha256:${'a'.repeat(64)}`).toString('utf8');
+  assert.match(html, /unavailable in legacy evidence/);
+  assert.match(html, /rather than inferred/);
 });
 
 test('escapes candidate evidence text instead of turning it into executable markup', () => {
@@ -47,7 +61,7 @@ test('escapes candidate evidence text instead of turning it into executable mark
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
-test('fails closed when release candidate destination contradicts verified safety destination', () => {
+test('fails closed when supplied release candidate destination contradicts verified safety destination', () => {
   const evidence = safeEvidence('local://release-candidate');
   evidence.releaseCandidate.destination = { kind: 'local', target: 'local://different-candidate' };
   assert.throws(() => releaseCandidateProjection(evidence), /incomplete or contradicts/);
@@ -56,7 +70,7 @@ test('fails closed when release candidate destination contradicts verified safet
   assert.throws(() => releaseCandidateProjection(evidence), /incomplete or contradicts/);
 });
 
-test('fails closed on missing identity, non-dry-run state, unsafe artifact metadata, or malformed digest', () => {
+test('fails closed on malformed supplied identity, non-dry-run state, unsafe artifact metadata, or malformed digest', () => {
   for (const mutate of [
     (evidence) => { evidence.releaseCandidate.candidateId = ''; },
     (evidence) => { evidence.releaseCandidate.candidateId = 'bad\nidentity'; },
