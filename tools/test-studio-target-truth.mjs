@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import process from 'node:process';
 import test from 'node:test';
 import { applyStudioBrief } from './studio-brief.mjs';
 import { scaffoldSampleProject } from './run-pipeline.mjs';
@@ -37,6 +40,38 @@ for (const requestedTarget of ['web', 'desktop', 'mobile']) {
     }
   });
 }
+
+test('QA rejects a forged non-web execution claim even when the artifact metadata agrees with it', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'studio-target-forgery-'));
+  const project = join(root, 'starter');
+  const dist = join(project, 'dist');
+  try {
+    await mkdir(dist, { recursive: true });
+    await writeFile(join(project, 'project.manifest.json'), JSON.stringify({
+      name: 'Forged desktop run',
+      objective: 'This must not count as desktop execution.',
+      targetPlatforms: ['desktop'],
+      starter: { mechanic: 'collect', requestedTargetPlatform: 'desktop', executedTargetPlatform: 'desktop' }
+    }), 'utf8');
+    await writeFile(join(dist, 'game.txt'), 'sample-game build artifact\n', 'utf8');
+    await writeFile(join(dist, 'build.json'), JSON.stringify({
+      name: 'Forged desktop run',
+      objective: 'This must not count as desktop execution.',
+      target: 'desktop',
+      executedTarget: 'desktop',
+      mechanic: 'collect',
+      format: 'local-demo',
+      version: 3
+    }), 'utf8');
+    await writeFile(join(dist, 'index.html'), '<canvas id="game"></canvas><div class="objective"></div><span>Target: desktop (requested) · Local execution: desktop</span><script>requestAnimationFrame(frame)</script>', 'utf8');
+    const qaScript = fileURLToPath(new URL('../examples/sample-game/qa.mjs', import.meta.url));
+    const result = spawnSync(process.execPath, [qaScript, dist], { encoding: 'utf8' });
+    assert.notEqual(result.status, 0, 'QA accepted a forged desktop execution claim');
+    assert.match(result.stderr, /sample artifact contract failed/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('real mobile-requested Studio sample builds and QA-passes without becoming a mobile execution claim', async () => {
   const result = await executeSampleRun({ brief: { ...baseBrief, targetPlatform: 'mobile' } });
