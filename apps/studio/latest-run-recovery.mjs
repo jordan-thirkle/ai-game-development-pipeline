@@ -193,6 +193,45 @@ async function fetchLatestRun() {
   return response.json();
 }
 
+async function resetLatestRun() {
+  const response = await fetch('/api/pipeline/runs/latest', { method: 'DELETE', headers: { accept: 'application/json' } });
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json()).error || ''; } catch {}
+    throw new Error(detail || `Latest-run reset failed (${response.status}).`);
+  }
+  const payload = await response.json();
+  if (payload?.reset !== true) throw new Error('Latest-run reset response was malformed.');
+}
+
+function ensureStartNewProjectAction() {
+  if (document.querySelector('#start-new-project')) return;
+  const header = document.querySelector('#play-result header');
+  if (!header) return;
+  const button = document.createElement('button');
+  button.className = 'btn';
+  button.id = 'start-new-project';
+  button.type = 'button';
+  button.textContent = 'Start new project';
+  button.style.float = 'right';
+  button.style.marginRight = '8px';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    const message = document.querySelector('#run-message');
+    try {
+      await resetLatestRun();
+      location.reload();
+    } catch (error) {
+      button.disabled = false;
+      if (message) {
+        message.className = 'notice fail';
+        message.textContent = `New project was not started: ${error.message}`;
+      }
+    }
+  });
+  header.append(button);
+}
+
 async function recoverLatestRun() {
   const envelope = await fetchLatestRun();
   if (envelope?.available === false) return;
@@ -216,6 +255,7 @@ async function recoverLatestRun() {
     panel.classList.remove('hidden');
   }
   document.querySelector('#open-result')?.addEventListener('click', () => window.open(playable.href, '_blank', 'noopener,noreferrer'));
+  ensureStartNewProjectAction();
 }
 
 function watchFreshRuns() {
@@ -223,6 +263,7 @@ function watchFreshRuns() {
   if (!container || typeof MutationObserver === 'undefined') return;
   let checking = false;
   const observer = new MutationObserver(async () => {
+    if (container.children.length > 0) ensureStartNewProjectAction();
     if (checking || container.querySelector('[data-inline-verification="true"]') || container.children.length === 0) return;
     checking = true;
     try {
