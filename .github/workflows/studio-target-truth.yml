@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
       - name: Assert exact candidate revision
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
       - name: Setup Node
