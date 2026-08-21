@@ -173,12 +173,26 @@ test('fails closed instead of summarizing a false publication or secret-backed r
   });
 });
 
-test('fails closed when project brief tries to smuggle markup or an unsupported target', async () => {
+test('escapes project brief markup instead of executing it', async () => {
   await withWorkspace(async ({ projectDir, outputDir }) => {
     await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
     await writePassingEvidence(projectDir, outputDir);
-    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, name: '<script>alert(1)</script>', starter: { ...DEFAULT_MANIFEST.starter, requestedTargetPlatform: 'store' } })}\n`);
-    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsafe-brief' }), (error) => error instanceof StudioBundleError && error.code === 'BRIEF_INCOMPLETE');
+    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, name: '<script>alert(1)</script>', objective: '<img src=x onerror=alert(2)> build me a game' })}\n`);
+    const bundle = await createStudioBundle({ projectDir, outputDir, projectId: 'escaped-brief' });
+    const briefPage = readTarEntries(bundle.bytes).get('PROJECT_BRIEF.html').toString('utf8');
+    assert.match(briefPage, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.match(briefPage, /&lt;img src=x onerror=alert\(2\)&gt; build me a game/);
+    assert.doesNotMatch(briefPage, /<script>alert\(1\)<\/script>/);
+    assert.doesNotMatch(briefPage, /<img src=x onerror=alert\(2\)>/);
+  });
+});
+
+test('fails closed when project brief requests an unsupported target', async () => {
+  await withWorkspace(async ({ projectDir, outputDir }) => {
+    await writeFile(resolve(projectDir, 'dist', 'index.html'), '<h1>Safe</h1>\n');
+    await writePassingEvidence(projectDir, outputDir);
+    await writeFile(resolve(projectDir, 'project.manifest.json'), `${JSON.stringify({ ...DEFAULT_MANIFEST, starter: { ...DEFAULT_MANIFEST.starter, requestedTargetPlatform: 'store' } })}\n`);
+    await assert.rejects(createStudioBundle({ projectDir, outputDir, projectId: 'unsupported-target' }), (error) => error instanceof StudioBundleError && error.code === 'BRIEF_INCOMPLETE');
   });
 });
 
