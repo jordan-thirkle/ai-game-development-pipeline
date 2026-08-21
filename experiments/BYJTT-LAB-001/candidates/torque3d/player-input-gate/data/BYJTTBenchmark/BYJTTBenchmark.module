@@ -1,0 +1,11 @@
+<ModuleDefinition
+    ModuleId="BYJTTBenchmark"
+    VersionId="1"
+    Group="Game"
+    scriptFile="BYJTTBenchmark.tscript"
+    CreateFunction="onCreate"
+    DestroyFunction="onDestroy">
+    <DeclaredAssets
+        Extension="asset.taml"
+        Recurse="true"/>
+</ModuleDefinition>
