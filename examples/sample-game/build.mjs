@@ -5,7 +5,11 @@ import { fileURLToPath } from 'node:url';
 const project = dirname(fileURLToPath(import.meta.url));
 const output = resolve(project, 'dist');
 const manifest = JSON.parse(await readFile(resolve(project, 'project.manifest.json'), 'utf8'));
-const executedTarget = manifest.targetPlatforms?.[0] || 'web';
+const executedTargets = manifest.targetPlatforms;
+if (!Array.isArray(executedTargets) || executedTargets.length !== 1 || executedTargets[0] !== 'web') {
+  throw new Error('Local sample build refuses non-web execution claims.');
+}
+const executedTarget = 'web';
 const requestedTarget = manifest.starter?.requestedTargetPlatform || executedTarget;
 const mechanic = manifest.starter?.mechanic || 'collect';
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
