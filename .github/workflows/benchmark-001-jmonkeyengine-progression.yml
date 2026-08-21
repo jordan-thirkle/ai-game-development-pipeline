@@ -1,0 +1,84 @@
+name: Benchmark 001 jMonkeyEngine Minie progression gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/progression-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-progression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  progression-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/progression-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/progression-gate/pom.xml
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Strict compile verify and package
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee evidence/maven-verify.log
+      - name: Capture and assert dependency graph
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-desktop:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' evidence/dependency-tree.txt
+      - name: Execute native Minie progression gate
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee evidence/runtime.log
+      - name: Assert machine-readable progression evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$CANDIDATE/evidence/runtime-result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.minie_native_loaded || r.start_distance_metres < 11.17 || r.start_distance_metres > 11.19 || r.movement_steps <= 0 || r.attack_distance_metres < 0 || r.attack_distance_metres > 1.8 || r.pickup_distance_metres < 0 || r.pickup_distance_metres > 1.25 || r.salvage_health !== 0 || !r.salvage_broken || r.reward_available || r.reward_count !== 1 || !r.damage_upgrade_selected || Math.abs(r.effective_attack_damage-40.8) > 0.0001 || !r.stayed_inside_arena || !r.observation_mutation_isolation || !r.gameplay_attack_action_executed || !r.gameplay_interact_action_executed || r.direct_position_setter_exposed || r.direct_salvage_health_setter_exposed || r.direct_reward_grant_exposed || r.direct_upgrade_grant_exposed || r.post_physics_arena_clamp || r.external_input_executed) process.exit(1);' "$RESULT"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/benchmark/JmeMinieProgressionGate.java" \
+            "$CANDIDATE/evidence/environment.txt" \
+            "$CANDIDATE/evidence/maven-verify.log" \
+            "$CANDIDATE/evidence/dependency-tree.txt" \
+            "$CANDIDATE/evidence/runtime.log" \
+            "$RESULT" > "$CANDIDATE/evidence/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-progression-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/progression-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
