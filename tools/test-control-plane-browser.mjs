@@ -47,6 +47,26 @@ await record('all navigation surfaces',async()=>{
   await page.close();
 });
 
+await record('Creator Mode is idea-first with optional progressive disclosure',async()=>{
+  const {page,consoleErrors}=await open({width:1280,height:800});
+  await page.locator('[data-view="local-run"]').click();
+  assert.match(await page.locator('#local-run').textContent(),/Creator Mode/i);
+  assert.equal(await page.locator('#brief-name').isVisible(),true,'game-name input is not immediately visible');
+  assert.equal(await page.locator('#brief-objective').isVisible(),true,'idea input is not immediately visible');
+  assert.equal(await page.locator('#creator-advanced').getAttribute('open'),null,'advanced controls opened by default');
+  assert.equal(await page.locator('#brief-target').isVisible(),false,'target leaked into the default beginner surface');
+  assert.equal(await page.locator('#brief-mechanic').isVisible(),false,'mechanic leaked into the default beginner surface');
+  assert.equal(await page.locator('#brief-target').inputValue(),'web','Creator Mode default target changed');
+  assert.equal(await page.locator('#brief-mechanic').inputValue(),'collect','Creator Mode default mechanic changed');
+  const summary=page.locator('#creator-advanced summary');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#brief-target').isVisible(),true,'advanced target was not keyboard-revealed');
+  assert.equal(await page.locator('#brief-mechanic').isVisible(),true,'advanced mechanic was not keyboard-revealed');
+  assert.deepEqual(consoleErrors,[]);
+  await page.close();
+});
+
 await record('visual sample pipeline completes with safe publishing evidence',async()=>{
   const {page,consoleErrors}=await open({width:1440,height:900});
   await page.locator('[data-view="local-run"]').click();
@@ -200,6 +220,8 @@ await record('mobile layout and navigation stay usable',async()=>{
   await page.locator('[data-view="overview"]').click();
   await page.locator('[data-view="local-run"]').click();
   assert.equal(await page.locator('#run-sample').isVisible(),true,'mobile sample runner is unreachable');
+  assert.equal(await page.locator('#brief-name').isVisible(),true,'mobile Creator Mode name input is unreachable');
+  assert.equal(await page.locator('#brief-objective').isVisible(),true,'mobile Creator Mode idea input is unreachable');
   await page.screenshot({path:`${artifacts}/mobile-overview.png`,fullPage:true});
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   assert(bodyWidth<=390,`horizontal page overflow ${bodyWidth}px`);
