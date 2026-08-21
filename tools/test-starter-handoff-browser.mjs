@@ -8,6 +8,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createStudioBundle } from './studio-bundle.mjs';
+import { createVerificationPage } from './studio-verification-page.mjs';
 import { runPipeline } from './run-pipeline.mjs';
 
 const execFile = promisify(execFileCallback);
@@ -43,6 +44,9 @@ try {
   assert.match(verificationText, /Destination kind: local/);
   assert.match(verificationText, /Destination: local:\/\//);
 
+  const buildResult = JSON.parse(await readFile(resolve(extractedDir, 'evidence/build-result.json'), 'utf8'));
+  const qaResult = JSON.parse(await readFile(resolve(extractedDir, 'evidence/qa-result.json'), 'utf8'));
+  const releaseCandidate = JSON.parse(await readFile(resolve(extractedDir, 'evidence/release-candidate.json'), 'utf8'));
   const publishingReceipt = JSON.parse(await readFile(resolve(extractedDir, 'evidence/publishing-receipt.json'), 'utf8'));
   assert.equal(publishingReceipt.executed, false);
   assert.equal(publishingReceipt.dryRun, true);
@@ -52,6 +56,24 @@ try {
   assert.equal(publishingReceipt.provider, null);
   assert.equal(publishingReceipt.storeOperation, null);
   assert.deepEqual(publishingReceipt.plan, [`Would publish release-candidate.json to ${publishingReceipt.destination.target}`]);
+  assert.match(releaseCandidate.candidateId ?? '', new RegExp(`^${manifest.projectId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-`));
+  assert.equal(releaseCandidate.dryRunOnly, true);
+  assert.equal(releaseCandidate.build?.artifactPath, buildResult.artifactPath);
+  assert.equal(releaseCandidate.build?.outputSha256, buildResult.artifactSha256);
+  assert.deepEqual(releaseCandidate.destination, publishingReceipt.destination);
+
+  const legacyReleaseCandidate = structuredClone(releaseCandidate);
+  delete legacyReleaseCandidate.candidateId;
+  delete legacyReleaseCandidate.destination;
+  const legacyVerificationPath = resolve(extractedDir, 'LEGACY_VERIFICATION.html');
+  await writeFile(legacyVerificationPath, createVerificationPage({
+    build: buildResult,
+    qa: qaResult,
+    releaseCandidate: legacyReleaseCandidate,
+    publishing: publishingReceipt,
+    destination: publishingReceipt.destination,
+    destinationTarget: publishingReceipt.destination.target
+  }, releaseCandidate.build.outputSha256));
 
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -113,11 +135,17 @@ try {
   ])));
   assert.equal(facts.Build, 'pass · executed');
   assert.equal(facts.QA, 'pass · executed');
+  assert.equal(facts['Release candidate ID'], releaseCandidate.candidateId);
   assert.equal(facts['Release candidate'], 'dry-run only');
+  assert.equal(facts['Candidate artifact'], releaseCandidate.build.artifactPath);
+  assert.equal(facts['Candidate destination'], releaseCandidate.destination.target);
+  assert.equal(facts['Release candidate SHA-256'], releaseCandidate.build.outputSha256);
   assert.equal(facts.Publication, 'not executed');
   assert.equal(facts.Secrets, 'not used');
   assert.match(facts.Destination, /^local · local:\/\//);
-  assert.match(await page.locator('.boundary').textContent(), /does not claim store\/provider publication/);
+  const verificationBoundary = (await page.locator('.boundary').textContent()) ?? '';
+  assert.match(verificationBoundary, /explicit candidate identity and destination provenance/);
+  assert.match(verificationBoundary, /does not claim store\/provider publication/);
   const playableLink = page.getByRole('link', { name: 'Open verified starter' });
   const projectBriefLink = page.getByRole('link', { name: 'View project brief' });
   assert.equal(await playableLink.getAttribute('href'), 'starter/dist/index.html');
@@ -168,6 +196,20 @@ try {
   await page.goto(pathToFileURL(resolve(extractedDir, 'PROJECT_BRIEF.html')).href, { waitUntil: 'load' });
   await page.screenshot({ path: briefScreenshotPath, fullPage: true });
   const briefScreenshotSha256 = `sha256:${createHash('sha256').update(await readFile(briefScreenshotPath)).digest('hex')}`;
+
+  await page.goto(pathToFileURL(legacyVerificationPath).href, { waitUntil: 'load' });
+  const legacyFacts = await page.locator('.fact').evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => [
+    node.querySelector('dt')?.textContent?.trim(),
+    node.querySelector('dd')?.textContent?.trim()
+  ])));
+  assert.equal(legacyFacts['Release candidate ID'], 'unavailable in legacy evidence');
+  assert.equal(legacyFacts['Candidate destination'], 'unavailable in legacy evidence');
+  assert.equal(legacyFacts['Candidate artifact'], releaseCandidate.build.artifactPath);
+  assert.equal(legacyFacts['Release candidate SHA-256'], releaseCandidate.build.outputSha256);
+  assert.match((await page.locator('.boundary').textContent()) ?? '', /shown as unavailable rather than inferred/);
+  assert.deepEqual(externalRequests, [], `legacy verification page attempted network access: ${externalRequests.join(', ')}`);
+  assert.deepEqual(consoleErrors, [], `legacy verification page emitted browser errors: ${consoleErrors.join('; ')}`);
+
   const evidence = {
     status: 'pass',
     sample: 'examples/sample-game',
@@ -194,6 +236,12 @@ try {
     plainTextVerificationEntry: 'VERIFICATION.txt',
     verificationPageRendered: true,
     verificationToPlayable: true,
+    releaseCandidateProjectionBrowserVerified: true,
+    releaseCandidateId: releaseCandidate.candidateId,
+    releaseCandidateArtifactPath: releaseCandidate.build.artifactPath,
+    releaseCandidateDestination: releaseCandidate.destination.target,
+    releaseCandidateSha256: releaseCandidate.build.outputSha256,
+    legacyReleaseCandidateUnknownBrowserVerified: true,
     startEntry: 'START_HERE.html',
     verifiedPlayableEntry: 'starter/dist/index.html',
     browser: 'chrome',
