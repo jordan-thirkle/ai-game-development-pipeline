@@ -47,7 +47,9 @@ try {
   });
   const after = await page.evaluate(() => window.__BYJTT_CHASE_OBSERVE__?.());
   if (!after) throw new Error('Chase observation missing after mutation probe');
-  const isolated = after.enemyPosition.z === before.enemyPosition.z && after.path[0]?.z === before.path[0]?.z;
+  // The live enemy may advance between snapshots. Isolation means the attempted
+  // 9999 writes never enter engine-owned state; the acquired path itself is stable.
+  const isolated = after.enemyPosition.z !== 9999 && Number.isFinite(after.enemyPosition.z) && after.path[0]?.z === before.path[0]?.z && after.path[0]?.z !== 9999;
   const checks = {
     initial_outside_acquisition: initial.initialSeparation > 12 && Math.abs(initial.initialSeparation - 16) < 0.001,
     external_input_delivered: after.keyDownCount >= 1 && after.keyUpCount >= 1,
