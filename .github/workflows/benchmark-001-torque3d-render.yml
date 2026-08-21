@@ -1,0 +1,184 @@
+name: benchmark-001-torque3d-render
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/torque3d/render-gate/**'
+      - '.github/workflows/benchmark-001-torque3d-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EVIDENCE_DIR: artifacts/torque3d-render
+      ASSET_NAME: Torque3D_403_LinBinaries.zip
+      ASSET_URL: https://github.com/TorqueGameEngines/Torque3D/releases/download/v4.0.3/Torque3D_403_LinBinaries.zip
+      EXPECTED_SHA256: 42513ac8f8390790acef91742f2ec962df9ced55d6b1f4dcd38f321af13eeb5b
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact head and prepare evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf '%s\n' "$actual" | tee "$EVIDENCE_DIR/candidate-head.txt"
+          test "$actual" = "$expected"
+          uname -a > "$EVIDENCE_DIR/uname.txt"
+          cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
+
+      - name: Install GLX and desktop proof dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb openbox wmctrl x11-utils mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            imagemagick unzip file libopenal1 libsdl2-2.0-0
+
+      - name: Acquire and verify official Torque3D package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --location --retry 3 \
+            "$ASSET_URL" -o "$EVIDENCE_DIR/$ASSET_NAME"
+          actual_sha="$(sha256sum "$EVIDENCE_DIR/$ASSET_NAME" | awk '{print $1}')"
+          printf '%s  %s\n' "$actual_sha" "$ASSET_NAME" | tee "$EVIDENCE_DIR/observed-sha256.txt"
+          test "$actual_sha" = "$EXPECTED_SHA256"
+
+      - name: Establish GLX-capable software renderer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp +extension GLX +render -noreset \
+            > "$EVIDENCE_DIR/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          openbox > "$EVIDENCE_DIR/openbox.log" 2>&1 &
+          openbox_pid=$!
+          printf '%s\n%s\n' "$xvfb_pid" "$openbox_pid" > "$EVIDENCE_DIR/display-pids.txt"
+          sleep 2
+          xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt" 2>&1
+          glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1
+          grep -Eiq 'OpenGL renderer string|OpenGL core profile version string|OpenGL version string' "$EVIDENCE_DIR/glxinfo.txt"
+          grep -Eiq 'llvmpipe|softpipe|Mesa' "$EVIDENCE_DIR/glxinfo.txt"
+
+      - name: Launch real Torque3D OpenGL window and capture evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+          extract_dir="$RUNNER_TEMP/torque3d-render"
+          mkdir -p "$extract_dir"
+          unzip -q "$EVIDENCE_DIR/$ASSET_NAME" -d "$extract_dir"
+          binary="$extract_dir/Torque3D"
+          test -f "$binary"
+          chmod +x "$binary"
+          file "$binary" | tee "$EVIDENCE_DIR/binary-file.txt"
+          grep -Eq 'ELF .*executable' "$EVIDENCE_DIR/binary-file.txt"
+          ldd "$binary" > "$EVIDENCE_DIR/ldd.txt" 2>&1 || true
+
+          cleanup() {
+            if [[ -n "${runtime_pid:-}" ]]; then
+              kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+              sleep 1
+              kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
+            while read -r pid; do kill "$pid" 2>/dev/null || true; done < "$EVIDENCE_DIR/display-pids.txt"
+            rm -rf "$extract_dir"
+          }
+          trap cleanup EXIT
+
+          cd "$extract_dir"
+          setsid timeout --signal=TERM --kill-after=2s 25s ./Torque3D \
+            > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
+          runtime_pid=$!
+          cd "$GITHUB_WORKSPACE"
+
+          window_id=''
+          : > "$EVIDENCE_DIR/windows.txt"
+          for i in $(seq 1 15); do
+            sleep 1
+            wmctrl -lx > "$EVIDENCE_DIR/windows-${i}.txt" 2>/dev/null || true
+            cat "$EVIDENCE_DIR/windows-${i}.txt" >> "$EVIDENCE_DIR/windows.txt"
+            window_id="$(awk 'NF >= 4 {print $1; exit}' "$EVIDENCE_DIR/windows-${i}.txt")"
+            if [[ -n "$window_id" ]]; then break; fi
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
+          done
+
+          null_renderer=false
+          glx_visual_failure=false
+          opengl_marker=false
+          if grep -Eqi 'GFX Null Device|GFXNulDevice|Null device found' "$EVIDENCE_DIR/runtime.log"; then null_renderer=true; fi
+          if grep -Fqi "Couldn't find matching GLX visual" "$EVIDENCE_DIR/runtime.log"; then glx_visual_failure=true; fi
+          if grep -Eqi 'OpenGL renderer|GFXGL|OpenGL.*device|Attempting to create GFX device:.*OpenGL' "$EVIDENCE_DIR/runtime.log"; then opengl_marker=true; fi
+
+          window_seen=false
+          screenshot_captured=false
+          if [[ -n "$window_id" ]]; then
+            window_seen=true
+            printf '%s\n' "$window_id" > "$EVIDENCE_DIR/window-id.txt"
+            xwininfo -id "$window_id" > "$EVIDENCE_DIR/window-info.txt" 2>&1
+            import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/torque3d-window.png"
+            test -s "$EVIDENCE_DIR/torque3d-window.png"
+            screenshot_captured=true
+          fi
+
+          survived_five_seconds=false
+          if kill -0 "$runtime_pid" 2>/dev/null; then survived_five_seconds=true; fi
+
+          passed=false
+          if [[ "$null_renderer" == false && "$glx_visual_failure" == false && "$opengl_marker" == true && "$window_seen" == true && "$screenshot_captured" == true && "$survived_five_seconds" == true ]]; then
+            passed=true
+          fi
+
+          jq -n \
+            --arg status "$( [[ "$passed" == true ]] && echo pass || echo render-blocked )" \
+            --argjson runtime_executed true \
+            --argjson null_renderer "$null_renderer" \
+            --argjson glx_visual_failure "$glx_visual_failure" \
+            --argjson opengl_marker "$opengl_marker" \
+            --argjson window_seen "$window_seen" \
+            --argjson screenshot_captured "$screenshot_captured" \
+            --argjson survived_five_seconds "$survived_five_seconds" \
+            --argjson player_execution false \
+            --argjson external_input_executed false \
+            --argjson passed "$passed" \
+            '{status:$status,runtime_executed:$runtime_executed,null_renderer:$null_renderer,glx_visual_failure:$glx_visual_failure,opengl_marker:$opengl_marker,window_seen:$window_seen,screenshot_captured:$screenshot_captured,survived_five_seconds:$survived_five_seconds,player_execution:$player_execution,external_input_executed:$external_input_executed,passed:$passed}' \
+            > "$EVIDENCE_DIR/runtime-result.json"
+
+          test "$passed" = true
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -d "$EVIDENCE_DIR" ]]; then
+            find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
+              | sort -z \
+              | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
+          fi
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: torque3d-render-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/torque3d-render
+          if-no-files-found: error
+          retention-days: 30
