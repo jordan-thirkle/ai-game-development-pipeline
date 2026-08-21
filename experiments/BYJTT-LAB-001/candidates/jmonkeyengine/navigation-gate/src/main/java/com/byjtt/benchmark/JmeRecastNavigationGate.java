@@ -3,7 +3,6 @@ package com.byjtt.benchmark;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Mesh;
 import com.jme3.scene.VertexBuffer.Type;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -57,7 +56,7 @@ public final class JmeRecastNavigationGate {
         }
     }
 
-    static ResultSnapshot execute() throws IOException {
+    static ResultSnapshot execute() {
         float halfWidth = ARENA_WIDTH / 2.0f;
         float halfDepth = ARENA_DEPTH / 2.0f;
         float[] vertices = {
@@ -140,21 +139,21 @@ public final class JmeRecastNavigationGate {
         double pathLength = 0.0;
         boolean pathInsideArena = true;
         for (int i = 0; i < straight.size(); i++) {
-            float[] point = straight.get(i).pos;
+            float[] point = straight.get(i).getPos();
             pathInsideArena &= point[0] >= -halfWidth - 0.001f && point[0] <= halfWidth + 0.001f
                 && point[2] >= -halfDepth - 0.001f && point[2] <= halfDepth + 0.001f;
             if (i > 0) {
-                pathLength += distance(straight.get(i - 1).pos, point);
+                pathLength += distance(straight.get(i - 1).getPos(), point);
             }
         }
 
-        double startError = distance(straight.get(0).pos, ENEMY_SPAWN);
-        double endError = distance(straight.get(straight.size() - 1).pos, PLAYER_SPAWN);
+        double startError = distance(straight.get(0).getPos(), ENEMY_SPAWN);
+        double endError = distance(straight.get(straight.size() - 1).getPos(), PLAYER_SPAWN);
 
-        float authoritativeX = straight.get(0).pos[0];
-        float[] observationCopy = straight.get(0).pos.clone();
+        float authoritativeX = straight.get(0).getPos()[0];
+        float[] observationCopy = straight.get(0).getPos().clone();
         observationCopy[0] = 999.0f;
-        boolean observationIsolation = straight.get(0).pos[0] == authoritativeX;
+        boolean observationIsolation = straight.get(0).getPos()[0] == authoritativeX;
 
         boolean pathFound = corridor.result.size() >= 1;
         boolean pathLengthValid = pathLength >= 15.5 && pathLength <= 16.5;
@@ -242,7 +241,7 @@ public final class JmeRecastNavigationGate {
 
         static ResultSnapshot failed(boolean jmeGeometryExecuted, String reason) {
             return new ResultSnapshot(
-                false, jmeGeometryExecuted, true, 0, 0, 0.0, Double.NaN, Double.NaN,
+                false, jmeGeometryExecuted, true, 0, 0, 0.0, -1.0, -1.0,
                 false, false, false, false, false, reason);
         }
 
