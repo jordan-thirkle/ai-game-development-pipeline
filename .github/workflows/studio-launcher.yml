@@ -3,8 +3,11 @@ name: Verify Studio launcher
 on:
   pull_request:
     paths:
+      - 'START_STUDIO.command'
+      - 'START_STUDIO.cmd'
       - 'tools/studio-launcher.mjs'
       - 'tools/test-studio-launcher.mjs'
+      - 'tools/test-root-studio-entry.mjs'
       - 'apps/studio/launch-studio.command'
       - 'apps/studio/launch-studio.cmd'
       - 'apps/studio/LAUNCHING.md'
@@ -26,6 +29,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
       - name: Assert candidate revision
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
       - name: Setup Node
@@ -35,8 +39,49 @@ jobs:
       - name: Install repository dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Validate shell launcher syntax
-        run: sh -n apps/studio/launch-studio.command
+        run: |
+          sh -n apps/studio/launch-studio.command
+          sh -n START_STUDIO.command
       - name: Run adversarial launcher tests
-        run: node --test tools/test-studio-launcher.mjs
-      - name: Dogfood real local Studio readiness
-        run: node tools/studio-launcher.mjs --check
+        run: |
+          node --test tools/test-studio-launcher.mjs
+          node --test tools/test-root-studio-entry.mjs
+      - name: Dogfood real root-level Studio readiness
+        run: sh START_STUDIO.command --check
+
+  windows-smoke:
+    runs-on: windows-latest
+    env:
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout candidate head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+      - name: Assert candidate revision
+        shell: pwsh
+        run: |
+          $actual = git rev-parse HEAD
+          if ($actual -ne $env:CANDIDATE_HEAD_SHA) {
+            throw "Checked out $actual instead of candidate head $env:CANDIDATE_HEAD_SHA"
+          }
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26'
+      - name: Install repository dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Dogfood Windows root-level Studio readiness
+        shell: pwsh
+        run: |
+          $output = & cmd.exe /d /c "START_STUDIO.cmd --check" 2>&1
+          $exitCode = $LASTEXITCODE
+          $text = $output -join "`n"
+          Write-Host $text
+          if ($exitCode -ne 0) {
+            exit $exitCode
+          }
+          if ($text -notmatch 'Studio ready at http://127\.0\.0\.1:\d+/apps/studio/') {
+            throw 'Windows launcher exited successfully without proving Studio readiness.'
+          }

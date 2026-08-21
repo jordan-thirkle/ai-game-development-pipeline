@@ -10,7 +10,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-node tools\studio-launcher.mjs
+node tools\studio-launcher.mjs %*
 if errorlevel 1 (
   echo.
   echo Studio could not start. The error above is safe to copy into ChatGPT for diagnosis.
