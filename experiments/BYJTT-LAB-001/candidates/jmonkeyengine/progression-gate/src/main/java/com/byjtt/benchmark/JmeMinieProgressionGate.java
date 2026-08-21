@@ -70,6 +70,8 @@ public final class JmeMinieProgressionGate {
         int movementSteps = 0;
         float attackDistance = -1.0f;
         float pickupDistance = -1.0f;
+        boolean attackExecuted = false;
+        boolean interactExecuted = false;
         boolean stayedInsideArena = true;
 
         while (movementSteps < MAX_STEPS) {
@@ -79,23 +81,15 @@ public final class JmeMinieProgressionGate {
                 player.setWalkDirection(Vector3f.ZERO);
                 attackDistance = d;
                 attack.onAction(true);
-                state.update(FIXED_DT, d, attack.consumePress(), false);
+                boolean attackPress = attack.consumePress();
+                attackExecuted |= attackPress;
+                state.update(FIXED_DT, d, attackPress, false);
                 attack.onAction(false);
                 if (!state.salvageBroken()) {
                     return Result.failed(startDistance, movementSteps, "salvage did not break from normal attack action");
                 }
             }
-            if (state.rewardAvailable() && d <= PICKUP_RADIUS) {
-                pickupDistance = d;
-                state.update(FIXED_DT, d, false, false);
-                if (state.rewardCount() != REWARD_COUNT || state.rewardAvailable()) {
-                    return Result.failed(startDistance, movementSteps, "reward did not collect through pickup radius");
-                }
-                interact.onAction(true);
-                state.update(FIXED_DT, d, false, interact.consumePress());
-                interact.onAction(false);
-                break;
-            }
+
             Vector3f delta = SALVAGE_SPAWN.subtract(position);
             delta.y = 0.0f;
             float length = delta.length();
@@ -104,10 +98,23 @@ public final class JmeMinieProgressionGate {
                 increment = delta.mult((WALK_SPEED * FIXED_DT) / length);
             }
             player.setWalkDirection(increment);
+            boolean rewardWasAvailable = state.rewardAvailable();
             space.update(FIXED_DT);
             movementSteps += 1;
-            stayedInsideArena &= insideArena(player.getPhysicsLocation(new Vector3f()));
-            state.update(FIXED_DT, distance(player.getPhysicsLocation(new Vector3f()), SALVAGE_SPAWN), false, false);
+            Vector3f movedPosition = player.getPhysicsLocation(new Vector3f());
+            float movedDistance = distance(movedPosition, SALVAGE_SPAWN);
+            stayedInsideArena &= insideArena(movedPosition);
+            state.update(FIXED_DT, movedDistance, false, false);
+
+            if (rewardWasAvailable && !state.rewardAvailable() && state.rewardCount() == REWARD_COUNT) {
+                pickupDistance = movedDistance;
+                interact.onAction(true);
+                boolean interactPress = interact.consumePress();
+                interactExecuted |= interactPress;
+                state.update(FIXED_DT, movedDistance, false, interactPress);
+                interact.onAction(false);
+                break;
+            }
         }
         player.setWalkDirection(Vector3f.ZERO);
 
@@ -122,11 +129,11 @@ public final class JmeMinieProgressionGate {
                 && Math.abs(observedAgain.z - authoritativeZ) < 0.0001f
                 && !state.selectedUpgrades().contains("test-only-mutation");
 
-        boolean attackValid = attackDistance >= 0.0f && attackDistance <= ATTACK_RANGE
+        boolean attackValid = attackExecuted && attackDistance >= 0.0f && attackDistance <= ATTACK_RANGE
                 && state.salvageHealth() == 0 && state.salvageBroken();
         boolean pickupValid = pickupDistance >= 0.0f && pickupDistance <= PICKUP_RADIUS
                 && state.rewardCount() == REWARD_COUNT && !state.rewardAvailable();
-        boolean upgradeValid = !state.upgradeMenuVisible()
+        boolean upgradeValid = interactExecuted && !state.upgradeMenuVisible()
                 && state.selectedUpgrades().contains(UPGRADE_ID)
                 && Math.abs(state.effectiveAttackDamage() - 40.8f) < 0.0001f;
         boolean passed = startDistance > 11.17f && startDistance < 11.19f
@@ -136,7 +143,7 @@ public final class JmeMinieProgressionGate {
         return new Result(passed, true, startDistance, movementSteps, attackDistance, pickupDistance,
                 state.salvageHealth(), state.salvageBroken(), state.rewardAvailable(), state.rewardCount(),
                 state.selectedUpgrades().contains(UPGRADE_ID), state.effectiveAttackDamage(), stayedInsideArena,
-                observationIsolation, true, true, false, false, false, false, false, false,
+                observationIsolation, attackExecuted, interactExecuted, false, false, false, false, false, false,
                 passed ? "" : "one or more progression assertions failed");
     }
 
@@ -229,7 +236,7 @@ public final class JmeMinieProgressionGate {
             boolean externalInputExecuted, String failureReason) {
         static Result failed(float startDistance, int movementSteps, String reason) {
             return new Result(false, true, startDistance, movementSteps, -1.0f, -1.0f, -1, false, false, 0,
-                    false, ATTACK_DAMAGE, false, false, true, true, false, false, false, false, false, false, reason);
+                    false, ATTACK_DAMAGE, false, false, false, false, false, false, false, false, false, false, reason);
         }
         String toJson() {
             return String.format(Locale.ROOT,
