@@ -64,13 +64,16 @@ function summarizeMainThread(before, after) {
   const task = metricDelta(before, after, 'TaskDuration');
   const script = metricDelta(before, after, 'ScriptDuration');
   const layout = metricDelta(before, after, 'LayoutDuration');
+  const appWork = script + layout;
   return {
     task_seconds: task,
     script_seconds: script,
     layout_seconds: layout,
+    app_work_seconds: appWork,
     task_window_ratio: task / windowSeconds,
     script_window_ratio: script / windowSeconds,
-    layout_window_ratio: layout / windowSeconds
+    layout_window_ratio: layout / windowSeconds,
+    app_work_window_ratio: appWork / windowSeconds
   };
 }
 
@@ -223,14 +226,17 @@ try {
   const idleMainThread = summarizeMainThread(idleBefore, idleAfter);
   const activeMainThread = summarizeMainThread(activeBefore, activeAfter);
   const maxTaskRatio = Math.max(idleMainThread.task_window_ratio, activeMainThread.task_window_ratio);
+  const maxAppWorkRatio = Math.max(idleMainThread.app_work_window_ratio, activeMainThread.app_work_window_ratio);
   const gpuText = rendererText(gpuEvidence);
   const softwareRendererMarker = /swiftshader|llvmpipe|software raster|software renderer/.test(gpuText);
 
   let hostedAttribution = 'mixed-or-unresolved-hosted-bottleneck';
-  if (softwareRendererMarker && maxTaskRatio < 0.5) {
-    hostedAttribution = 'hosted-software-renderer-without-main-thread-saturation';
-  } else if (maxTaskRatio >= 0.8) {
-    hostedAttribution = 'main-thread-saturation-observed';
+  if (softwareRendererMarker && maxTaskRatio >= 0.8 && maxAppWorkRatio < 0.1) {
+    hostedAttribution = 'software-renderer-browser-task-saturation-low-script-layout';
+  } else if (softwareRendererMarker && maxTaskRatio < 0.5) {
+    hostedAttribution = 'software-renderer-low-browser-task-load';
+  } else if (maxAppWorkRatio >= 0.8) {
+    hostedAttribution = 'application-script-layout-saturation-observed';
   }
 
   if (idleFrames.samples < 60) failures.push(`idle sample count ${idleFrames.samples} < 60`);
@@ -256,12 +262,15 @@ try {
     active_frames: activeFrames,
     idle_main_thread: idleMainThread,
     active_main_thread: activeMainThread,
+    max_browser_task_window_ratio: maxTaskRatio,
+    max_script_layout_window_ratio: maxAppWorkRatio,
     hosted_attribution: hostedAttribution,
     movement_meters: movementMeters,
     release_drift_meters: releaseDrift,
     console_errors: consoleErrors,
     failures,
     attribution_scope: 'github-hosted-linux-chrome-only',
+    attribution_caveat: 'Chrome TaskDuration includes browser/rendering work and is not equivalent to application JavaScript time.',
     optimization_recommendation_claim: false,
     device_profile_claim: false,
     performance_readiness_claim: false,
