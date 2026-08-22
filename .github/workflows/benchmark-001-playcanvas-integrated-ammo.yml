@@ -1,0 +1,168 @@
+name: Benchmark 001 PlayCanvas integrated Ammo
+
+on:
+  push:
+    branches:
+      - benchmark/001-playcanvas-integrated-ammo
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/playcanvas/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-playcanvas-integrated-ammo.yml'
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/playcanvas/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-playcanvas-integrated-ammo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integrated-ammo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/playcanvas
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/integrated-ammo"
+          ACTUAL_HEAD="$(git rev-parse HEAD)"
+          test "$ACTUAL_HEAD" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$ACTUAL_HEAD"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version || true)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/integrated-ammo/environment.txt"
+
+      - name: Materialize and verify dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" install --package-lock-only --ignore-scripts --no-audit --no-fund
+          (
+            cd "$CANDIDATE"
+            sha256sum package-lock.json | tee artifacts/integrated-ammo/package-lock.observed.sha256
+            if [ ! -f package-lock.sha256 ]; then
+              echo 'package-lock.sha256 is intentionally required before dependency execution; preserve this bootstrap failure and pin the observed graph.' >&2
+              exit 1
+            fi
+            sha256sum --check package-lock.sha256
+          )
+          npm --prefix "$CANDIDATE" ci --ignore-scripts --no-audit --no-fund
+          npm --prefix "$CANDIDATE" ls --all --json > "$CANDIDATE/artifacts/integrated-ammo/dependency-tree.json"
+
+      - name: Strict TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run typecheck 2>&1 | tee "$CANDIDATE/artifacts/integrated-ammo/typecheck.log"
+
+      - name: Production build with pinned Ammo acquisition
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/integrated-ammo/build.log"
+          cp "$CANDIDATE/public/ammo/provenance.json" "$CANDIDATE/artifacts/integrated-ammo/ammo-provenance.json"
+          sha256sum \
+            "$CANDIDATE/public/ammo/ammo.js" \
+            "$CANDIDATE/public/ammo/ammo.wasm.js" \
+            "$CANDIDATE/public/ammo/ammo.wasm.wasm" \
+            > "$CANDIDATE/artifacts/integrated-ammo/ammo-sha256.txt"
+
+      - name: Reject legacy post-position arena clamp
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE 'position\.(x|z)[[:space:]]*=[[:space:]]*pc\.math\.clamp|player\.setPosition\(position\)' "$CANDIDATE/src/main.ts"; then
+            echo 'Legacy post-position arena clamp remains in integrated PlayCanvas player.' >&2
+            exit 1
+          fi
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          npx playwright install --with-deps chromium 2>&1 | tee artifacts/integrated-ammo/playwright-install.log
+
+      - name: Start preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          npm run preview > artifacts/integrated-ammo/preview.log 2>&1 &
+          echo $! > artifacts/integrated-ammo/preview.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4175/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat artifacts/integrated-ammo/preview.log
+          exit 1
+
+      - name: Execute existing integrated browser tracer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          npm run test:browser 2>&1 | tee artifacts/integrated-ammo/browser-tracer.log
+
+      - name: Execute normal-input native-wall proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          npm run test:native-wall 2>&1 | tee artifacts/integrated-ammo/native-wall.log
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.physics_backend!=="ammo" || !r.normal_input_executed || r.post_physics_arena_clamp || !r.observation_copy_isolated || r.browser_error_count!==0 || r.walk_speed_mps!==3.5 || r.arena_width_m!==24 || r.arena_depth_m!==32 || r.east_wall_stop_x_m>11.43 || r.east_wall_stop_x_m<11.2) process.exit(1);' artifacts/integrated-ammo/result.json
+
+      - name: Record exact-head evidence hashes
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p "$CANDIDATE/artifacts/integrated-ammo"
+          sha256sum \
+            "$CANDIDATE/package.json" \
+            "$CANDIDATE/src/main.ts" \
+            "$CANDIDATE/tools/acquire-ammo.mjs" \
+            "$CANDIDATE/tools/browser-tracer.mjs" \
+            "$CANDIDATE/tools/native-wall-proof.mjs" \
+            2>/dev/null > "$CANDIDATE/artifacts/integrated-ammo/source-sha256.txt" || true
+          if [ -f "$CANDIDATE/artifacts/integrated-ammo/result.json" ]; then
+            sha256sum "$CANDIDATE/artifacts/integrated-ammo/result.json" >> "$CANDIDATE/artifacts/integrated-ammo/source-sha256.txt"
+          fi
+
+      - name: Stop preview
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$CANDIDATE/artifacts/integrated-ammo/preview.pid" ]; then
+            kill "$(cat "$CANDIDATE/artifacts/integrated-ammo/preview.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: byjtt-lab-001-playcanvas-integrated-ammo-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/playcanvas/artifacts/integrated-ammo/**
+            experiments/BYJTT-LAB-001/candidates/playcanvas/package-lock.json
+          if-no-files-found: error
+          retention-days: 30

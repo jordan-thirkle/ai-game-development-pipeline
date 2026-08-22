@@ -8,14 +8,19 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "acquire:ammo": "node tools/acquire-ammo.mjs",
+    "prebuild": "npm run acquire:ammo",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
-    "typecheck": "tsc --noEmit"
+    "preview": "vite preview --host 127.0.0.1 --port 4175",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "node tools/browser-tracer.mjs",
+    "test:native-wall": "node tools/native-wall-proof.mjs"
   },
   "dependencies": {
     "playcanvas": "2.21.3"
   },
   "devDependencies": {
+    "playwright": "1.62.0",
     "typescript": "7.0.2",
     "vite": "8.2.1"
   }
