@@ -31,7 +31,9 @@ const page = await browser.newPage();
 const externalRequests = [];
 page.on('request', (request) => {
   const url = new URL(request.url());
-  if (!['127.0.0.1', 'localhost'].includes(url.hostname)) externalRequests.push(request.url());
+  if (['http:', 'https:'].includes(url.protocol) && !['127.0.0.1', 'localhost'].includes(url.hostname)) {
+    externalRequests.push(request.url());
+  }
 });
 
 try {
