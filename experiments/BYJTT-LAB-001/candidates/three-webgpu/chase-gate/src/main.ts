@@ -161,20 +161,24 @@ function updateCharacter(character: ReturnType<typeof makeCharacter>, velocity: 
   character.ExtendedUpdate(FIXED_DT, gravity, updateSettings, movingBPFilter, movingLayerFilter, bodyFilter, shapeFilter, jolt.GetTempAllocator());
 }
 function acquirePath(): void {
-  const ep = enemy.GetPosition();
-  const pp = player.GetPosition();
-  const startResult = navQuery.findClosestPoint({ x: ep.GetX(), y: 0, z: ep.GetZ() });
+  const enemyPosition = enemy.GetPosition();
+  const enemyX = enemyPosition.GetX();
+  const enemyZ = enemyPosition.GetZ();
+  const playerPosition = player.GetPosition();
+  const playerX = playerPosition.GetX();
+  const playerZ = playerPosition.GetZ();
+  const startResult = navQuery.findClosestPoint({ x: enemyX, y: 0, z: enemyZ });
   if (!startResult.success) throw new Error('Recast enemy closest-point failed after acquisition');
   const startPoint: Point = { ...startResult.point };
   const startPolyRef = startResult.polyRef;
-  const endResult = navQuery.findClosestPoint({ x: pp.GetX(), y: 0, z: pp.GetZ() });
+  const endResult = navQuery.findClosestPoint({ x: playerX, y: 0, z: playerZ });
   if (!endResult.success) throw new Error('Recast player closest-point failed after acquisition');
   const endPoint: Point = { ...endResult.point };
   const endPolyRef = endResult.polyRef;
   if (startPolyRef === endPolyRef) {
     pathPoints = [
-      { x: ep.GetX(), y: startPoint.y, z: ep.GetZ() },
-      { x: pp.GetX(), y: endPoint.y, z: pp.GetZ() },
+      { x: enemyX, y: startPoint.y, z: enemyZ },
+      { x: playerX, y: endPoint.y, z: playerZ },
     ];
   } else {
     const result = navQuery.computePath(startPoint, endPoint);
