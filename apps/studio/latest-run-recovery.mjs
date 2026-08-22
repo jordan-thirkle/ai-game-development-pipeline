@@ -106,6 +106,7 @@ export function buildInlineVerificationFacts(result) {
     ['Build', 'executed · pass'],
     ['QA', 'executed · pass'],
     ['Release candidate', 'dry-run only'],
+    ['QA artifact proof', `build ${hashes[0]} · QA ${hashes[1]} · promoted ${hashes[2]} · same verified bytes`],
     ['Publication', 'not executed'],
     ['Secrets', 'not used'],
     ['Destination', String(result.safety.destination.target)],
