@@ -1,0 +1,43 @@
+; Engine configuration file.
+; BYJTT-LAB-001 Godot Phase A tracer
+config_version=5
+
+[application]
+config/name="BYJTT-LAB-001 Godot"
+run/main_scene="res://main.tscn"
+
+[display]
+window/size/viewport_width=390
+window/size/viewport_height=844
+window/size/window_width_override=390
+window/size/window_height_override=844
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+
+[input]
+move_forward={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":87)]
+}
+move_back={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":83)]
+}
+move_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":65)]
+}
+move_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":68)]
+}
+
+[physics]
+common/physics_ticks_per_second=60
+
+[layer_names]
+3d_physics/layer_1="world"
+3d_physics/layer_2="player"
