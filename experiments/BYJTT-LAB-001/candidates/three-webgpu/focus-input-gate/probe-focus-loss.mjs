@@ -50,6 +50,15 @@ async function focusedWindowId() {
   return stdout.trim();
 }
 
+async function windowGeometry(windowId) {
+  const { stdout } = await execFileAsync('xdotool', ['getwindowgeometry', '--shell', windowId]);
+  const values = Object.fromEntries(stdout.trim().split('\n').map((line) => line.split('=')));
+  return {
+    width: Number(values.WIDTH),
+    height: Number(values.HEIGHT),
+  };
+}
+
 const errors = [];
 let browser;
 let page;
@@ -64,6 +73,7 @@ const result = {
   focus_transfer_method: 'x11-window-manager-xmessage',
   playwright_focus_emulation_disabled: false,
   chrome_window_id: null,
+  chrome_content_click: null,
   focus_sink_window_id: null,
   x11_focus_before_transfer: null,
   x11_focus_after_transfer: null,
@@ -99,6 +109,14 @@ try {
   if (result.x11_focus_before_transfer !== chromeWindowId) {
     throw new Error(`Chrome X11 window did not receive focus: expected ${chromeWindowId}, got ${result.x11_focus_before_transfer}`);
   }
+
+  // With automation focus emulation disabled, give the renderer focus through
+  // an actual X11 pointer click in the middle of Chrome's content area.
+  const geometry = await windowGeometry(chromeWindowId);
+  const clickX = Math.max(1, Math.floor(geometry.width / 2));
+  const clickY = Math.max(100, Math.floor(geometry.height / 2));
+  await execFileAsync('xdotool', ['mousemove', '--window', chromeWindowId, String(clickX), String(clickY), 'click', '1']);
+  result.chrome_content_click = { x: clickX, y: clickY, width: geometry.width, height: geometry.height };
 
   await page.waitForFunction(() => document.hasFocus() === true, null, { timeout: 5_000 });
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__?.snapshot?.()['runtime.ready'] === true, null, { timeout: 30_000 });
