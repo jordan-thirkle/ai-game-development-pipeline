@@ -17,7 +17,11 @@ async function failingScaffold(targetPath) {
   return targetPath;
 }
 
-const execute = ({ brief } = {}) => executeSampleRun({ brief, scaffold: failingScaffold });
+let executionAttempts = 0;
+const execute = ({ brief } = {}) => {
+  executionAttempts += 1;
+  return executeSampleRun({ brief, scaffold: executionAttempts === 1 ? failingScaffold : scaffoldSampleProject });
+};
 const server = createStudioServer({ execute });
 await new Promise((resolvePromise, reject) => {
   server.once('error', reject);
@@ -29,19 +33,37 @@ const studioUrl = `http://127.0.0.1:${address.port}/apps/studio/`;
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const page = await browser.newPage();
 const externalRequests = [];
+const briefBodies = [];
 let pipelinePosts = 0;
 page.on('request', (request) => {
   const url = new URL(request.url());
-  if (request.method() === 'POST' && ['/api/pipeline/runs', '/api/pipeline/brief-runs'].includes(url.pathname)) pipelinePosts += 1;
+  if (request.method() === 'POST' && ['/api/pipeline/runs', '/api/pipeline/brief-runs'].includes(url.pathname)) {
+    pipelinePosts += 1;
+    if (url.pathname === '/api/pipeline/brief-runs') {
+      try { briefBodies.push(request.postDataJSON()); } catch {}
+    }
+  }
   if (['http:', 'https:'].includes(url.protocol) && !['127.0.0.1', 'localhost'].includes(url.hostname)) {
     externalRequests.push(request.url());
   }
 });
 
+const retryBrief = {
+  name: 'Retry Recovery Dogfood',
+  objective: 'Build a small mobile-intent collection game and safely retry the same reviewed starter after a failed local build.',
+  targetPlatform: 'mobile',
+  mechanic: 'collect'
+};
+
 try {
   await page.goto(studioUrl, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Run Pipeline' }).click();
-  await page.getByRole('button', { name: 'Run known sample' }).click();
+  await page.locator('#brief-name').fill(retryBrief.name);
+  await page.locator('#brief-objective').fill(retryBrief.objective);
+  await page.locator('#creator-advanced summary').click();
+  await page.locator('#brief-target').selectOption(retryBrief.targetPlatform);
+  await page.locator('#brief-mechanic').selectOption(retryBrief.mechanic);
+  await page.getByRole('button', { name: 'Create playable starter' }).click();
   await page.locator('#run-message.fail').waitFor({ state: 'visible' });
   await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
 
@@ -80,6 +102,10 @@ try {
   assert.equal(receipt.authority.downloadableStarter, false);
   assert.equal(receipt.authority.publication, false);
   assert.equal(receipt.authority.secrets, false);
+  assert.deepEqual(
+    { name: receipt.brief.name, objective: receipt.brief.objective, targetPlatform: receipt.brief.targetPlatform, mechanic: receipt.brief.mechanic },
+    retryBrief
+  );
   assert.equal(receipt.evidence.intake.validation.status, 'pass');
   assert.ok(Array.isArray(receipt.evidence.registry.entries) && receipt.evidence.registry.entries.length > 0);
   assert.equal(receipt.evidence.build.executed, true);
@@ -91,6 +117,7 @@ try {
   assert.equal('download' in receipt, false);
   assert.equal('playable' in receipt, false);
   assert.equal(pipelinePosts, 1);
+  assert.deepEqual(briefBodies, [retryBrief]);
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
@@ -112,22 +139,47 @@ try {
   assert.equal(await page.getByRole('link', { name: 'Download starter bundle' }).count(), 0);
   assert.equal(pipelinePosts, 1, 'refresh recovery must not re-run the pipeline');
 
-  const recoveredReceiptLink = page.getByRole('link', { name: 'Download failed-attempt evidence' });
-  const recoveredReceipt = await recoveredReceiptLink.evaluate(async (link) => JSON.parse(await (await fetch(link.href)).text()));
-  assert.deepEqual(recoveredReceipt.authority, receipt.authority);
-  assert.equal(recoveredReceipt.evidence.build.status, 'fail');
-  assert.equal(recoveredReceipt.evidence.qa.executed, false);
-  assert.deepEqual(externalRequests, []);
+  const retryButton = page.getByRole('button', { name: 'Retry same project' });
+  await retryButton.waitFor({ state: 'visible' });
+  await retryButton.click();
+  await page.locator('#run-message.pass').waitFor({ state: 'visible', timeout: 30_000 });
+  assert.equal(pipelinePosts, 2, 'retry should execute exactly one additional brief run');
+  assert.equal(executionAttempts, 2);
+  assert.deepEqual(briefBodies, [retryBrief, retryBrief], 'retry must submit the exact validated failed brief');
+  assert.equal(await page.locator('#brief-name').inputValue(), retryBrief.name);
+  assert.equal(await page.locator('#brief-objective').inputValue(), retryBrief.objective);
+  assert.equal(await page.locator('#brief-target').inputValue(), retryBrief.targetPlatform);
+  assert.equal(await page.locator('#brief-mechanic').inputValue(), retryBrief.mechanic);
+  await page.getByRole('link', { name: 'Download starter bundle' }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#play-result').isVisible(), true);
+  const successEvidence = await page.locator('#run-evidence-panel').innerText();
+  assert.match(successEvidence, /Verified local starter/);
+  assert.match(successEvidence, /Verification summary/);
+  assert.match(successEvidence, /Publication: not executed/);
+  assert.match(successEvidence, /Secrets: not used/);
+  assert.equal(await page.getByRole('button', { name: 'Retry same project' }).count(), 0);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('#run-message.pass').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#run-message').innerText(), /Recovered the latest verified run/);
+  assert.equal(await page.getByRole('button', { name: 'Retry same project' }).count(), 0, 'successful retry must clear stale failed-run retry state');
+  assert.equal(pipelinePosts, 2, 'success recovery after retry must not execute a third run');
 
   const evidence = {
     studioUrl,
     realSampleScaffold: true,
-    forcedFailure: 'build command exits 17',
+    forcedFailure: 'first build command exits 17',
     failedAttemptVisible: true,
     failedReceiptDownloadable: true,
     refreshRecoveryVerified: true,
+    oneClickRetryVerified: true,
+    exactBriefReused: true,
+    successfulRetryVerified: true,
+    staleFailureClearedAfterSuccess: true,
+    executionAttempts,
     pipelinePosts,
-    partialEvidence: {
+    briefBodies,
+    originalPartialEvidence: {
       intake: 'pass',
       registry: 'pass',
       build: 'fail',
@@ -138,9 +190,10 @@ try {
     authority: receipt.authority,
     externalRequests
   };
+  assert.deepEqual(externalRequests, []);
   await writeFile(resolve(artifactsDir, 'studio-failed-attempt-evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
-  await page.screenshot({ path: resolve(artifactsDir, 'studio-failed-attempt-evidence.png'), fullPage: true });
-  console.log('Studio failed-attempt browser dogfood passed.');
+  await page.screenshot({ path: resolve(artifactsDir, 'studio-failed-attempt-retry.png'), fullPage: true });
+  console.log('Studio failed-attempt recovery and one-click retry browser dogfood passed.');
 } finally {
   await browser.close();
   await new Promise((resolvePromise) => server.close(resolvePromise));
