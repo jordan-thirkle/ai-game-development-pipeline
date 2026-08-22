@@ -19,8 +19,10 @@ import com.jme3.system.AppSettings;
 import com.jme3.system.NativeLibraryLoader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -284,9 +286,15 @@ public final class RenderedProgressionGate extends SimpleApplication implements 
         String json = String.format(Locale.ROOT,
                 "{\"distance_to_salvage_m\":%.9f,\"salvage_health\":%d,\"reward_available\":%s,\"reward_count\":%d,\"upgrade_menu_visible\":%s,\"damage_upgrade_selected\":%s}\n",
                 d, salvageHealth, rewardAvailable, rewardCount, upgradeMenuVisible, selectedUpgrades.contains(UPGRADE_ID));
+        Path temporary = livePath.resolveSibling(livePath.getFileName() + ".tmp");
         try {
             Files.createDirectories(livePath.toAbsolutePath().getParent());
-            Files.writeString(livePath, json, StandardCharsets.UTF_8);
+            Files.writeString(temporary, json, StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary, livePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary, livePath, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException exception) {
             throw new IllegalStateException("failed to publish read-only live observation", exception);
         }
