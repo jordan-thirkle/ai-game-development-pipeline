@@ -1,0 +1,241 @@
+name: benchmark-001-torque3d-runtime
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/torque3d/runtime-gate/**'
+      - '.github/workflows/benchmark-001-torque3d-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/torque3d/runtime-gate
+      EVIDENCE_DIR: artifacts/torque3d-runtime
+      RELEASE_API: https://api.github.com/repos/TorqueGameEngines/Torque3D/releases/tags/v4.0.3
+      OFFICIAL_LINUX_ASSET: Torque3D_403_LinBinaries.zip
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Prepare evidence directory and assert exact head
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          git rev-parse HEAD | tee "$EVIDENCE_DIR/candidate-head.txt"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+          uname -a > "$EVIDENCE_DIR/uname.txt"
+          cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
+
+      - name: Strict workflow contract check
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/benchmark-001-torque3d-runtime.yml')
+          text = p.read_text(encoding='utf-8')
+          required = ['set -Eeuo pipefail', 'EXPECTED_SHA', 'sha256sum', 'runtime-result.json', 'Torque3D_403_LinBinaries.zip', 'extract_dir/Torque3D', 'timeout 2s wmctrl']
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'missing fail-closed workflow markers: {missing}')
+          print('workflow contract markers: PASS')
+          PY
+
+      - name: Resolve official v4.0.3 Linux asset and bootstrap provenance
+        id: provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 3 \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$RELEASE_API" \
+            -o "$EVIDENCE_DIR/release.json"
+
+          jq -e --arg name "$OFFICIAL_LINUX_ASSET" '
+            [.assets[] | select(.name == $name)]
+            | if length == 1 then .[0] else error("expected exactly one official Linux release asset named \($name), found \(length)") end
+          ' "$EVIDENCE_DIR/release.json" > "$EVIDENCE_DIR/linux-asset.json"
+
+          asset_name="$(jq -r '.name' "$EVIDENCE_DIR/linux-asset.json")"
+          asset_url="$(jq -r '.browser_download_url' "$EVIDENCE_DIR/linux-asset.json")"
+          asset_size="$(jq -r '.size' "$EVIDENCE_DIR/linux-asset.json")"
+          printf 'asset_name=%s\nasset_url=%s\nasset_size=%s\n' "$asset_name" "$asset_url" "$asset_size" | tee "$EVIDENCE_DIR/asset-metadata.txt"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" "$asset_url" \
+            -o "$EVIDENCE_DIR/$asset_name"
+
+          actual_size="$(stat -c '%s' "$EVIDENCE_DIR/$asset_name")"
+          test "$actual_size" = "$asset_size"
+          observed_sha="$(sha256sum "$EVIDENCE_DIR/$asset_name" | awk '{print $1}')"
+          printf '%s  %s\n' "$observed_sha" "$asset_name" | tee "$EVIDENCE_DIR/observed-sha256.txt"
+
+          EXPECTED_SHA="$(tr -d '[:space:]' < "$CANDIDATE_DIR/expected-sha256.txt")"
+          printf '%s\n' "$EXPECTED_SHA" > "$EVIDENCE_DIR/expected-sha256.txt"
+
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+            jq -n --arg status 'provenance-bootstrap-blocked' --arg observed_sha256 "$observed_sha" \
+              --arg expected_sha256 "$EXPECTED_SHA" --arg asset_name "$asset_name" --argjson asset_size "$asset_size" \
+              '{status:$status,runtime_executed:false,asset_name:$asset_name,asset_size:$asset_size,observed_sha256:$observed_sha256,expected_sha256:$expected_sha256}' \
+              > "$EVIDENCE_DIR/runtime-result.json"
+            echo "Official asset resolved and hashed, but expected-sha256.txt is intentionally unset. Refusing extraction/execution." >&2
+            exit 42
+          fi
+
+          if [[ "$observed_sha" != "$EXPECTED_SHA" ]]; then
+            jq -n --arg status 'provenance-mismatch' --arg observed_sha256 "$observed_sha" \
+              --arg expected_sha256 "$EXPECTED_SHA" --arg asset_name "$asset_name" \
+              '{status:$status,runtime_executed:false,asset_name:$asset_name,observed_sha256:$observed_sha256,expected_sha256:$expected_sha256}' \
+              > "$EVIDENCE_DIR/runtime-result.json"
+            echo "SHA-256 mismatch. Refusing extraction/execution." >&2
+            exit 43
+          fi
+
+          echo "asset_name=$asset_name" >> "$GITHUB_OUTPUT"
+
+      - name: Install bounded Linux runtime dependencies
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb openbox wmctrl x11-utils mesa-utils libgl1-mesa-dri \
+            libopenal1 libsdl2-2.0-0 unzip file
+
+      - name: Extract verified official package and launch Torque3D
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          asset_name='${{ steps.provenance.outputs.asset_name }}'
+          archive="$EVIDENCE_DIR/$asset_name"
+          extract_dir="$GITHUB_WORKSPACE/$EVIDENCE_DIR/extracted"
+          mkdir -p "$extract_dir"
+
+          unzip -Z1 "$archive" > "$EVIDENCE_DIR/archive-files.txt"
+          entry_count="$(wc -l < "$EVIDENCE_DIR/archive-files.txt" | tr -d '[:space:]')"
+          printf 'archive_entry_count=%s\n' "$entry_count" > "$EVIDENCE_DIR/archive-metadata.txt"
+          grep -Fx 'Torque3D' "$EVIDENCE_DIR/archive-files.txt" >/dev/null
+          unzip -q "$archive" -d "$extract_dir"
+
+          binary="$extract_dir/Torque3D"
+          test -f "$binary"
+          chmod +x "$binary"
+          file "$binary" | tee "$EVIDENCE_DIR/selected-binary-file.txt"
+          grep -Eq 'ELF .*executable' "$EVIDENCE_DIR/selected-binary-file.txt"
+          printf '%s\n' "$binary" | tee "$EVIDENCE_DIR/selected-binary.txt"
+          ldd "$binary" > "$EVIDENCE_DIR/ldd.txt" 2>&1 || true
+
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > "$EVIDENCE_DIR/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          openbox > "$EVIDENCE_DIR/openbox.log" 2>&1 &
+          openbox_pid=$!
+          cleanup() {
+            if [[ -n "${runtime_pid:-}" ]]; then
+              kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+              sleep 1
+              kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+              wait "$runtime_pid" 2>/dev/null || true
+            fi
+            kill "$openbox_pid" "$xvfb_pid" 2>/dev/null || true
+            rm -rf "$extract_dir"
+          }
+          trap cleanup EXIT
+          sleep 2
+          timeout 3s xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt" 2>&1 || true
+          timeout 3s glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1 || true
+
+          binary_abs="$(readlink -f "$binary")"
+          binary_dir="$(dirname "$binary_abs")"
+          binary_name="$(basename "$binary_abs")"
+          cd "$binary_dir"
+          setsid timeout --signal=TERM --kill-after=2s 18s "./$binary_name" > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/runtime.log" 2>&1 &
+          runtime_pid=$!
+
+          window_seen=false
+          survived_five_seconds=false
+          : > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt"
+          : > "$GITHUB_WORKSPACE/$EVIDENCE_DIR/wmctrl-errors.txt"
+          for i in $(seq 1 12); do
+            sleep 1
+            window_sample="$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows-${i}.txt"
+            if timeout 2s wmctrl -lx > "$window_sample" 2>> "$GITHUB_WORKSPACE/$EVIDENCE_DIR/wmctrl-errors.txt"; then
+              cat "$window_sample" >> "$GITHUB_WORKSPACE/$EVIDENCE_DIR/windows.txt"
+              if grep -Eq '^0x[[:xdigit:]]+[[:space:]]' "$window_sample"; then window_seen=true; fi
+            fi
+            if (( i >= 5 )) && kill -0 "$runtime_pid" 2>/dev/null; then survived_five_seconds=true; fi
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
+          done
+
+          runtime_exit='running'
+          if kill -0 "$runtime_pid" 2>/dev/null; then
+            kill -TERM -- "-$runtime_pid" 2>/dev/null || true
+            sleep 1
+            kill -KILL -- "-$runtime_pid" 2>/dev/null || true
+            wait "$runtime_pid" 2>/dev/null || true
+            runtime_exit='terminated-after-proof-window'
+          else
+            set +e
+            wait "$runtime_pid"
+            runtime_exit="$?"
+            set -e
+          fi
+          runtime_pid=''
+
+          cd "$GITHUB_WORKSPACE"
+          loader_failure=false
+          if grep -Eqi 'error while loading shared libraries|cannot open shared object file|Segmentation fault|core dumped' "$EVIDENCE_DIR/runtime.log"; then loader_failure=true; fi
+          null_renderer=false
+          if grep -Fqi 'GFX Null Device' "$EVIDENCE_DIR/runtime.log"; then null_renderer=true; fi
+
+          passed=false
+          if [[ "$loader_failure" == false && "$survived_five_seconds" == true ]]; then passed=true; fi
+
+          jq -n --arg status "$( [[ "$passed" == true ]] && echo pass || echo runtime-launch-failed )" \
+            --arg binary "$binary_abs" --arg runtime_exit "$runtime_exit" \
+            --argjson runtime_executed true --argjson window_seen "$window_seen" \
+            --argjson survived_five_seconds "$survived_five_seconds" --argjson loader_failure "$loader_failure" \
+            --argjson null_renderer "$null_renderer" --argjson passed "$passed" \
+            '{status:$status,binary:$binary,runtime_executed:$runtime_executed,window_seen:$window_seen,survived_five_seconds:$survived_five_seconds,loader_failure:$loader_failure,null_renderer:$null_renderer,runtime_exit:$runtime_exit,passed:$passed}' \
+            > "$EVIDENCE_DIR/runtime-result.json"
+
+          test "$passed" = true
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          find "$EVIDENCE_DIR" -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
+            | sort -z | xargs -0 -r sha256sum > "$EVIDENCE_DIR/sha256-manifest.txt"
+          cat "$EVIDENCE_DIR/runtime-result.json" 2>/dev/null || true
+          cat "$EVIDENCE_DIR/sha256-manifest.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: torque3d-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/torque3d-runtime
+          if-no-files-found: error
+          retention-days: 30
