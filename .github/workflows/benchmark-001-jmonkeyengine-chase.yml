@@ -1,0 +1,87 @@
+name: Benchmark 001 jMonkeyEngine Recast Minie chase gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/chase-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-chase.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chase-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/chase-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/chase-gate/pom.xml
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/evidence"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/evidence/environment.txt"
+      - name: Strict compile verify and package
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee evidence/maven-verify.log
+      - name: Capture and assert dependency graph
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-desktop:jar:3.9.0-stable' evidence/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' evidence/dependency-tree.txt
+          grep -F 'org.recast4j:recast:jar:1.5.12' evidence/dependency-tree.txt
+          grep -F 'org.recast4j:detour:jar:1.5.12' evidence/dependency-tree.txt
+      - name: Execute Recast to native Minie chase
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress exec:java 2>&1 | tee evidence/runtime.log
+      - name: Assert machine-readable chase evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$CANDIDATE/evidence/runtime-result.json"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.minie_native_loaded || !r.detour_executed || !r.acquisition_valid || r.initial_separation_metres < 15.99 || r.initial_separation_metres > 16.01 || r.last_pre_acquisition_distance_metres <= 12 || r.acquisition_distance_metres > 12 || r.acquisition_distance_metres < 11.9 || r.straight_path_points < 2 || r.path_length_metres <= 10 || r.path_length_metres > 12.5 || !r.commanded_speed_valid || !r.chase_reduced_distance || r.distance_reduced_metres < 6 || !r.release_stable || r.release_drift_metres > 0.005 || !r.stayed_inside_arena || !r.path_inside_arena || !r.observation_mutation_isolation || r.post_navigation_clamp || r.post_physics_arena_clamp || r.external_input_executed || r.combat_executed) process.exit(1);' "$RESULT"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/benchmark/JmeRecastMinieChaseGate.java" \
+            "$CANDIDATE/evidence/environment.txt" \
+            "$CANDIDATE/evidence/maven-verify.log" \
+            "$CANDIDATE/evidence/dependency-tree.txt" \
+            "$CANDIDATE/evidence/runtime.log" \
+            "$RESULT" \
+            > "$CANDIDATE/evidence/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-chase-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/chase-gate/evidence/**
+          if-no-files-found: error
+          retention-days: 30
