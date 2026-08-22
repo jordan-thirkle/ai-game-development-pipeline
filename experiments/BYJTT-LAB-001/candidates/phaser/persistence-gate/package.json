@@ -1,0 +1,19 @@
+{
+  "name": "byjtt-lab-001-phaser-progression-gate",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "runtime": "node scripts/runtime.mjs"
+  },
+  "dependencies": {
+    "phaser": "4.1.0"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.5"
+  }
+}
