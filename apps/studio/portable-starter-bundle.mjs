@@ -45,9 +45,20 @@ export function portableStarterManifestTextFromTarBytes(value) {
   let offset = 0;
   let entries = 0;
   let manifestText = null;
-  while (offset + TAR_BLOCK_BYTES <= bytes.byteLength) {
+  let terminated = false;
+  while (offset < bytes.byteLength) {
+    if (offset + TAR_BLOCK_BYTES > bytes.byteLength) throw new Error('Starter bundle is truncated.');
     const header = bytes.subarray(offset, offset + TAR_BLOCK_BYTES);
-    if (allZero(header)) break;
+    if (allZero(header)) {
+      const secondTerminatorEnd = offset + (2 * TAR_BLOCK_BYTES);
+      if (secondTerminatorEnd > bytes.byteLength) throw new Error('Starter bundle is missing the required two-block tar terminator.');
+      const secondTerminator = bytes.subarray(offset + TAR_BLOCK_BYTES, secondTerminatorEnd);
+      if (!allZero(secondTerminator)) throw new Error('Starter bundle has a malformed tar terminator.');
+      const trailing = bytes.subarray(secondTerminatorEnd);
+      if (trailing.byteLength % TAR_BLOCK_BYTES !== 0 || !allZero(trailing)) throw new Error('Starter bundle contains invalid trailing data after the tar terminator.');
+      terminated = true;
+      break;
+    }
     entries += 1;
     if (entries > STARTER_BUNDLE_MAX_ENTRIES) throw new Error(`Starter bundle must contain no more than ${STARTER_BUNDLE_MAX_ENTRIES} entries.`);
 
@@ -63,15 +74,17 @@ export function portableStarterManifestTextFromTarBytes(value) {
 
     const contentStart = offset + TAR_BLOCK_BYTES;
     const contentEnd = contentStart + size;
-    if (contentEnd > bytes.byteLength) throw new Error('Starter bundle is truncated.');
-    if (/(^|\/)starter\/project\.manifest\.json$/.test(path)) {
+    const recordEnd = contentStart + Math.ceil(size / TAR_BLOCK_BYTES) * TAR_BLOCK_BYTES;
+    if (contentEnd > bytes.byteLength || recordEnd > bytes.byteLength) throw new Error('Starter bundle is truncated.');
+    if (path === 'starter/project.manifest.json') {
       if (![0, 48].includes(type)) throw new Error('Starter manifest must be a regular file.');
       if (manifestText !== null) throw new Error('Starter bundle contains more than one starter/project.manifest.json and is ambiguous.');
       if (size <= 0 || size > STARTER_MANIFEST_MAX_BYTES) throw new Error(`Starter manifest must be between 1 byte and ${STARTER_MANIFEST_MAX_BYTES} bytes.`);
       manifestText = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(contentStart, contentEnd));
     }
-    offset = contentStart + Math.ceil(size / TAR_BLOCK_BYTES) * TAR_BLOCK_BYTES;
+    offset = recordEnd;
   }
+  if (!terminated) throw new Error('Starter bundle is missing the required two-block tar terminator.');
   if (manifestText === null) throw new Error('Starter bundle must contain exactly one starter/project.manifest.json.');
   return manifestText;
 }
