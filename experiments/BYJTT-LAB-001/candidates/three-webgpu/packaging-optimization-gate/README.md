@@ -15,6 +15,8 @@ The workflow must:
 
 - assert the exact candidate head and exact retained npm graph before dependency execution;
 - build and run the unchanged 13-step Phase A playthrough before any transform;
+- fail closed unless the Phase A artifact's `candidate_head_revision` equals the actual checked-out `git rev-parse HEAD` for both baseline and optimized runs;
+- retain baseline/optimized Phase A result copies plus wrapper metadata that records the checked-out head separately from the legacy `tested_revision` field (on pull-request runs, that legacy field is GitHub's event/merge SHA and is not used as standalone candidate-head identity);
 - apply only the two packaging substitutions above to the checked-out `src/main.js`;
 - build and run the same unchanged Phase A playthrough again;
 - measure emitted JavaScript and WASM raw/gzip bytes before and after;
