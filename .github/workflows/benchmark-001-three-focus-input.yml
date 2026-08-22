@@ -78,16 +78,22 @@ jobs:
         run: |
           set -euo pipefail
           cd "$CANDIDATE"
+          set +e
           node focus-input-gate/probe-focus-loss.mjs 2>&1 | tee artifacts/focus-input/runtime.log
+          probe_status=${PIPESTATUS[0]}
+          set -e
           node - <<'NODE'
           const fs = require('fs');
           const result = JSON.parse(fs.readFileSync('artifacts/focus-input/runtime-result.json', 'utf8'));
           if (result.tested_revision !== process.env.CANDIDATE_HEAD_SHA) throw new Error('exact-head mismatch');
           if (result.runtime_ready !== true) throw new Error('runtime never became ready');
           if (result.production_source_modified !== false || result.direct_input_state_mutation !== false) throw new Error('proof boundary violated');
-          if (!['focus-input-release-proven', 'blocked-focus-input-stuck'].includes(result.proof_state)) throw new Error(`unexpected proof state ${result.proof_state}`);
+          if (result.proof_state !== 'focus-input-release-proven') throw new Error(`focus-loss safety not proven: ${result.proof_state}`);
+          if (result.focus_before_transfer !== true || result.focus_after_transfer !== false || result.trusted_blur_observed !== true) throw new Error('trusted focus transfer not proven');
+          if (result.safe_focus_release_proven !== true) throw new Error('safe focus release not proven');
           if (result.failures.length !== 0) throw new Error(`browser/runtime failures: ${JSON.stringify(result.failures)}`);
           NODE
+          test "$probe_status" -eq 0
 
       - name: Hash retained evidence
         if: always()
