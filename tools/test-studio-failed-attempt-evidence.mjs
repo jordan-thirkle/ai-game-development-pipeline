@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildFailedRunReceipt, failedRunStageStatuses } from './studio-verification-page.mjs';
+import {
+  buildFailedRunReceipt,
+  failedRunStageStatuses,
+  parseFailedRunFromSession,
+  serializeFailedRunForSession
+} from './studio-verification-page.mjs';
 
 const baseFailure = {
   status: 'fail',
@@ -44,6 +49,21 @@ test('stage projection preserves pass, fail, and blocked distinctions', () => {
     releaseCandidate: 'blocked',
     publishing: 'blocked'
   });
+});
+
+test('failed evidence round-trips through bounded tab-session storage', () => {
+  const serialized = serializeFailedRunForSession(baseFailure);
+  const restored = parseFailedRunFromSession(serialized);
+  assert.equal(restored.status, 'fail');
+  assert.equal(restored.evidence.build.exitStatus, 17);
+  assert.equal(restored.evidence.releaseCandidate, undefined);
+});
+
+test('session recovery rejects success, malformed JSON, empty evidence, and oversized payloads', () => {
+  assert.throws(() => parseFailedRunFromSession(JSON.stringify({ ...baseFailure, status: 'pass' })), /non-passing pipeline result/);
+  assert.throws(() => parseFailedRunFromSession('{bad json'), /malformed/);
+  assert.throws(() => parseFailedRunFromSession(JSON.stringify({ status: 'fail', evidence: {} })), /retained pipeline evidence/);
+  assert.throws(() => parseFailedRunFromSession('x'.repeat((1024 * 1024) + 1)), /oversized/);
 });
 
 test('a passing result cannot be relabelled as a failed-attempt receipt', () => {

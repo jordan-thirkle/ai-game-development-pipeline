@@ -29,8 +29,10 @@ const studioUrl = `http://127.0.0.1:${address.port}/apps/studio/`;
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const page = await browser.newPage();
 const externalRequests = [];
+let pipelinePosts = 0;
 page.on('request', (request) => {
   const url = new URL(request.url());
+  if (request.method() === 'POST' && ['/api/pipeline/runs', '/api/pipeline/brief-runs'].includes(url.pathname)) pipelinePosts += 1;
   if (['http:', 'https:'].includes(url.protocol) && !['127.0.0.1', 'localhost'].includes(url.hostname)) {
     externalRequests.push(request.url());
   }
@@ -88,6 +90,33 @@ try {
   assert.equal(receipt.evidence.publishing, undefined);
   assert.equal('download' in receipt, false);
   assert.equal('playable' in receipt, false);
+  assert.equal(pipelinePosts, 1);
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
+  const recoveredMessage = await page.locator('#run-message').innerText();
+  assert.equal(recoveredMessage, 'Recovered the latest failed attempt from this browser tab. No rebuild was run.');
+  const recoveredEvidenceText = await page.locator('#run-evidence-panel').innerText();
+  assert.match(recoveredEvidenceText, /Recovered from this browser tab after refresh\. No pipeline stage was re-executed\./);
+  assert.match(recoveredEvidenceText, /Build failed or did not produce a contained artifact/i);
+  assert.doesNotMatch(recoveredEvidenceText, /Verified local starter/);
+
+  const recoveredStages = await page.locator('[data-run-step]').evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => [node.dataset.runStep, node.className])));
+  assert.match(recoveredStages.intake, /pass/);
+  assert.match(recoveredStages.registry, /pass/);
+  assert.match(recoveredStages.build, /fail/);
+  assert.match(recoveredStages.qa, /fail/);
+  assert.match(recoveredStages.releaseCandidate, /blocked/);
+  assert.match(recoveredStages.publishing, /blocked/);
+  assert.equal(await page.locator('#play-result').isVisible(), false);
+  assert.equal(await page.getByRole('link', { name: 'Download starter bundle' }).count(), 0);
+  assert.equal(pipelinePosts, 1, 'refresh recovery must not re-run the pipeline');
+
+  const recoveredReceiptLink = page.getByRole('link', { name: 'Download failed-attempt evidence' });
+  const recoveredReceipt = await recoveredReceiptLink.evaluate(async (link) => JSON.parse(await (await fetch(link.href)).text()));
+  assert.deepEqual(recoveredReceipt.authority, receipt.authority);
+  assert.equal(recoveredReceipt.evidence.build.status, 'fail');
+  assert.equal(recoveredReceipt.evidence.qa.executed, false);
   assert.deepEqual(externalRequests, []);
 
   const evidence = {
@@ -96,6 +125,8 @@ try {
     forcedFailure: 'build command exits 17',
     failedAttemptVisible: true,
     failedReceiptDownloadable: true,
+    refreshRecoveryVerified: true,
+    pipelinePosts,
     partialEvidence: {
       intake: 'pass',
       registry: 'pass',

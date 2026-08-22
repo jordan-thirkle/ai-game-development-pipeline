@@ -125,6 +125,7 @@ export function createVerificationPage(evidence, bundledArtifactSha256) {
 }
 
 const FAILED_RUN_PATHS = new Set(['/api/pipeline/runs', '/api/pipeline/brief-runs']);
+const FAILED_RUN_SESSION_KEY = 'byjtt:studio:failed-run:v1';
 let pendingFailedRun = null;
 let failedReceiptUrl = null;
 
@@ -172,6 +173,32 @@ export function buildFailedRunReceipt(result) {
   };
 }
 
+export function serializeFailedRunForSession(result) {
+  buildFailedRunReceipt(result);
+  return JSON.stringify(result);
+}
+
+export function parseFailedRunFromSession(serialized) {
+  if (typeof serialized !== 'string' || serialized.length === 0 || serialized.length > 1024 * 1024) {
+    throw new Error('Stored failed-run evidence is missing or oversized.');
+  }
+  let result;
+  try { result = JSON.parse(serialized); }
+  catch { throw new Error('Stored failed-run evidence is malformed.'); }
+  buildFailedRunReceipt(result);
+  return result;
+}
+
+function storeFailedRunForRefresh(result) {
+  try { window.sessionStorage.setItem(FAILED_RUN_SESSION_KEY, serializeFailedRunForSession(result)); }
+  catch (error) { console.error('Failed-attempt evidence could not be retained for refresh:', error); }
+}
+
+function clearStoredFailedRun() {
+  try { window.sessionStorage.removeItem(FAILED_RUN_SESSION_KEY); }
+  catch {}
+}
+
 function failedEvidenceRow(title, status, detail) {
   const item = document.createElement('div');
   item.className = 'item';
@@ -190,7 +217,19 @@ function failedEvidenceRow(title, status, detail) {
   return item;
 }
 
-function renderFailedAttempt(result) {
+function restoreFailedJourney(result) {
+  const statuses = failedRunStageStatuses(result);
+  for (const [key, status] of Object.entries(statuses)) {
+    const step = document.querySelector(`[data-run-step="${key}"]`);
+    if (!step) continue;
+    step.className = `step ${status}`;
+    step.setAttribute('aria-label', `${step.querySelector('b')?.textContent || key}: ${status}`);
+    const sub = step.querySelector('.sub');
+    if (sub) sub.textContent = status;
+  }
+}
+
+function renderFailedAttempt(result, { recovered = false } = {}) {
   const receipt = buildFailedRunReceipt(result);
   const container = document.querySelector('#run-evidence');
   const panel = document.querySelector('#run-evidence-panel');
@@ -199,7 +238,9 @@ function renderFailedAttempt(result) {
   const summary = failedEvidenceRow('Failed attempt evidence', 'fail', [
     receipt.error,
     '',
-    'Partial evidence is retained exactly as returned by the local pipeline.',
+    recovered
+      ? 'Recovered from this browser tab after refresh. No pipeline stage was re-executed.'
+      : 'Partial evidence is retained exactly as returned by the local pipeline.',
     'Missing stages remain blocked. No playable, verified starter, publication authority, or secret-backed operation is granted.'
   ].join('\n'));
   const actions = document.createElement('div');
@@ -221,6 +262,29 @@ function renderFailedAttempt(result) {
     container.append(failedEvidenceRow(labels[key] || key, key === 'run' ? 'fail' : (statuses[key] || 'fail'), JSON.stringify(value, null, 2)));
   }
   panel.classList.remove('hidden');
+  if (recovered) {
+    restoreFailedJourney(result);
+    document.querySelector('[data-view="local-run"]')?.click();
+    const message = document.querySelector('#run-message');
+    if (message) {
+      message.className = 'notice fail';
+      message.textContent = 'Recovered the latest failed attempt from this browser tab. No rebuild was run.';
+    }
+    document.querySelector('#play-result')?.classList.add('hidden');
+  }
+}
+
+function restoreFailedRunAfterRefresh() {
+  let serialized;
+  try { serialized = window.sessionStorage.getItem(FAILED_RUN_SESSION_KEY); }
+  catch { return; }
+  if (!serialized) return;
+  try {
+    renderFailedAttempt(parseFailedRunFromSession(serialized), { recovered: true });
+  } catch (error) {
+    clearStoredFailedRun();
+    console.error('Stored failed-attempt evidence was rejected:', error);
+  }
 }
 
 function installFailedRunCapture() {
@@ -235,11 +299,18 @@ function installFailedRunCapture() {
       return response;
     }
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
-    if (method === 'POST' && !response.ok && url.origin === location.origin && FAILED_RUN_PATHS.has(url.pathname)) {
-      pendingFailedRun = response.clone().json().then((result) => {
-        buildFailedRunReceipt(result);
-        return result;
-      }).catch(() => null);
+    if (method === 'POST' && url.origin === location.origin && FAILED_RUN_PATHS.has(url.pathname)) {
+      if (response.ok) clearStoredFailedRun();
+      else {
+        pendingFailedRun = response.clone().json().then((result) => {
+          buildFailedRunReceipt(result);
+          storeFailedRunForRefresh(result);
+          return result;
+        }).catch(() => null);
+      }
+    }
+    if (method === 'DELETE' && response.ok && url.origin === location.origin && url.pathname === '/api/pipeline/runs/latest') {
+      clearStoredFailedRun();
     }
     return response;
   };
@@ -269,4 +340,5 @@ function watchFailedRuns() {
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   installFailedRunCapture();
   watchFailedRuns();
+  restoreFailedRunAfterRefresh();
 }
