@@ -116,6 +116,7 @@ async function staticFileFor(url) {
   const publicPaths = new Set([
     '/apps/studio/index.html',
     '/apps/studio/latest-run-recovery.mjs',
+    '/apps/studio/failed-run-retry.mjs',
     '/fixtures/control-plane/BYJTT-LAB-001.json',
     '/tools/control-plane-freshness.mjs',
     '/tools/studio-starter-home-page.mjs',
@@ -252,7 +253,11 @@ export function createStudioServer({ execute = executeSampleRun } = {}) {
       if (file.endsWith(`${sep}apps${sep}studio${sep}index.html`)) {
         const source = body.toString('utf8');
         const recoveryTag = '<script type="module" src="/apps/studio/latest-run-recovery.mjs"></script>';
-        if (!source.includes(recoveryTag)) body = Buffer.from(source.replace('</body>', `${recoveryTag}</body>`), 'utf8');
+        const retryTag = '<script type="module" src="/apps/studio/failed-run-retry.mjs"></script>';
+        let augmented = source;
+        if (!augmented.includes(recoveryTag)) augmented = augmented.replace('</body>', `${recoveryTag}</body>`);
+        if (!augmented.includes(retryTag)) augmented = augmented.replace('</body>', `${retryTag}</body>`);
+        body = Buffer.from(augmented, 'utf8');
       }
       response.writeHead(200, { 'content-type': MIME.get(extname(file)) || 'application/octet-stream', 'cache-control': 'no-store' });
       response.end(request.method === 'HEAD' ? undefined : body);
