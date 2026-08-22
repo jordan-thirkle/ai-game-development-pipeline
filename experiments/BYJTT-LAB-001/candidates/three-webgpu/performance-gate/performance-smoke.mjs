@@ -107,7 +107,7 @@ try {
   const startupMs = Date.now() - launchStarted;
   await page.screenshot({ path: path.join(artifacts, '01-ready.png'), fullPage: true });
 
-  const sampleWindowMs = 5000;
+  const sampleWindowMs = 8000;
   const idleSamples = await collectFrameIntervals(sampleWindowMs);
 
   const before = await snapshot();
@@ -191,7 +191,7 @@ try {
       'The shared 60 FPS target is compared but not promoted into a device/mobile performance-readiness claim.',
       'Normal physical keyboard movement and camera input are used during the active sampling window; no gameplay mutation shortcut is exposed.',
       'Release stability is measured after a 600 ms no-input deceleration interval because the unchanged shared player contract specifies finite 22 m/s² deceleration.',
-      'Five-second idle and active windows preserve the >=60-sample evidence-quality gate even when the hosted runner operates well below the shared 60 FPS target.'
+      'Eight-second idle and active windows preserve the >=60-sample evidence-quality gate even when the hosted runner operates well below the shared 60 FPS target.'
     ]
   };
 
