@@ -57,6 +57,7 @@ try {
     executablePath: '/usr/bin/google-chrome',
     headless: true,
     args: [
+      '--disable-blink-features=WebGPU',
       '--disable-features=WebGPU,WebGPUService,UnsafeWebGPU',
       '--enable-webgl',
       '--ignore-gpu-blocklist'
