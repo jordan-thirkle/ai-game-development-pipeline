@@ -1,0 +1,122 @@
+name: Benchmark 001 Three WebGPU Device Performance Handoff
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/device-performance-gate/**'
+      - '.github/workflows/benchmark-001-three-device-performance-handoff.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-handoff:
+    name: hosted-device-proof-handoff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/device-performance"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/device-performance/environment.txt"
+
+      - name: Verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < human-alpha/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/device-performance/observed-lock-sha256.txt
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/device-performance/dependency-tree.json || true
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/device-performance/build.log"
+
+      - name: Re-run unchanged 13-step Phase A
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/device-performance/phase-a.log"
+
+      - name: Execute hosted renderer discriminator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          set +e
+          CANDIDATE_HEAD_SHA="$CANDIDATE_HEAD_SHA" BYJTT_REQUIRE_HARDWARE=1 BYJTT_CHROME_HEADLESS=1 \
+            node device-performance-gate/run-device-proof.mjs 2>&1 | tee artifacts/device-performance/runtime.log
+          status=${PIPESTATUS[0]}
+          set -e
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/device-performance/runtime-result.json', 'utf8'));
+          if (result.tested_revision !== process.env.CANDIDATE_HEAD_SHA) throw new Error('runtime result is not bound to exact candidate head');
+          if (result.human_tested !== false || result.release_ready !== false) throw new Error('automation must not claim human/release readiness');
+          if (result.classification !== 'blocked-software-renderer') throw new Error(`hosted environment unexpectedly classified ${result.classification}; inspect before changing the oracle`);
+          if (result.target_device_performance_proven !== false) throw new Error('hosted software renderer must not prove device performance');
+          if (!result.observations?.software_renderer_detected) throw new Error('software-renderer block lacks GPU evidence');
+          if (!result.observations?.canvas_visible) throw new Error('candidate canvas did not execute visibly before environment block');
+          if (Math.abs(Number(result.observations?.movement_delta_x || 0)) < 0.25) throw new Error('normal KeyD runtime path was not executed before environment block');
+          if ((result.failures || []).length) throw new Error(`runtime had failures beyond the expected renderer block: ${JSON.stringify(result.failures)}`);
+          NODE
+          test "$status" -eq 2
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/device-performance
+          {
+            find artifacts/device-performance -type f ! -name 'evidence.sha256' -print0
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/device-performance/evidence.sha256
+
+      - name: Upload exact-head device handoff evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-device-handoff-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/device-performance/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
