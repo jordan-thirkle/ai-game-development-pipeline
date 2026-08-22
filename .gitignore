@@ -1,18 +1,51 @@
 # OS / editors
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+*.swp
+*.swo
+*~
 
-# Secrets and local environment
+# Secrets and local environment (never commit real credentials)
 .env
 .env.*
 !.env.example
+.envrc
+.direnv/
+.dev.vars
+.dev.vars.*
 *.pem
+*.key
+*.p8
 *.p12
+*.pfx
 *.keystore
 *.jks
+.npmrc
+.pypirc
+.netrc
+credentials.json
+credentials.*.json
+service-account*.json
+service_account*.json
+client_secret*.json
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Provider / deployment local state
+.vercel/
+.netlify/
+.firebase/
+.wrangler/
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+.supabase/.temp/
 
 # Node / web tooling
 node_modules/
@@ -22,6 +55,24 @@ coverage/
 .vite/
 .cache/
 generated/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Rust / native
+/target/
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
 
 # Godot
 .godot/
@@ -40,11 +91,22 @@ generated/
 .internal/
 build/default/
 
+# Local databases / runtime state (curated fixtures must use explicit source formats)
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Generated evidence and captures that are not intentionally committed
 *.log
 *.tmp
+*.trace
 artifacts/local/
 evidence/local/
+screenshots/local/
+recordings/local/
 
 # Large generated media should be deliberately curated before commit
 *.mp4
