@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Canonical machine-readable entry points:
+# /status.json
+# /llms.txt

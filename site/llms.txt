@@ -1,0 +1,24 @@
+# By JTT AI Game Development Pipeline
+
+Canonical repository: https://github.com/jordan-thirkle/ai-game-development-pipeline
+
+This GitHub Pages site is a read-only public status/documentation surface. It is not the local execution Studio and must not be treated as evidence that local execution, publication, branch protection, or private platform settings have occurred.
+
+Machine-readable status: ./status.json
+Deployment revision metadata: ./deployment.json
+Security policy: https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/SECURITY.md
+Public repository data policy: https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/docs/PUBLIC-REPOSITORY-DATA-POLICY.md
+Issues/backlog: https://github.com/jordan-thirkle/ai-game-development-pipeline/issues
+
+Current truthful execution boundary:
+- Studio execution is local-only.
+- Current executed runtime target is web.
+- Desktop/mobile requests are planning and UX intent unless separately evidenced by an actual executor.
+- Creator Mode is idea-first and maps ideas to reviewed starter shapes with transparent deterministic local rules; manual Fine-tune selections override suggestions.
+
+Security baseline:
+- CodeQL scanning is configured for the public repository.
+- External GitHub Actions are governed by immutable-SHA validation, with any temporary exception required to be exact and documented.
+- CI scans the tracked public tree for forbidden local/private paths and high-confidence credential formats.
+- CI scans complete fetched Git history for configured high-confidence credential patterns.
+- Main branch protection is not to be claimed until GitHub repository settings report it as enforced.

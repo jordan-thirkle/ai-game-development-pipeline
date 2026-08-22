@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "project": "By JTT AI Game Development Pipeline",
+  "repository": "jordan-thirkle/ai-game-development-pipeline",
+  "visibility": "public",
+  "sourceOfTruth": "main",
+  "publicSurface": "documentation-and-status-only",
+  "studio": {
+    "execution": "local-only",
+    "currentExecutedTarget": "web",
+    "desktopMobile": "planning-and-ux-intent-only"
+  },
+  "creatorMode": {
+    "entry": "idea-first",
+    "starterSelection": "deterministic-local-rule-with-manual-override",
+    "verification": "build-qa-evidence-and-portable-handoff"
+  },
+  "security": {
+    "codeql": true,
+    "immutableGitHubActionPins": true,
+    "trackedTreeExposureScan": true,
+    "fullGitHistoryCredentialPatternScan": true,
+    "mainBranchProtection": "platform-setting-not-yet-enforced"
+  },
+  "canonicalDocs": {
+    "security": "https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/SECURITY.md",
+    "publicDataPolicy": "https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/docs/PUBLIC-REPOSITORY-DATA-POLICY.md",
+    "issues": "https://github.com/jordan-thirkle/ai-game-development-pipeline/issues"
+  },
+  "note": "Deployment commit/time are generated separately as deployment.json by the Pages workflow. This file intentionally contains no secrets, private telemetry, or mutable deployment claims."
+}
