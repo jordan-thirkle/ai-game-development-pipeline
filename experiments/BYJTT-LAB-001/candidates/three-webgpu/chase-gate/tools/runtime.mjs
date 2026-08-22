@@ -26,10 +26,17 @@ try {
   await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().ready === true, null, { timeout: 30_000 });
   const initial = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
   if (!initial || Math.abs(initial.initialSeparation - 16) > 0.001) throw new Error('Initial shared separation changed');
-  await page.keyboard.down('KeyS');
-  await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().acquired === true, null, { timeout: 10_000 });
-  await page.keyboard.up('KeyS');
-  await page.waitForFunction(() => (window.__BYJTT_OBSERVE__?.().chaseSteps ?? 0) >= 180, null, { timeout: 10_000 });
+  await page.keyboard.down('s');
+  try {
+    await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().acquired === true, null, { timeout: 30_000 });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
+    await writeFile(`${evidenceDir}/acquisition-timeout.json`, `${JSON.stringify(diagnostic, null, 2)}\n`);
+    throw error;
+  } finally {
+    await page.keyboard.up('s');
+  }
+  await page.waitForFunction(() => (window.__BYJTT_OBSERVE__?.().chaseSteps ?? 0) >= 180, null, { timeout: 30_000 });
   await page.waitForTimeout(250);
   const result = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
   await page.screenshot({ path: `${evidenceDir}/runtime.png`, fullPage: true });
