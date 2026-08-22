@@ -6,6 +6,7 @@ import { createStudioServer, executeSampleRun } from './studio-server.mjs';
 import { scaffoldSampleProject } from './run-pipeline.mjs';
 
 const artifactsDir = process.env.BROWSER_ARTIFACTS || 'artifacts/control-plane-browser';
+const retryDraftSessionKey = 'byjtt:studio:failed-retry-draft:v1';
 await mkdir(artifactsDir, { recursive: true });
 
 async function failingScaffold(targetPath) {
@@ -62,6 +63,16 @@ const briefC = {
   ...briefB,
   objective: 'Build the repaired desktop-intent collection starter after reviewing only the second failed brief.'
 };
+const staleBaseline = {
+  name: 'Stale Failed Project',
+  objective: 'This valid but unrelated failed brief must never recover into the current retry editor.',
+  targetPlatform: 'web',
+  mechanic: 'dodge'
+};
+const staleDraft = {
+  ...staleBaseline,
+  objective: 'This stale draft must be discarded because its failed-run baseline does not match.'
+};
 
 try {
   await page.goto(studioUrl, { waitUntil: 'networkidle' });
@@ -82,6 +93,15 @@ try {
   await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
   assert.equal(pipelinePosts, 1, 'refresh recovery must not execute the pipeline');
 
+  await page.evaluate(({ key, baseline, draft }) => {
+    window.sessionStorage.setItem(key, JSON.stringify({ baseline, draft }));
+  }, { key: retryDraftSessionKey, baseline: staleBaseline, draft: staleDraft });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#failed-retry-preflight').count(), 0, 'a retry draft from another failed brief must not auto-restore');
+  assert.equal(await page.evaluate((key) => window.sessionStorage.getItem(key), retryDraftSessionKey), null, 'stale retry draft must be discarded');
+  assert.equal(pipelinePosts, 1, 'rejecting stale retry draft must not execute');
+
   await page.getByRole('button', { name: 'Edit before retry' }).click();
   const preflight = page.locator('#failed-retry-preflight');
   await preflight.waitFor({ state: 'visible' });
@@ -99,6 +119,19 @@ try {
   assert.equal(await preflight.locator('li').count(), 3);
   assert.equal(pipelinePosts, 1, 'reviewing brief A changes must remain non-executing');
 
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
+  await preflight.waitFor({ state: 'visible' });
+  assert.match(await page.locator('#run-message').innerText(), /Recovered your unsent retry edits/);
+  assert.equal(await page.locator('#brief-name').inputValue(), briefB.name);
+  assert.equal(await page.locator('#brief-objective').inputValue(), briefB.objective);
+  assert.equal(await page.locator('#brief-target').inputValue(), briefB.targetPlatform);
+  assert.equal(await page.locator('#brief-mechanic').inputValue(), briefB.mechanic);
+  assert.match(await preflight.innerText(), /3 brief fields changed/);
+  assert.equal(await preflight.locator('li').count(), 3);
+  assert.equal(pipelinePosts, 1, 'refreshing unsent retry edits must not execute the pipeline');
+  assert.equal(executionAttempts, 1);
+
   await page.getByRole('button', { name: 'Create playable starter' }).click();
   await page.locator('#run-message.fail').waitFor({ state: 'visible' });
   await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
@@ -106,6 +139,7 @@ try {
   assert.equal(executionAttempts, 2);
   assert.deepEqual(briefBodies, [briefA, briefB]);
   assert.equal(await page.locator('#failed-retry-preflight').count(), 0, 'submitting brief A edits must clear its preflight');
+  assert.equal(await page.evaluate((key) => window.sessionStorage.getItem(key), retryDraftSessionKey), null, 'submitting must clear the unsent retry draft');
 
   const editB = page.getByRole('button', { name: 'Edit before retry' });
   await editB.waitFor({ state: 'visible' });
@@ -136,6 +170,7 @@ try {
   assert.equal(executionAttempts, 3);
   assert.deepEqual(briefBodies, [briefA, briefB, briefC]);
   assert.equal(await page.locator('#failed-retry-preflight').count(), 0);
+  assert.equal(await page.evaluate((key) => window.sessionStorage.getItem(key), retryDraftSessionKey), null, 'successful submission must not retain a stale edit draft');
   await page.getByRole('link', { name: 'Download starter bundle' }).waitFor({ state: 'visible' });
   assert.equal(await page.locator('#play-result').isVisible(), true);
   await page.getByText('Verification summary', { exact: true }).waitFor({ state: 'visible' });
@@ -152,19 +187,23 @@ try {
     realSampleScaffold: true,
     forcedFailures: ['attempt 1 build exits 17', 'attempt 2 build exits 17'],
     repeatedRetryBaselineVerified: true,
+    unsentRetryDraftRefreshRecoveryVerified: true,
+    staleRetryDraftRejected: true,
     firstFailedBrief: briefA,
+    recoveredUnsentDraft: briefB,
     secondFailedBrief: briefB,
     successfulBrief: briefC,
     secondCycleChangedFields: ['objective'],
     staleFirstBaselineRejected: true,
     preflightExecutionAuthority: 'none until explicit submit',
+    refreshExecutionAttemptsAdded: 0,
     executionAttempts,
     pipelinePosts,
     externalRequests
   };
   await writeFile(resolve(artifactsDir, 'studio-failed-attempt-edit-evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
   await page.screenshot({ path: resolve(artifactsDir, 'studio-failed-attempt-edited-retry.png'), fullPage: true });
-  console.log('Studio repeated failed-attempt edit-before-retry browser dogfood passed.');
+  console.log('Studio failed-attempt edit draft recovery browser dogfood passed.');
 } finally {
   await browser.close();
   await new Promise((resolvePromise) => server.close(resolvePromise));
