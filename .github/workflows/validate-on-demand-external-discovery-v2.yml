@@ -1,0 +1,74 @@
+name: Validate on-demand external discovery v2
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/external-discovery-brief.schema.json'
+      - 'schemas/external-discovery-queue.schema.json'
+      - 'tools/lib/external-discovery-v2.mjs'
+      - 'tools/external-reuse-discover-v2.mjs'
+      - 'tools/test-external-discovery-v2.mjs'
+      - 'examples/creator-mode/external-discovery-brief-v2.json'
+      - 'package.json'
+      - '.github/workflows/validate-on-demand-external-discovery-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Prove discovery safety contract
+        run: npm run test:external-discovery
+      - name: Prove canonical reuse authority remains valid
+        run: |
+          npm run validate:reuse
+          npm run gate:reuse-freshness
+          npm run test:reuse
+
+  live-on-demand-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run bounded live discovery
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run discover:external -- examples/creator-mode/external-discovery-brief-v2.json /tmp/external-discovery-v2.json
+      - name: Assert no search discovery self-promoted
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('/tmp/external-discovery-v2.json', 'utf8'));
+          for (const candidate of result.queue) {
+            if (candidate.origin === 'github_search' && candidate.publication_eligible !== false) throw new Error(`${candidate.candidate_id} became publication eligible`);
+            if (candidate.origin === 'github_search' && candidate.screening_status === 'canonical_qualified') throw new Error(`${candidate.candidate_id} self-promoted`);
+          }
+          if (result.unsafe_promotions !== 0) throw new Error('unsafe promotions reported');
+          console.log(JSON.stringify({ actions: result.search_actions + result.source_fetches, coverage: result.capability_candidate_coverage_pct, canonicalQualifiedCoverage: result.canonical_qualified_coverage_pct, gaps: result.gaps }, null, 2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: external-discovery-v2
+          path: /tmp/external-discovery-v2.json
+          if-no-files-found: error
+          retention-days: 7

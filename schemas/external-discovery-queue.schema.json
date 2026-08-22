@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byjtt.com/schemas/external-discovery-queue.schema.json",
+  "title": "By JTT bounded external discovery queue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "brief_id", "mode", "measurement_status", "started_at", "ended_at", "search_actions", "source_fetches", "candidate_count", "canonical_candidate_count", "new_discovery_count", "capability_candidate_coverage_pct", "canonical_qualified_coverage_pct", "unsafe_promotions", "elapsed_minutes", "queue", "query_log", "per_capability", "gaps", "notes"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "brief_id": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]+$"},
+    "mode": {"const": "bounded_external_discovery_v2"},
+    "measurement_status": {"const": "instrumented"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": "string", "format": "date-time"},
+    "search_actions": {"type": "integer", "minimum": 0},
+    "source_fetches": {"type": "integer", "minimum": 0},
+    "candidate_count": {"type": "integer", "minimum": 0},
+    "canonical_candidate_count": {"type": "integer", "minimum": 0},
+    "new_discovery_count": {"type": "integer", "minimum": 0},
+    "capability_candidate_coverage_pct": {"type": "integer", "minimum": 0, "maximum": 100},
+    "canonical_qualified_coverage_pct": {"type": "integer", "minimum": 0, "maximum": 100},
+    "unsafe_promotions": {"const": 0},
+    "elapsed_minutes": {"type": "number", "minimum": 0},
+    "queue": {"type": "array", "items": {"$ref": "#/$defs/candidate"}},
+    "query_log": {"type": "array", "items": {"$ref": "#/$defs/queryLog"}},
+    "per_capability": {"type": "object", "additionalProperties": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}},
+    "gaps": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "notes": {"type": "string", "minLength": 20}
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "capabilities", "origin", "source_url", "repository", "revision", "stars", "forks", "license_spdx", "maintenance", "screening_status", "canonical_record_id", "canonical_state", "publication_eligible", "reason"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+        "capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "origin": {"enum": ["canonical_registry", "github_search"]},
+        "source_url": {"type": "string", "format": "uri"},
+        "repository": {"type": ["string", "null"]},
+        "revision": {"type": ["string", "null"]},
+        "stars": {"type": ["integer", "null"], "minimum": 0},
+        "forks": {"type": ["integer", "null"], "minimum": 0},
+        "license_spdx": {"type": ["string", "null"]},
+        "maintenance": {"enum": ["active", "stable", "stale", "unknown", "not-applicable"]},
+        "screening_status": {"enum": ["canonical_qualified", "canonical_unqualified", "discovered_review_required", "blocked_license", "reference_only"]},
+        "canonical_record_id": {"type": ["string", "null"]},
+        "canonical_state": {"type": ["string", "null"]},
+        "publication_eligible": {"type": "boolean"},
+        "reason": {"type": "string", "minLength": 10}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"origin": {"const": "github_search"}}, "required": ["origin"]},
+          "then": {"properties": {"repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}, "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "canonical_record_id": {"const": null}, "canonical_state": {"const": null}, "publication_eligible": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"origin": {"const": "canonical_registry"}}, "required": ["origin"]},
+          "then": {"properties": {"canonical_record_id": {"type": "string"}, "canonical_state": {"type": "string"}}}
+        }
+      ]
+    },
+    "queryLog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "query", "returned", "eligible_after_metadata_screen", "rejected_as_irrelevant_or_index"],
+      "properties": {
+        "capability_id": {"type": "string"},
+        "query": {"type": "string"},
+        "returned": {"type": "integer", "minimum": 0},
+        "eligible_after_metadata_screen": {"type": "integer", "minimum": 0},
+        "rejected_as_irrelevant_or_index": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

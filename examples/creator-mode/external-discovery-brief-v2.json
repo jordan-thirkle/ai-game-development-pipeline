@@ -1,0 +1,33 @@
+{
+  "schema_version": "2.0.0",
+  "brief_id": "CREATOR.MODE.REUSE.V2",
+  "title": "Mobile-first 3D salvage game external reuse discovery",
+  "platforms": ["web", "mobile"],
+  "max_results_per_query": 10,
+  "capabilities": [
+    {
+      "id": "third-person-controller",
+      "query": "third person controller game",
+      "require_signals": ["controller"],
+      "required_any": ["third person", "third-person", "controller"],
+      "secondary_any": ["character", "camera", "movement"],
+      "canonical_seed_ids": ["playcanvas-third-person-controller"]
+    },
+    {
+      "id": "navigation",
+      "query": "game navigation recast pathfinding",
+      "require_signals": ["navigation"],
+      "required_any": ["navigation", "navmesh", "recast"],
+      "secondary_any": ["pathfinding", "game", "three"] ,
+      "canonical_seed_ids": ["recast-navigation-js"]
+    },
+    {
+      "id": "game-assets",
+      "query": "game assets CC0 3D",
+      "require_signals": ["game"],
+      "required_any": ["asset", "assets"],
+      "secondary_any": ["3d", "cc0", "game"],
+      "canonical_seed_ids": ["kenney-game-assets"]
+    }
+  ]
+}
