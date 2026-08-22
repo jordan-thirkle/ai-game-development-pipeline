@@ -31,6 +31,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
 
+      - name: Install headed-browser focus dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb xauth
+
       - name: Record exact-head environment
         shell: bash
         run: |
@@ -44,6 +51,7 @@ jobs:
             echo "node=$(node --version)"
             echo "npm=$(npm --version)"
             echo "chrome=$(google-chrome --version)"
+            echo "xvfb_run=$(command -v xvfb-run)"
             echo "os=$(uname -a)"
           } | tee "$CANDIDATE/artifacts/focus-input/environment.txt"
 
@@ -73,13 +81,13 @@ jobs:
           set -euo pipefail
           npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/focus-input/phase-a.log"
 
-      - name: Execute production focus-loss probe in real Chrome
+      - name: Execute production focus-loss probe in headed Chrome
         shell: bash
         run: |
           set -euo pipefail
           cd "$CANDIDATE"
           set +e
-          node focus-input-gate/probe-focus-loss.mjs 2>&1 | tee artifacts/focus-input/runtime.log
+          xvfb-run -a -s '-screen 0 1280x1024x24' node focus-input-gate/probe-focus-loss.mjs 2>&1 | tee artifacts/focus-input/runtime.log
           probe_status=${PIPESTATUS[0]}
           set -e
           node - <<'NODE'
