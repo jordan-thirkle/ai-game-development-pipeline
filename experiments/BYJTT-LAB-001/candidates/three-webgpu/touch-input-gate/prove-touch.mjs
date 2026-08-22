@@ -81,11 +81,10 @@ async function touchUp() {
   });
 }
 
-async function touchTap(locator, pointerId = 1) {
-  await touchDown(locator, pointerId);
-  await page.waitForTimeout(60);
-  await touchUp();
-  await page.waitForTimeout(80);
+async function touchTap(locator) {
+  const point = await touchPoint(locator);
+  await page.touchscreen.tap(point.x, point.y);
+  await page.waitForTimeout(100);
 }
 
 async function main() {
@@ -149,21 +148,21 @@ async function main() {
   if (!(releaseDrift <= 0.03)) failures.push(`release drift ${releaseDrift} exceeded 0.03m`);
 
   const pause = page.getByRole('button', { name: 'Pause' });
-  await touchTap(pause, 12);
+  await touchTap(pause);
   current = await waitFor((state) => state['paused'] === true, 'pause through touch');
-  await touchTap(pause, 13);
+  await touchTap(pause);
   current = await waitFor((state) => state['paused'] === false, 'resume through touch');
 
   const attack = page.getByRole('button', { name: 'Attack' });
-  await touchTap(attack, 14);
+  await touchTap(attack);
   current = await waitFor((state) => Number(state['player.attack_cooldown']) > 0, 'attack cooldown through touch', 1500);
 
-  await touchTap(page.getByRole('button', { name: 'Camera left' }), 15);
-  await touchTap(page.getByRole('button', { name: 'Camera right' }), 16);
-  await touchTap(page.getByRole('button', { name: 'Interact' }), 17);
+  await touchTap(page.getByRole('button', { name: 'Camera left' }));
+  await touchTap(page.getByRole('button', { name: 'Camera right' }));
+  await touchTap(page.getByRole('button', { name: 'Interact' }));
 
   const save = page.locator('#save');
-  await touchTap(save, 18);
+  await touchTap(save);
   current = await waitFor((state) => state['save.schema_version'] === 1, 'save through touch');
 
   const isolation = await page.evaluate(() => {
@@ -200,7 +199,7 @@ async function main() {
     viewport: { width: 390, height: 844 },
     has_touch: true,
     mobile_emulation: true,
-    input_transport: 'Chrome DevTools Protocol Input.dispatchTouchEvent',
+    input_transport: 'CDP held touch + Playwright touchscreen taps',
     touch_pointer_events_executed: true,
     physical_device_executed: false,
     target_device_performance_proven: false,
