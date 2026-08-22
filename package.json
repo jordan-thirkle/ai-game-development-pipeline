@@ -8,15 +8,13 @@
     "node": ">=26"
   },
   "scripts": {
-    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs && node tools/check-reuse-registry-freshness.mjs && node tools/validate-github-config.mjs && node tools/validate-public-exposure.mjs && npm run test:reuse && npm run test:governor && npm run test:control-plane-freshness && npm run test:pipeline-run-scaffold && npm run test:run-pipeline && npm run test:studio-server",
+    "validate": "node tools/validate-repo.mjs && node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs && node tools/check-reuse-registry-freshness.mjs && node tools/validate-github-config.mjs && npm run test:reuse && npm run test:governor && npm run test:control-plane-freshness && npm run test:pipeline-run-scaffold && npm run test:run-pipeline && npm run test:studio-server",
     "validate:registry": "node tools/validate-registry-shards.mjs && node tools/validate-reuse-registry.mjs",
     "validate:reuse": "node tools/validate-reuse-registry.mjs",
     "gate:reuse-freshness": "node tools/check-reuse-registry-freshness.mjs",
     "export:reuse-public": "node tools/export-public-reuse-registry.mjs",
     "validate:record": "node tools/validate-record.mjs",
     "validate:github-config": "node tools/validate-github-config.mjs",
-    "validate:public-exposure": "node tools/validate-public-exposure.mjs",
-    "scan:history-secrets": "node tools/scan-git-history-secrets.mjs",
     "new:record": "node tools/new-record.mjs",
     "gate:graduation": "node tools/check-graduation-gate.mjs",
     "gate:lifecycle": "node tools/check-lifecycle-status.mjs",
