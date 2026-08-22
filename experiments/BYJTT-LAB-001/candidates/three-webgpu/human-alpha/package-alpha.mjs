@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmod, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const candidateRoot = path.resolve('.');
@@ -14,14 +14,43 @@ async function requireDirectory(directory, label) {
   if (!info?.isDirectory()) throw new Error(`${label} is missing: ${directory}`);
 }
 
+function isWithin(root, candidate) {
+  return candidate === root || candidate.startsWith(root + path.sep);
+}
+
+async function validateRegularTree(root, label) {
+  const resolvedRoot = await realpath(root);
+  async function visit(current) {
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const candidate = path.join(current, entry.name);
+      const linkInfo = await lstat(candidate);
+      if (linkInfo.isSymbolicLink()) throw new Error(`${label} contains symbolic link: ${candidate}`);
+      const resolved = await realpath(candidate);
+      if (!isWithin(resolvedRoot, resolved)) throw new Error(`${label} escapes root: ${candidate}`);
+      if (linkInfo.isDirectory()) await visit(candidate);
+      else if (!linkInfo.isFile()) throw new Error(`${label} contains unsupported entry: ${candidate}`);
+    }
+  }
+  await visit(resolvedRoot);
+  return resolvedRoot;
+}
+
 async function walkFiles(root, relative = '') {
-  const current = path.join(root, relative);
+  const resolvedRoot = await realpath(root);
+  const current = path.join(resolvedRoot, relative);
   const entries = await readdir(current, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const next = path.join(relative, entry.name);
-    if (entry.isDirectory()) files.push(...await walkFiles(root, next));
-    else if (entry.isFile()) files.push(next);
+    const candidate = path.join(resolvedRoot, next);
+    const linkInfo = await lstat(candidate);
+    if (linkInfo.isSymbolicLink()) throw new Error(`Package contains symbolic link: ${candidate}`);
+    const resolved = await realpath(candidate);
+    if (!isWithin(resolvedRoot, resolved)) throw new Error(`Package entry escapes root: ${candidate}`);
+    if (linkInfo.isDirectory()) files.push(...await walkFiles(resolvedRoot, next));
+    else if (linkInfo.isFile()) files.push(next);
+    else throw new Error(`Package contains unsupported entry: ${candidate}`);
   }
   return files.sort();
 }
@@ -32,9 +61,11 @@ async function sha256(file) {
 }
 
 await requireDirectory(distDir, 'Vite production output');
+await validateRegularTree(distDir, 'Vite production output');
 await rm(packageDir, { recursive: true, force: true });
 await mkdir(siteDir, { recursive: true });
-await cp(distDir, siteDir, { recursive: true });
+await cp(distDir, siteDir, { recursive: true, dereference: false });
+await validateRegularTree(siteDir, 'Packaged site');
 
 const serverSource = `import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -108,6 +139,7 @@ await writeFile(path.join(packageDir, 'START.command'), startCommand, 'utf8');
 await chmod(path.join(packageDir, 'START.command'), 0o755);
 await writeFile(path.join(packageDir, 'START.cmd'), startCmd, 'utf8');
 await writeFile(path.join(packageDir, 'MANIFEST.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+await validateRegularTree(packageDir, 'Human alpha package');
 
 const filesBeforeManifest = (await walkFiles(packageDir)).filter((file) => file !== 'SHA256SUMS.txt');
 const sums = [];
@@ -115,6 +147,7 @@ for (const relative of filesBeforeManifest) {
   sums.push(`${await sha256(path.join(packageDir, relative))}  ${relative.replaceAll(path.sep, '/')}`);
 }
 await writeFile(path.join(packageDir, 'SHA256SUMS.txt'), `${sums.join('\n')}\n`, 'utf8');
+await validateRegularTree(packageDir, 'Final human alpha package');
 
 const result = {
   ...manifest,
