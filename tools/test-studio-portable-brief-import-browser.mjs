@@ -27,6 +27,8 @@ assert.equal(seedPipeline.status, 'pass', 'real sample pipeline did not pass bef
 const bundle = await createStudioBundle({ projectDir, outputDir, projectId: sampleManifest.projectId });
 const archivePath = resolve(workspace, bundle.filename);
 await writeFile(archivePath, bundle.bytes);
+const seedBuild = JSON.parse(await readFile(resolve(outputDir, 'build-result.json'), 'utf8'));
+const seedPublishing = JSON.parse(await readFile(resolve(outputDir, 'publishing-receipt.json'), 'utf8'));
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 try {
@@ -51,11 +53,18 @@ try {
   const bundleInput = page.locator('#portable-starter-bundle');
   assert.equal(await bundleInput.count(), 1, 'portable starter bundle input was not exposed');
   await bundleInput.setInputFiles(archivePath);
-  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Planning intent loaded locally from'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Verified bundle checked locally before continuation'), null, { timeout: 5000 });
   assert.equal(briefRequests.length, 0, 'loading a downloaded verified bundle must not execute the pipeline');
-  assert.match(await page.locator('#portable-starter-status').textContent(), /decompressed the bounded archive in this browser/i);
-  assert.match(await page.locator('#portable-starter-status').textContent(), /read only starter\/project\.manifest\.json/i);
-  assert.match(await page.locator('#portable-starter-status').textContent(), /historical build\/QA\/release evidence was not imported/i);
+  const bundleStatus = await page.locator('#portable-starter-status').textContent();
+  assert.match(bundleStatus, /Build: executed-pass/i);
+  assert.match(bundleStatus, /QA: executed-pass/i);
+  assert.match(bundleStatus, /release candidate: dry-run-only/i);
+  assert.match(bundleStatus, /publication: not-executed/i);
+  assert.match(bundleStatus, /secrets: not-used/i);
+  assert.match(bundleStatus, new RegExp(seedBuild.artifactSha256.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(bundleStatus, new RegExp(seedPublishing.destination.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(bundleStatus, /historical evidence was not imported as execution authority/i);
+  assert.match(bundleStatus, /Nothing was uploaded or executed/i);
   assert.equal(await page.locator('#brief-name').inputValue(), 'Pipeline Sample Game');
   assert.equal(await page.locator('#brief-objective').inputValue(), 'Prove a dependency-free build, QA, release-candidate, and publishing dry run.');
   assert.equal(await page.locator('#brief-target').inputValue(), 'web');
@@ -90,7 +99,7 @@ try {
 
   await page.screenshot({ path: `${artifacts}/portable-starter-continuation.png`, fullPage: true });
   assert.deepEqual(errors, []);
-  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} imported planning intent directly with zero Studio execution, extracted-folder fallback also remained zero-execution, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
+  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} exposed build/QA/dry-run/non-publication/no-secret/artifact proof before continuation with zero Studio execution, extracted-folder fallback also remained zero-execution, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
 } finally {
   await browser.close();
   await rm(extractedStarter, { recursive: true, force: true });
