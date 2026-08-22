@@ -71,6 +71,8 @@ try {
 
   await page.keyboard.press('KeyP');
   await page.waitForFunction(() => window.__BYJTT_PERSIST__?.().successfulSaves === 1);
+  const afterSave = await observe();
+  if (!afterSave) throw new Error('missing post-save observation');
   const savedDocument = await page.evaluate(() => localStorage.getItem('byjtt-lab-001-playcanvas-save'));
   if (!savedDocument) throw new Error('normal save path did not create persistence');
   await writeFile('saved-document.json', `${savedDocument}\n`);
@@ -94,6 +96,8 @@ try {
     Math.abs(beforeSave.effectiveDamage - 40.8) < 1e-6 &&
     beforeSave.attackPresses === 1 &&
     beforeSave.interactPresses === 1 &&
+    afterSave.savePresses === 1 &&
+    afterSave.successfulSaves === 1 &&
     tamperResult &&
     restored.loadedFromDisk &&
     restored.schemaVersion === 1 &&
@@ -119,7 +123,9 @@ try {
     effectiveDamage: restored.effectiveDamage,
     attackDistance: attackReady.distanceToSalvage,
     pickupDistance: rewardReady.distanceToSalvage,
-    normalSaveInputExecuted: beforeSave.savePresses === 0 && restored.loadedFromDisk,
+    savePresses: afterSave.savePresses,
+    successfulSaves: afterSave.successfulSaves,
+    normalSaveInputExecuted: afterSave.savePresses === 1 && afterSave.successfulSaves === 1,
     progressionEarnedThroughExternalInput: true,
     observationMutationIsolation: tamperResult,
     fullRuntimeRestartExecuted: true,
