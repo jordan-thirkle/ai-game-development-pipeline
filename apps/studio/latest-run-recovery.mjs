@@ -26,6 +26,8 @@ const FRESH_RUN_PATHS = new Set(['/api/pipeline/runs', '/api/pipeline/brief-runs
 const VARIATION_SESSION_KEY = 'byjtt:studio:verified-variation:v1';
 const MAX_VARIATION_BYTES = 4096;
 let pendingFreshRun = null;
+let variationDraftListenersInstalled = false;
+let variationDraftPersistenceActive = false;
 
 export function recoverableBriefValues(result) {
   const brief = result?.brief;
@@ -206,16 +208,27 @@ function restoreBriefForm(result) {
 }
 
 function clearVariationDraft() {
+  variationDraftPersistenceActive = false;
   try { window.sessionStorage.removeItem(VARIATION_SESSION_KEY); } catch {}
+}
+
+function serializeVariationBrief(brief) {
+  const validated = recoverableBriefValues({ brief });
+  const serialized = JSON.stringify({ brief: validated });
+  if (serialized.length > MAX_VARIATION_BYTES) throw new Error('Verified brief is too large to preserve safely.');
+  return serialized;
+}
+
+function writeVariationBrief(brief) {
+  const serialized = serializeVariationBrief(brief);
+  try { window.sessionStorage.setItem(VARIATION_SESSION_KEY, serialized); }
+  catch { throw new Error('Verified brief could not be preserved in this browser session.'); }
 }
 
 function writeVariationDraft(result) {
   const brief = recoverableBriefValues(result);
   if (!brief) throw new Error('Verified run has no Creator Mode brief to vary.');
-  const serialized = JSON.stringify({ brief });
-  if (serialized.length > MAX_VARIATION_BYTES) throw new Error('Verified brief is too large to preserve safely.');
-  try { window.sessionStorage.setItem(VARIATION_SESSION_KEY, serialized); }
-  catch { throw new Error('Verified brief could not be preserved in this browser session.'); }
+  writeVariationBrief(brief);
 }
 
 function readVariationDraft() {
@@ -237,16 +250,52 @@ function readVariationDraft() {
   }
 }
 
+function currentVariationBrief() {
+  const controls = briefControls();
+  if (!controls) return null;
+  return recoverableBriefValues({
+    brief: {
+      name: controls.name.value,
+      objective: controls.objective.value,
+      targetPlatform: controls.target.value,
+      mechanic: controls.mechanic.value
+    }
+  });
+}
+
+function persistVariationDraftFromControls() {
+  if (!variationDraftPersistenceActive) return;
+  try {
+    const brief = currentVariationBrief();
+    if (brief) writeVariationBrief(brief);
+  } catch {
+    // Keep the last valid bounded draft while the user is between valid edits.
+  }
+}
+
+function installVariationDraftPersistence() {
+  if (variationDraftListenersInstalled) return;
+  const controls = briefControls();
+  if (!controls) return;
+  variationDraftListenersInstalled = true;
+  for (const control of [controls.name, controls.objective, controls.target, controls.mechanic]) {
+    control.addEventListener('input', persistVariationDraftFromControls);
+    control.addEventListener('change', persistVariationDraftFromControls);
+  }
+}
+
 function restoreVariationDraft() {
   const brief = readVariationDraft();
   if (!brief) return false;
-  clearVariationDraft();
   if (!applyBriefValues(brief, `Starter shape: ${MECHANIC_LABELS[brief.mechanic]} · copied from the latest verified run for a new variation.`)) return false;
+  variationDraftPersistenceActive = true;
+  installVariationDraftPersistence();
+  persistVariationDraftFromControls();
   document.querySelector('[data-view="local-run"]')?.click();
   const message = document.querySelector('#run-message');
   if (message) {
     message.className = 'notice';
-    message.textContent = 'Verified brief copied into Creator Mode for a variation. Nothing has run for this variation; review or edit it, then explicitly choose Create playable starter.';
+    message.textContent = 'Verified variation draft restored in Creator Mode. Nothing has run for this variation; review or edit it, then explicitly choose Create playable starter.';
   }
   return true;
 }
@@ -407,15 +456,16 @@ async function recoverLatestRun() {
 function installFreshRunCapture() {
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    const response = await originalFetch(input, init);
     let url;
     try {
       const rawUrl = typeof input === 'string' || input instanceof URL ? input : input?.url;
       url = new URL(rawUrl, location.href);
     } catch {
-      return response;
+      return originalFetch(input, init);
     }
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
+    if (method === 'POST' && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) clearVariationDraft();
+    const response = await originalFetch(input, init);
     if (method === 'POST' && response.ok && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) {
       pendingFreshRun = response.clone().json().then((result) => {
         buildInlineVerificationFacts(result);
