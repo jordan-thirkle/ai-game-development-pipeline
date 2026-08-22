@@ -42,7 +42,12 @@ async function waitForWindow(name, timeoutMs = 5000) {
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`X11 focus sink window did not appear: ${name}`);
+  throw new Error(`X11 window did not appear: ${name}`);
+}
+
+async function focusedWindowId() {
+  const { stdout } = await execFileAsync('xdotool', ['getwindowfocus']);
+  return stdout.trim();
 }
 
 const errors = [];
@@ -57,10 +62,13 @@ const result = {
   movement_after_blur_m: null,
   focus_loss_drift_m: null,
   focus_transfer_method: 'x11-window-manager-xmessage',
+  chrome_window_id: null,
+  focus_sink_window_id: null,
+  x11_focus_before_transfer: null,
+  x11_focus_after_transfer: null,
   focus_before_transfer: null,
   focus_after_transfer: null,
   trusted_blur_observed: false,
-  focus_sink_window_id: null,
   safe_focus_release_proven: false,
   production_source_modified: false,
   direct_input_state_mutation: false,
@@ -75,7 +83,15 @@ try {
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
   page.on('pageerror', (error) => errors.push(`page:${error.message}`));
   await page.goto(origin, { waitUntil: 'networkidle', timeout: 30_000 });
-  await page.bringToFront();
+
+  const chromeWindowId = await waitForWindow('BYJTT-LAB-001');
+  result.chrome_window_id = chromeWindowId;
+  await execFileAsync('xdotool', ['windowactivate', '--sync', chromeWindowId]);
+  result.x11_focus_before_transfer = await focusedWindowId();
+  if (result.x11_focus_before_transfer !== chromeWindowId) {
+    throw new Error(`Chrome X11 window did not receive focus: expected ${chromeWindowId}, got ${result.x11_focus_before_transfer}`);
+  }
+
   await page.waitForFunction(() => document.hasFocus() === true, null, { timeout: 5_000 });
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__?.snapshot?.()['runtime.ready'] === true, null, { timeout: 30_000 });
   result.runtime_ready = true;
@@ -110,6 +126,10 @@ try {
   const sinkWindowId = await waitForWindow(sinkTitle);
   result.focus_sink_window_id = sinkWindowId;
   await execFileAsync('xdotool', ['windowactivate', '--sync', sinkWindowId]);
+  result.x11_focus_after_transfer = await focusedWindowId();
+  if (result.x11_focus_after_transfer !== sinkWindowId) {
+    throw new Error(`focus sink did not receive X11 focus: expected ${sinkWindowId}, got ${result.x11_focus_after_transfer}`);
+  }
   await page.waitForFunction(() => document.hasFocus() === false, null, { timeout: 5_000 });
   result.focus_after_transfer = await page.evaluate(() => document.hasFocus());
   const focusEvidence = await page.evaluate(() => ({ ...window.__BYJTT_FOCUS_PROBE__ }));
