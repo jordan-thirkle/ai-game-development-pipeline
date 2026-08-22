@@ -1,0 +1,97 @@
+name: Benchmark 001 Three Progression
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/progression-gate/**'
+      - '.github/workflows/benchmark-001-three-progression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  progression-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/three-webgpu/progression-gate
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          EXPECTED_SHA='${{ github.event.pull_request.head.sha || github.sha }}'
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          node --version | tee evidence/node-version.txt
+          npm --version | tee evidence/npm-version.txt
+          printf 'expected_head=%s\nactual_head=%s\n' "$EXPECTED_SHA" "$ACTUAL_SHA" | tee evidence/exact-head.txt
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-lock-materialize.log
+          OBSERVED_LOCK_SHA="$(sha256sum package-lock.json | awk '{print $1}')"
+          printf '%s  package-lock.json\n' "$OBSERVED_LOCK_SHA" | tee evidence/package-lock-sha256.txt
+          EXPECTED_LOCK_SHA="$(tr -d '[:space:]' < package-lock.sha256)"
+          if [ "$EXPECTED_LOCK_SHA" = 'BOOTSTRAP' ]; then
+            echo 'Dependency lock bootstrap intentionally fails closed after retaining observed SHA.' | tee evidence/dependency-bootstrap.txt
+            exit 1
+          fi
+          test "$OBSERVED_LOCK_SHA" = "$EXPECTED_LOCK_SHA"
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-ci.log
+          cp package-lock.json evidence/package-lock.json
+          npm ls --all --json > evidence/npm-tree.json
+          node -e "const p=require('./node_modules/three/package.json'); if(p.version!=='0.185.1') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/jolt-physics/package.json'); if(p.version!=='1.1.0') throw new Error(p.version)"
+
+      - name: Strict TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+
+      - name: Production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee evidence/build.log
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee evidence/playwright-install.log
+
+      - name: Execute Three Jolt progression proof
+        shell: bash
+        env:
+          EVIDENCE_DIR: evidence
+        run: |
+          set -euo pipefail
+          timeout 120s npm run runtime 2>&1 | tee evidence/runtime-command.log
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -maxdepth 1 -type f ! -name sha256.txt -print0 | sort -z | xargs -0 sha256sum > evidence/sha256.txt
+          cat evidence/sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: three-progression-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: experiments/BYJTT-LAB-001/candidates/three-webgpu/progression-gate/evidence
+          if-no-files-found: error
