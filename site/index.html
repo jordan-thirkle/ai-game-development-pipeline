@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Public status and documentation entry point for the By JTT AI Game Development Pipeline.">
+  <meta name="color-scheme" content="dark light">
+  <title>By JTT · AI Game Development Pipeline</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e8edf3;background:#0b0e12;line-height:1.5}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b0e12 0%,#11161d 100%);min-height:100vh}
+    main{max-width:1080px;margin:auto;padding:64px 24px 80px}.eyebrow{letter-spacing:.12em;text-transform:uppercase;font-size:.78rem;color:#9aa7b5}
+    h1{font-size:clamp(2.35rem,7vw,5.4rem);line-height:.96;letter-spacing:-.055em;margin:.45rem 0 1.2rem;max-width:900px}
+    .lede{font-size:1.12rem;color:#b8c2ce;max-width:720px;margin:0 0 2rem}.actions{display:flex;gap:.75rem;flex-wrap:wrap;margin:1.5rem 0 3rem}
+    a{color:inherit}.button{display:inline-block;text-decoration:none;border:1px solid #34404d;border-radius:999px;padding:.72rem 1rem;background:#161c24}.button.primary{background:#eef3f8;color:#101318;border-color:#eef3f8}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:#121820;border:1px solid #27313d;border-radius:18px;padding:20px;min-height:160px}
+    .card h2{font-size:1rem;margin:0 0 .7rem}.card p{margin:0;color:#aeb9c5;font-size:.94rem}.status{display:inline-flex;align-items:center;gap:.45rem;font-size:.84rem;color:#cbd5df;margin-bottom:1rem}.dot{width:.55rem;height:.55rem;border-radius:50%;background:#71d29b;box-shadow:0 0 0 4px rgba(113,210,155,.12)}
+    section{margin-top:46px}h3{font-size:1.05rem}.links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.link{display:block;padding:14px 16px;border:1px solid #27313d;border-radius:12px;text-decoration:none;background:#10151c}.link span{display:block;color:#8f9dab;font-size:.82rem;margin-top:.2rem}
+    code{background:#171d25;border:1px solid #2b3541;border-radius:6px;padding:.12rem .35rem}.meta{margin-top:40px;color:#7f8b97;font-size:.83rem}.warning{border-left:3px solid #c99b52;padding:.35rem 0 .35rem 1rem;color:#aeb9c5}
+    @media(max-width:760px){main{padding-top:44px}.grid,.links{grid-template-columns:1fr}.card{min-height:0}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">By JTT · Public control surface</div>
+  <h1>AI Game Development Pipeline</h1>
+  <p class="lede">Evidence-driven game-development infrastructure: Creator Mode, reproducible browser QA, benchmark lanes, security gates, and portable verified starter handoffs. The execution Studio remains intentionally local.</p>
+  <div class="actions">
+    <a class="button primary" href="https://github.com/jordan-thirkle/ai-game-development-pipeline">Open repository</a>
+    <a class="button" href="status.json">Machine-readable status</a>
+    <a class="button" href="llms.txt">Agent entry point</a>
+  </div>
+
+  <div class="grid">
+    <article class="card"><div class="status"><span class="dot"></span>Public security baseline</div><h2>Exposure controls</h2><p>CodeQL, immutable Action pins, tracked-tree checks, and full-history high-confidence credential scanning are part of CI.</p></article>
+    <article class="card"><div class="status"><span class="dot"></span>Creator workflow</div><h2>Idea → verified starter</h2><p>Creator Mode keeps the first interaction simple while retaining deterministic starter selection, QA evidence, and portable handoff artifacts.</p></article>
+    <article class="card"><div class="status"><span class="dot"></span>Truthful execution</div><h2>Web execution only</h2><p>Desktop/mobile can be requested as design intent, but current execution evidence fails closed unless the actually executed target is web.</p></article>
+  </div>
+
+  <section>
+    <h3>Canonical project surfaces</h3>
+    <div class="links">
+      <a class="link" href="https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/README.md">Repository overview<span>Purpose, structure, and current workflow</span></a>
+      <a class="link" href="https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/SECURITY.md">Security policy<span>Reporting and public-repository rules</span></a>
+      <a class="link" href="https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/docs/PUBLIC-REPOSITORY-DATA-POLICY.md">Public data policy<span>What may and may not be committed</span></a>
+      <a class="link" href="https://github.com/jordan-thirkle/ai-game-development-pipeline/issues">Open work<span>Issues remain the durable backlog and decision trail</span></a>
+    </div>
+  </section>
+
+  <section>
+    <h3>Important boundary</h3>
+    <p class="warning">This page is documentation/status only. It does not expose the local Studio server, execute project manifests, publish games, or claim that GitHub repository settings such as <code>main</code> branch protection are enabled unless GitHub itself reports them enabled.</p>
+  </section>
+
+  <p class="meta">Deployment revision: <span id="revision">see deployment.json</span></p>
+</main>
+<script>
+fetch('./deployment.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(x=>{if(x?.sha)document.querySelector('#revision').textContent=x.sha.slice(0,12)}).catch(()=>{});
+</script>
+</body>
+</html>
