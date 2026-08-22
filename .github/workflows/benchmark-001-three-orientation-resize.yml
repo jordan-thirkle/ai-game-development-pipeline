@@ -1,0 +1,135 @@
+name: Benchmark 001 Three WebGPU Orientation Resize
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/orientation-resize-gate/**'
+      - '.github/workflows/benchmark-001-three-orientation-resize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  orientation-resize:
+    name: orientation-resize
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/orientation-resize"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/orientation-resize/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < orientation-resize-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/orientation-resize/observed-lock-sha256.txt
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/orientation-resize/dependency-tree.json
+
+      - name: Strict JavaScript syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$CANDIDATE/orientation-resize-gate/prove-orientation-resize.mjs" 2>&1 | tee "$CANDIDATE/artifacts/orientation-resize/syntax.log"
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/orientation-resize/build.log"
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/orientation-resize/phase-a.log"
+
+      - name: Execute live portrait-landscape-portrait proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          node orientation-resize-gate/prove-orientation-resize.mjs 2>&1 | tee artifacts/orientation-resize/runtime.log
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/orientation-resize/runtime-result.json', 'utf8'));
+          const expected = process.env.CANDIDATE_HEAD_SHA;
+          console.log('ORIENTATION_RESIZE_RESULT=' + JSON.stringify(result));
+          if (result.tested_revision !== expected) throw new Error(`tested_revision ${result.tested_revision} != ${expected}`);
+          if (result.passed !== true || result.execution_verified !== true) throw new Error(`orientation resize runtime failed: ${JSON.stringify(result.failures)}`);
+          if (result.runtime_reloaded_during_resize_sequence !== false) throw new Error('gate must prove live resize without runtime reload');
+          if (result.physical_device_executed !== false) throw new Error('hosted browser must not claim physical device execution');
+          if (result.target_device_performance_proven !== false) throw new Error('gate must not claim target-device performance');
+          if (result.human_tested !== false) throw new Error('automation must not claim HUMAN-TESTED');
+          for (const key of ['portrait_before', 'landscape', 'portrait_after']) {
+            const layout = result[key];
+            if (!layout?.canvas_matches_viewport || !layout?.controls_inside_viewport || !layout?.buttons_inside_viewport) throw new Error(`${key} layout containment failed`);
+            if (!layout?.touch_targets_at_least_44px || !layout?.no_horizontal_overflow || !layout?.no_vertical_overflow) throw new Error(`${key} layout usability/overflow failed`);
+          }
+          if (!(result.lifecycle_events?.resize_events >= 2)) throw new Error('browser resize delivery not proven');
+          if (!(result.landscape_movement?.moved_metres > 0.5) || !(result.portrait_after_movement?.moved_metres > 0.5)) throw new Error('touch movement after both resize transitions not proven');
+          if (!(result.landscape_movement?.release_drift_metres <= 0.03) || !(result.portrait_after_movement?.release_drift_metres <= 0.03)) throw new Error('release stability after resize failed');
+          if (result.observation_isolation !== true) throw new Error('observation isolation failed');
+          if (result.console_errors.length || result.page_errors.length) throw new Error('browser errors retained in successful result');
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/orientation-resize
+          {
+            find artifacts/orientation-resize -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/orientation-resize/evidence.sha256
+
+      - name: Upload exact-head orientation-resize evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-orientation-resize-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/orientation-resize/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
