@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Evergine.Bullet": {
+        "type": "Direct",
+        "requested": "[2026.5.26.1667, 2026.5.26.1667]",
+        "resolved": "2026.5.26.1667",
+        "contentHash": "7eKb2vhYRwu8AYj5uRmQbuI80u5THsEKZoWRvWfsaKdqbsu0F2/BrVF1sHWNJOKoyl/1GJxBdBAdE1L55LsviA==",
+        "dependencies": {
+          "Evergine.BulletSharpPInvoke": "2023.11.28.20",
+          "Evergine.Common": "2026.5.26.1667",
+          "Evergine.Framework": "2026.5.26.1667",
+          "Evergine.LibBulletc.Natives": "2025.8.29.27",
+          "Evergine.Mathematics": "2026.5.26.1667"
+        }
+      },
+      "Evergine.Framework": {
+        "type": "Direct",
+        "requested": "[2026.5.26.1667, 2026.5.26.1667]",
+        "resolved": "2026.5.26.1667",
+        "contentHash": "6gaCO7p6wPvhR5gcEzU+ZrghL4beb4grqgJ0KtpTe9Qo3lOUfhYTJ4Bg1chyBh+fX8Z9VctVMlYycAz0JgRVpA==",
+        "dependencies": {
+          "Evergine.Bindings.KTX": "2026.6.15.8",
+          "Evergine.Common": "2026.5.26.1667"
+        }
+      },
+      "Evergine.Bindings.KTX": {
+        "type": "Transitive",
+        "resolved": "2026.6.15.8",
+        "contentHash": "Sm4AlGZX9lbFKCUTVnX6UFa9KOSxqDOYGJcWV8FnfyFnP2LjB69tjk12mwLoXVGmAY8EO/yPs8YuX/TOTlwHMA=="
+      },
+      "Evergine.BulletSharpPInvoke": {
+        "type": "Transitive",
+        "resolved": "2023.11.28.20",
+        "contentHash": "ylsYLkFex5avZuj7akAVA6QIchSvFZuipf7taUeaJSAxS0/sNNml60TdS/yI4PSepN9xmH/6lB+b/SGNvPZ9lA==",
+        "dependencies": {
+          "Evergine.Mathematics": "2023.9.28.1452"
+        }
+      },
+      "Evergine.Common": {
+        "type": "Transitive",
+        "resolved": "2026.5.26.1667",
+        "contentHash": "kxK1qG6ADvxCRUgkBeTyMOi0PJMhPLxyS+Zbg++FI+xbIFq5f1Bmfu+AiVtELnQPSlW9/s4SqK9xWmpZV0X1Ug==",
+        "dependencies": {
+          "Evergine.Mathematics": "2026.5.26.1667",
+          "Evergine.Yaml": "2025.6.12.2"
+        }
+      },
+      "Evergine.LibBulletc.Natives": {
+        "type": "Transitive",
+        "resolved": "2025.8.29.27",
+        "contentHash": "IGzlaimDJlv0Vs3ar5n3Pe4GA773v53/opV3+cMAcrFp3MFz2MAETP4IHrOxdBSUfOtvoCLDBRxzbpd1A8Y0Bg=="
+      },
+      "Evergine.Mathematics": {
+        "type": "Transitive",
+        "resolved": "2026.5.26.1667",
+        "contentHash": "yJy7IvX5aKDhAr0MNuPO72nBDgdcfB52VsA84Leaspxa+hsHE8GprHRlO29BH5NqdaXi7cVaxAI1X2dQH9DPyw==",
+        "dependencies": {
+          "System.Reflection.TypeExtensions": "4.7.0"
+        }
+      },
+      "Evergine.Yaml": {
+        "type": "Transitive",
+        "resolved": "2025.6.12.2",
+        "contentHash": "FS9KCLU45z9Ckv+aOYWgINZJ5mp8X4jqHBArkcbG/t5dHUPc7XbStJpO4q4nt0ddpx/+U49Gso2Td8OJVNcrFw=="
+      },
+      "System.Reflection.TypeExtensions": {
+        "type": "Transitive",
+        "resolved": "4.7.0",
+        "contentHash": "VybpaOQQhqE6siHppMktjfGBw1GCwvCqiufqmP8F1nj7fTUNtW35LOEt3UZTEsECfo+ELAl/9o9nJx3U91i7vA=="
+      }
+    }
+  }
+}
