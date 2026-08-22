@@ -11,6 +11,7 @@ const artifacts = process.env.BROWSER_ARTIFACTS || 'artifacts/control-plane-brow
 const manifestPath = resolve('examples/sample-game/project.manifest.json');
 const extractedStarter = resolve(artifacts, 'portable-starter-folder');
 const workspace = await mkdtemp(resolve(tmpdir(), 'byjtt-portable-bundle-browser-'));
+const continuationKey = 'byjtt:studio:verified-bundle-planning:v1';
 await mkdir(artifacts, { recursive: true });
 await rm(extractedStarter, { recursive: true, force: true });
 await mkdir(resolve(extractedStarter, 'starter', 'dist'), { recursive: true });
@@ -71,11 +72,40 @@ try {
   assert.equal(await page.locator('#brief-mechanic').inputValue(), 'collect');
   assert.equal(await page.locator('#play-result').isVisible(), false);
   assert.equal(await page.locator('#run-evidence-panel').isVisible(), false);
+  assert.equal(await page.evaluate((key) => Boolean(sessionStorage.getItem(key)), continuationKey), true, 'verified-bundle planning state was not preserved for same-tab refresh recovery');
+
+  const postsBeforeRefresh = briefRequests.length;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Recovered the four validated planning fields'), null, { timeout: 5000 });
+  assert.equal(briefRequests.length, postsBeforeRefresh, 'refresh recovery must not execute the pipeline');
+  assert.equal(await page.locator('#local-run').isVisible(), true, 'refresh recovery did not return the user to Creator Mode');
+  assert.equal(await page.locator('#brief-name').inputValue(), 'Pipeline Sample Game');
+  assert.equal(await page.locator('#brief-objective').inputValue(), 'Prove a dependency-free build, QA, release-candidate, and publishing dry run.');
+  assert.equal(await page.locator('#brief-target').inputValue(), 'web');
+  assert.equal(await page.locator('#brief-mechanic').inputValue(), 'collect');
+  const recoveredStatus = await page.locator('#portable-starter-status').textContent();
+  assert.match(recoveredStatus, /No pipeline stage was re-executed/i);
+  assert.match(recoveredStatus, /Archive-byte verification is not re-asserted from session storage/i);
+  assert.match(recoveredStatus, /reselect the downloaded bundle/i);
+  assert.equal(await page.locator('#play-result').isVisible(), false);
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(), false);
+
+  await page.evaluate((key) => sessionStorage.setItem(key, '{bad json'), continuationKey);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(document.querySelector('#portable-starter-status')), null, { timeout: 5000 });
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), continuationKey), null, 'malformed continuation state was not discarded');
+  assert.doesNotMatch(await page.locator('#portable-starter-status').textContent(), /Recovered the four validated planning fields/i);
+  assert.equal(briefRequests.length, postsBeforeRefresh, 'discarding malformed continuation state must not execute the pipeline');
+
+  await bundleInput.setInputFiles(archivePath);
+  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Verified bundle checked locally before continuation'), null, { timeout: 5000 });
+  assert.equal(await page.evaluate((key) => Boolean(sessionStorage.getItem(key)), continuationKey), true);
 
   const folderInput = page.locator('#portable-starter-folder');
   await folderInput.setInputFiles(extractedStarter);
   await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Planning intent loaded locally from the extracted starter folder'), null, { timeout: 5000 });
   assert.equal(briefRequests.length, 0, 'fallback folder import must also remain planning-only');
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), continuationKey), null, 'switching to the unverified folder fallback must clear prior verified-bundle continuation state');
   assert.match(await page.locator('#run-message').textContent(), /Nothing has run for this imported brief/i);
 
   await page.locator('#run-brief').click();
@@ -88,6 +118,7 @@ try {
     targetPlatform: 'web',
     mechanic: 'collect'
   });
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), continuationKey), null, 'explicit execution must clear portable planning recovery state before the run');
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'continued starter did not complete the real local pipeline');
   assert.equal(await page.locator('#play-result').isVisible(), true, 'continued starter did not expose the verified playable');
   assert.equal(await page.getByRole('link', { name: 'Download starter bundle' }).count(), 1);
@@ -99,7 +130,7 @@ try {
 
   await page.screenshot({ path: `${artifacts}/portable-starter-continuation.png`, fullPage: true });
   assert.deepEqual(errors, []);
-  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} exposed build/QA/dry-run/non-publication/no-secret/artifact proof before continuation with zero Studio execution, extracted-folder fallback also remained zero-execution, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
+  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} exposed build/QA/dry-run/non-publication/no-secret/artifact proof, restored only validated planning intent across same-tab refresh with zero Studio execution and no re-asserted archive proof, rejected malformed recovery state, preserved the extracted-folder fallback, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
 } finally {
   await browser.close();
   await rm(extractedStarter, { recursive: true, force: true });
