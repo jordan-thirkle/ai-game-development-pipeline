@@ -47,19 +47,32 @@ try {
     throw error;
   }
   await page.waitForTimeout(250);
+  const isolationPass = await page.evaluate(() => {
+    const first = window.__BYJTT_OBSERVE__?.();
+    if (!first?.pathPoints.length) return false;
+    const expected = first.pathPoints[0]?.x;
+    try { if (first.pathPoints[0]) first.pathPoints[0].x = 9999; } catch { /* frozen copy is expected */ }
+    return window.__BYJTT_OBSERVE__?.().pathPoints[0]?.x === expected;
+  });
   const result = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
   await page.screenshot({ path: `${evidenceDir}/runtime.png`, fullPage: true });
   if (!result) throw new Error('Missing observation');
   if (result.threeRevision !== '185' || result.joltVersion !== '1.1.0' || result.recastVersion !== '0.43.1') throw new Error('Runtime dependency version mismatch');
   if (!(result.lastOutsideAcquireDistance > 12 && result.acquiredDistance !== null && result.acquiredDistance <= 12)) throw new Error(`Acquisition threshold violated ${result.lastOutsideAcquireDistance}/${result.acquiredDistance}`);
-  if (result.pathPoints.length < 2 || !result.pathInsideArena) throw new Error('Detour path missing or outside arena');
+  if (result.pathPoints.length < 2 || !result.pathInsideArena) throw new Error('Detour corridor missing or outside arena');
+  const firstPoint = result.pathPoints[0];
+  const lastPoint = result.pathPoints[result.pathPoints.length - 1];
+  if (!firstPoint || !lastPoint) throw new Error('Detour corridor endpoints missing');
+  const corridorSpan = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.z - firstPoint.z);
+  if (corridorSpan < 11.5 || corridorSpan > 12.5) throw new Error(`Detour same-poly corridor span invalid: ${corridorSpan}`);
+  if (result.acquiredDistance === null || Math.abs(corridorSpan - result.acquiredDistance) > 0.05) throw new Error(`Corridor span does not match acquired engine separation: ${corridorSpan}/${result.acquiredDistance}`);
   if (result.finalSeparation >= 7.5) throw new Error(`Enemy chase did not materially reduce separation: ${result.finalSeparation}`);
   if (result.maxEnemyStep > 2.7 / 60 + 0.003) throw new Error(`Enemy exceeded 2.7 m/s step bound: ${result.maxEnemyStep}`);
   if (result.playerReleaseDrift > 0.03) throw new Error(`Player drifted after release: ${result.playerReleaseDrift}`);
-  if (!result.observationIsolation || !result.externalInputExecuted) throw new Error('Observation isolation or external input proof failed');
+  if (!result.observationIsolation || !isolationPass || !result.externalInputExecuted) throw new Error('Observation isolation or external input proof failed');
   if (result.postNavigationClamp || result.postPhysicsClamp || result.combatExecuted) throw new Error('Gate clamped state or overclaimed combat');
   if (consoleErrors.length || pageErrors.length) throw new Error(`Browser errors ${JSON.stringify({ consoleErrors, pageErrors })}`);
-  const payload = { ...result, consoleErrors, pageErrors, passed: true };
+  const payload = { ...result, corridorSpan, externalObservationIsolation: isolationPass, consoleErrors, pageErrors, passed: true };
   const json = `${JSON.stringify(payload, null, 2)}\n`;
   await writeFile(`${evidenceDir}/runtime-result.json`, json);
   await writeFile(`${evidenceDir}/runtime.log`, serverLog);
