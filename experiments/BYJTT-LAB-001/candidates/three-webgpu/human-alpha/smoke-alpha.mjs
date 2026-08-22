@@ -105,6 +105,7 @@ try {
 
   if (!observations.canvas_visible) failures.push('render canvas is not visible');
   if (!observations.renderer_backend || observations.renderer_backend === 'unknown') failures.push('renderer backend is unknown');
+  if (!observations.navigator_gpu) failures.push('navigator.gpu is unavailable; WebGPU requirement not proven');
   if (Math.abs(observations.movement_delta_x) < 0.25) failures.push('normal KeyD input did not move engine-owned player state');
   if (observations.release_drift > 0.12) failures.push(`release drift ${observations.release_drift} exceeds 0.12 m`);
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
