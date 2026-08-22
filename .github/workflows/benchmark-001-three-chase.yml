@@ -35,11 +35,13 @@ jobs:
           npm --version | tee evidence/npm-version.txt
           printf 'expected_head=%s\nactual_head=%s\n' "$EXPECTED_SHA" "$ACTUAL_SHA" | tee evidence/exact-head.txt
 
-      - name: Install and record exact dependency graph
+      - name: Verify and install exact dependency graph
         shell: bash
         run: |
           set -euo pipefail
-          npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-install.log
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-lock-materialize.log
+          printf '%s  package-lock.json\n' 'e4961646b649b795fead0c338be14f6bc9d8a83ded3f0dc92f8516290286c568' | sha256sum -c - | tee evidence/package-lock-verify.log
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-ci.log
           cp package-lock.json evidence/package-lock.json
           npm ls --all --json > evidence/npm-tree.json
           node -e "const p=require('./node_modules/three/package.json'); if(p.version!=='0.185.1') throw new Error(p.version)"
