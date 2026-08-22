@@ -62,6 +62,7 @@ const result = {
   movement_after_blur_m: null,
   focus_loss_drift_m: null,
   focus_transfer_method: 'x11-window-manager-xmessage',
+  playwright_focus_emulation_disabled: false,
   chrome_window_id: null,
   focus_sink_window_id: null,
   x11_focus_before_transfer: null,
@@ -83,6 +84,13 @@ try {
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
   page.on('pageerror', (error) => errors.push(`page:${error.message}`));
   await page.goto(origin, { waitUntil: 'networkidle', timeout: 30_000 });
+
+  // Playwright enables Chromium focus emulation for deterministic automation.
+  // Disable only that automation layer so DOM focus can reflect the real X11
+  // window-manager focus transitions this gate is specifically measuring.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: false });
+  result.playwright_focus_emulation_disabled = true;
 
   const chromeWindowId = await waitForWindow('BYJTT-LAB-001');
   result.chrome_window_id = chromeWindowId;
