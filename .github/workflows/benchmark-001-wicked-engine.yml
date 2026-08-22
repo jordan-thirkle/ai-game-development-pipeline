@@ -1,0 +1,132 @@
+name: Benchmark 001 Wicked Engine native Jolt character gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/wicked-engine/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-wicked-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-character-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/wicked-engine
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      WICKED_REVISION: 27c0df160d738925474a2181d3f88bfd59edaefe
+      WICKED_RELEASE: v0.72.106
+      EVIDENCE: experiments/BYJTT-LAB-001/candidates/wicked-engine/artifacts/native-character-gate
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record exact candidate execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "expected_wicked_revision=$WICKED_REVISION"
+            echo "expected_wicked_release=$WICKED_RELEASE"
+            echo "os=$(uname -a)"
+            echo "compiler=$(c++ --version | head -n 1)"
+            echo "cmake=$(cmake --version | head -n 1)"
+          } | tee "$EVIDENCE/environment.txt"
+
+      - name: Install upstream-declared Linux dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update 2>&1 | tee "$EVIDENCE/apt-update.log"
+          sudo apt-get install -y libsdl2-dev 2>&1 | tee "$EVIDENCE/apt-install.log"
+
+      - name: Acquire exact Wicked Engine release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/turanszkij/WickedEngine.git "$RUNNER_TEMP/wicked" 2>&1 | tee "$EVIDENCE/upstream-clone.log"
+          git -C "$RUNNER_TEMP/wicked" checkout --detach "$WICKED_REVISION" 2>&1 | tee -a "$EVIDENCE/upstream-clone.log"
+          test "$(git -C "$RUNNER_TEMP/wicked" rev-parse HEAD)" = "$WICKED_REVISION"
+          test "$(git -C "$RUNNER_TEMP/wicked" describe --tags --exact-match HEAD)" = "$WICKED_RELEASE"
+          {
+            echo "upstream_revision=$(git -C "$RUNNER_TEMP/wicked" rev-parse HEAD)"
+            echo "upstream_release=$(git -C "$RUNNER_TEMP/wicked" describe --tags --exact-match HEAD)"
+            echo "upstream_tree=$(git -C "$RUNNER_TEMP/wicked" rev-parse HEAD^{tree})"
+          } | tee "$EVIDENCE/upstream-provenance.txt"
+
+      - name: Configure exact engine and isolated candidate target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake \
+            -S "$CANDIDATE" \
+            -B "$RUNNER_TEMP/wicked-gate-build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWICKED_ENGINE_SOURCE="$RUNNER_TEMP/wicked" \
+            2>&1 | tee "$EVIDENCE/configure.log"
+
+      - name: Strictly build candidate against engine library
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "$RUNNER_TEMP/wicked-gate-build" --target byjtt_wicked_gate --parallel 2 2>&1 | tee "$EVIDENCE/build.log"
+
+      - name: Execute native engine character proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="$RUNNER_TEMP/wicked-gate-build/byjtt_wicked_gate"
+          test -x "$BINARY"
+          "$BINARY" "$EVIDENCE/result.json" 2>&1 | tee "$EVIDENCE/runtime.log"
+          test -f "$EVIDENCE/result.json"
+
+      - name: Assert machine-readable evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync(process.env.EVIDENCE + '/result.json', 'utf8'));
+          if (r.candidate !== 'wicked-engine-0.72.106' || r.backend !== 'engine-integrated-jolt') {
+            throw new Error('candidate/backend provenance mismatch');
+          }
+          if (r.world_up !== '+Y' || r.arena_width_m !== 24 || r.arena_depth_m !== 32 || r.walk_speed_mps !== 3.5) {
+            throw new Error('shared benchmark constants drifted');
+          }
+          if (!r.pass || !r.native_wall_stop_observed || !r.observation_copy_isolated) {
+            throw new Error('native character execution evidence did not pass');
+          }
+          if (r.post_physics_arena_clamp || r.external_input_executed) {
+            throw new Error('evidence boundary overstated or arena clamp shortcut introduced');
+          }
+          if (Math.abs(r.spawn[0]) > 0.001 || Math.abs(r.spawn[2] - 10) > 0.001) {
+            throw new Error(`shared player spawn drifted: ${JSON.stringify(r.spawn)}`);
+          }
+          NODE
+          sha256sum \
+            "$CANDIDATE/CMakeLists.txt" \
+            "$CANDIDATE/src/main.cpp" \
+            "$CANDIDATE/provenance.json" \
+            "$EVIDENCE/upstream-provenance.txt" \
+            "$EVIDENCE/result.json" \
+            > "$EVIDENCE/sha256.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-wicked-engine-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/wicked-engine/artifacts/native-character-gate/**
+          if-no-files-found: error
+          retention-days: 30
