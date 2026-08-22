@@ -44,6 +44,8 @@ jobs:
           {
             echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
             echo "actual_head_sha=$actual_head"
+            echo "github_event_sha=${GITHUB_SHA:-}"
+            echo "github_event_name=${GITHUB_EVENT_NAME:-}"
             echo "node=$(node --version)"
             echo "npm=$(npm --version)"
             echo "chrome=$(google-chrome --version)"
@@ -77,6 +79,39 @@ jobs:
           set -euo pipefail
           npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$ARTIFACTS/baseline-phase-a.log"
 
+      - name: Verify baseline Phase A exact-head identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          result="$CANDIDATE/artifacts/phase-a/playtest-result.json"
+          test -s "$result"
+          cp "$result" "$ARTIFACTS/baseline-phase-a-result.json"
+          node --input-type=module - "$result" "$ARTIFACTS/baseline-phase-a-revision.json" "$actual_head" "${GITHUB_SHA:-}" baseline <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const [sourcePath, outputPath, expectedHead, eventSha, phase] = process.argv.slice(2);
+          const evidence = JSON.parse(readFileSync(sourcePath, 'utf8'));
+          if (evidence.candidate_head_revision !== expectedHead) {
+            throw new Error(`${phase} Phase A candidate_head_revision ${evidence.candidate_head_revision} does not match checked-out HEAD ${expectedHead}`);
+          }
+          if (evidence.execution_verified !== true) {
+            throw new Error(`${phase} Phase A execution_verified is not true`);
+          }
+          const wrapper = {
+            phase,
+            exact_head_verified: true,
+            actual_head_sha: expectedHead,
+            phase_a_candidate_head_revision: evidence.candidate_head_revision,
+            legacy_tested_revision: evidence.tested_revision ?? null,
+            legacy_tested_revision_semantics: process.env.GITHUB_EVENT_NAME === 'pull_request'
+              ? 'GitHub pull_request event/merge SHA; not the standalone checked-out candidate identity'
+              : 'GitHub event SHA; not used as the standalone checked-out candidate identity',
+            github_event_sha: eventSha || null
+          };
+          writeFileSync(outputPath, `${JSON.stringify(wrapper, null, 2)}\n`);
+          NODE
+
       - name: Apply reversible upstream-recommended packaging transform
         shell: bash
         run: |
@@ -97,6 +132,39 @@ jobs:
         run: |
           set -euo pipefail
           npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$ARTIFACTS/optimized-phase-a.log"
+
+      - name: Verify optimized Phase A exact-head identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          result="$CANDIDATE/artifacts/phase-a/playtest-result.json"
+          test -s "$result"
+          cp "$result" "$ARTIFACTS/optimized-phase-a-result.json"
+          node --input-type=module - "$result" "$ARTIFACTS/optimized-phase-a-revision.json" "$actual_head" "${GITHUB_SHA:-}" optimized <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const [sourcePath, outputPath, expectedHead, eventSha, phase] = process.argv.slice(2);
+          const evidence = JSON.parse(readFileSync(sourcePath, 'utf8'));
+          if (evidence.candidate_head_revision !== expectedHead) {
+            throw new Error(`${phase} Phase A candidate_head_revision ${evidence.candidate_head_revision} does not match checked-out HEAD ${expectedHead}`);
+          }
+          if (evidence.execution_verified !== true) {
+            throw new Error(`${phase} Phase A execution_verified is not true`);
+          }
+          const wrapper = {
+            phase,
+            exact_head_verified: true,
+            actual_head_sha: expectedHead,
+            phase_a_candidate_head_revision: evidence.candidate_head_revision,
+            legacy_tested_revision: evidence.tested_revision ?? null,
+            legacy_tested_revision_semantics: process.env.GITHUB_EVENT_NAME === 'pull_request'
+              ? 'GitHub pull_request event/merge SHA; not the standalone checked-out candidate identity'
+              : 'GitHub event SHA; not used as the standalone checked-out candidate identity',
+            github_event_sha: eventSha || null
+          };
+          writeFileSync(outputPath, `${JSON.stringify(wrapper, null, 2)}\n`);
+          NODE
 
       - name: Compare bundle evidence
         shell: bash
