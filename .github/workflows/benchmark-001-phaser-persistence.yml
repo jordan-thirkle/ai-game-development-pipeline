@@ -1,0 +1,84 @@
+name: Benchmark 001 Phaser Persistence
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/phaser/persistence-gate/**'
+      - '.github/workflows/benchmark-001-phaser-persistence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  persistence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/phaser/persistence-gate
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          EXPECTED_SHA='${{ github.event.pull_request.head.sha || github.sha }}'
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          node --version | tee evidence/node-version.txt
+          npm --version | tee evidence/npm-version.txt
+          printf 'expected_head=%s\nactual_head=%s\n' "$EXPECTED_SHA" "$ACTUAL_SHA" | tee evidence/exact-head.txt
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-lock-materialize.log
+          sha256sum -c package-lock.sha256 2>&1 | tee evidence/package-lock-verify.log
+          cp package-lock.json evidence/package-lock.json
+          cp package-lock.sha256 evidence/package-lock.sha256
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-ci.log
+          npm ls --all --json > evidence/npm-tree.json
+          node -e "const p=require('./node_modules/phaser/package.json'); if(p.version!=='4.1.0') throw new Error(p.version)"
+      - name: Strict TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+      - name: Production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee evidence/build.log
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee evidence/playwright-install.log
+      - name: Execute Phaser persistence and restart proof
+        shell: bash
+        env:
+          EVIDENCE_DIR: evidence
+          CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          timeout 120s npm run runtime 2>&1 | tee evidence/runtime-command.log
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -maxdepth 1 -type f ! -name sha256.txt -print0 | sort -z | xargs -0 sha256sum > evidence/sha256.txt
+          cat evidence/sha256.txt
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phaser-persistence-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: experiments/BYJTT-LAB-001/candidates/phaser/persistence-gate/evidence
+          if-no-files-found: error
