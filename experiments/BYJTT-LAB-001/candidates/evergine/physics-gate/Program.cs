@@ -74,6 +74,7 @@ var result = new
     native_physics_world_executed = true,
     character_controller_executed = true,
     set_velocity_executed = true,
+    headless_debug_draw_bypass = true,
     external_input_executed = false,
     rendered_execution = false,
     arena_width_m = ArenaWidthM,
@@ -99,7 +100,7 @@ var result = new
     post_physics_arena_clamp = false,
     direct_position_mutation_exposed_to_proof = false,
     failures,
-    evidence_boundary = "Headless Evergine Bullet scene plus CharacterController3D SetVelocity movement/collision only; no external-input, rendering, navigation, combat, progression, persistence, device or human-playability claim.",
+    evidence_boundary = "Headless Evergine Bullet scene plus CharacterController3D SetVelocity movement/collision. Physics debug drawing is intentionally bypassed because the hosted proof has no GraphicsContext; no gameplay state mutation is introduced. No external-input, rendering, navigation, combat, progression, persistence, device or human-playability claim.",
     passed = failures.Count == 0,
 };
 
@@ -109,6 +110,15 @@ Console.WriteLine(json);
 if (failures.Count != 0)
 {
     Environment.ExitCode = 1;
+}
+
+sealed class HeadlessBulletPhysicManager3D : BulletPhysicManager3D
+{
+    protected override bool OnAttached()
+    {
+        this.Initialize();
+        return true;
+    }
 }
 
 sealed class PhysicsProbeScene : Scene
@@ -132,7 +142,7 @@ sealed class PhysicsProbeScene : Scene
     public override void RegisterManagers()
     {
         base.RegisterManagers();
-        this.Managers.AddManager(new BulletPhysicManager3D
+        this.Managers.AddManager(new HeadlessBulletPhysicManager3D
         {
             FixedTimeStep = SceneFixedDt,
         });
