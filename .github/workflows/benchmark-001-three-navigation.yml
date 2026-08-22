@@ -1,0 +1,88 @@
+name: Benchmark 001 Three Navigation
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/navigation-gate/**'
+      - '.github/workflows/benchmark-001-three-navigation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  navigation-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: experiments/BYJTT-LAB-001/candidates/three-webgpu/navigation-gate
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          EXPECTED_SHA='${{ github.event.pull_request.head.sha || github.sha }}'
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          node --version | tee evidence/node-version.txt
+          npm --version | tee evidence/npm-version.txt
+          printf 'expected_head=%s\nactual_head=%s\n' "$EXPECTED_SHA" "$ACTUAL_SHA" | tee evidence/exact-head.txt
+
+      - name: Install exact direct dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-install.log
+          npm ls --all --json > evidence/npm-tree.json
+          node -e "const p=require('./node_modules/three/package.json'); if(p.version!=='0.185.1') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/recast-navigation/package.json'); if(p.version!=='0.43.1') throw new Error(p.version)"
+          node -e "const p=require('./node_modules/@recast-navigation/three/package.json'); if(p.version!=='0.43.1') throw new Error(p.version)"
+
+      - name: Strict TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+
+      - name: Production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee evidence/build.log
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee evidence/playwright-install.log
+
+      - name: Execute Three Recast runtime proof
+        shell: bash
+        env:
+          EVIDENCE_DIR: evidence
+        run: |
+          set -euo pipefail
+          timeout 120s npm run runtime 2>&1 | tee evidence/runtime-command.log
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -maxdepth 1 -type f ! -name sha256.txt -print0 | sort -z | xargs -0 sha256sum > evidence/sha256.txt
+          cat evidence/sha256.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: three-navigation-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: experiments/BYJTT-LAB-001/candidates/three-webgpu/navigation-gate/evidence
+          if-no-files-found: error
