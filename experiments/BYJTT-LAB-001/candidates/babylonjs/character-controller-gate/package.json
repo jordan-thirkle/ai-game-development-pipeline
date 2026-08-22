@@ -1,0 +1,20 @@
+{
+  "name": "byjtt-lab-001-babylon-character-controller",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "test:runtime": "node test/runtime.mjs"
+  },
+  "dependencies": {
+    "@babylonjs/core": "9.20.0",
+    "@babylonjs/havok": "1.3.14"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0",
+    "typescript": "5.9.2",
+    "vite": "8.2.1"
+  }
+}
