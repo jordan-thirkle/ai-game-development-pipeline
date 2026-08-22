@@ -138,7 +138,10 @@ try {
   assert.deepEqual(second.consoleErrors, []);
 
   await pageA.screenshot({ path: resolve(artifacts, 'studio-inline-qa-artifact-proof.png'), fullPage: true });
-  console.log(`Studio inline QA artifact browser dogfood passed with serialized session binding: ${JSON.stringify({ firstRunId, secondRunId, firstBuildHash: firstProof.buildHash, secondBuildHash: secondProof.buildHash, firstLatestGets: first.latestGets(), secondLatestGets: second.latestGets(), publicationExecuted: firstPayload.safety?.publicationExecuted, secretsUsed: firstPayload.safety?.secretsUsed })}`);
+  const cleanup = await pageB.request.delete(new URL('/api/pipeline/runs/latest', baseURL).href);
+  assert.equal(cleanup.ok(), true, `session-binding dogfood cleanup HTTP ${cleanup.status()}`);
+  assert.deepEqual(await cleanup.json(), { reset: true });
+  console.log(`Studio inline QA artifact browser dogfood passed with serialized session binding: ${JSON.stringify({ firstRunId, secondRunId, firstBuildHash: firstProof.buildHash, secondBuildHash: secondProof.buildHash, firstLatestGets: first.latestGets(), secondLatestGets: second.latestGets(), publicationExecuted: firstPayload.safety?.publicationExecuted, secretsUsed: firstPayload.safety?.secretsUsed, cleanupReset: true })}`);
   await pageA.close();
   await pageB.close();
 } finally {
