@@ -1,0 +1,124 @@
+name: Benchmark 001 Three WebGPU Performance Attribution
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/performance-attribution-gate/**'
+      - '.github/workflows/benchmark-001-three-performance-attribution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance-attribution:
+    name: performance-attribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/performance-attribution"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/performance-attribution/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < performance-attribution-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/performance-attribution/observed-lock-sha256.txt
+          npm ls --all --json > artifacts/performance-attribution/dependency-tree.json || true
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Strict JavaScript syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$CANDIDATE/performance-attribution-gate/attribution-smoke.mjs" 2>&1 | tee "$CANDIDATE/artifacts/performance-attribution/syntax.log"
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/performance-attribution/build.log"
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/performance-attribution/phase-a.log"
+
+      - name: Execute hosted performance attribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          timeout 120s node performance-attribution-gate/attribution-smoke.mjs 2>&1 | tee artifacts/performance-attribution/runtime.log
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/performance-attribution/runtime-result.json', 'utf8'));
+          if (result.tested_revision !== process.env.CANDIDATE_HEAD_SHA) throw new Error(`tested_revision ${result.tested_revision} != ${process.env.CANDIDATE_HEAD_SHA}`);
+          if (result.passed !== true || result.execution_valid !== true) throw new Error(`invalid attribution evidence: ${JSON.stringify(result.failures)}`);
+          if (result.attribution_scope !== 'github-hosted-linux-chrome-only') throw new Error('attribution scope must remain hosted-runner-only');
+          if (result.optimization_recommendation_claim !== false) throw new Error('attribution gate must not claim an optimization recommendation');
+          if (result.device_profile_claim !== false || result.performance_readiness_claim !== false || result.human_tested !== false) {
+            throw new Error('hosted attribution must not promote device/performance/human evidence');
+          }
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/performance-attribution
+          {
+            find artifacts/performance-attribution -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/performance-attribution/evidence.sha256
+
+      - name: Upload exact-head attribution evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-performance-attribution-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/performance-attribution/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
