@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 const baseURL = process.env.CONTROL_PLANE_URL || 'http://127.0.0.1:4173/apps/studio/';
 const artifacts = process.env.BROWSER_ARTIFACTS || 'artifacts/control-plane-browser';
 const manifestPath = resolve('examples/sample-game/project.manifest.json');
+const extractedStarter = resolve(artifacts, 'portable-starter-folder');
 await mkdir(artifacts, { recursive: true });
+await rm(extractedStarter, { recursive: true, force: true });
+await mkdir(resolve(extractedStarter, 'starter', 'dist'), { recursive: true });
+await copyFile(manifestPath, resolve(extractedStarter, 'starter', 'project.manifest.json'));
+await writeFile(resolve(extractedStarter, 'OPEN_PROJECT.html'), '<!doctype html><title>Verified starter</title>\n');
+await writeFile(resolve(extractedStarter, 'starter', 'dist', 'index.html'), '<!doctype html><title>Playable placeholder for folder selection dogfood</title>\n');
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 try {
@@ -26,20 +32,21 @@ try {
   assert(response?.ok(), `Studio HTTP ${response?.status()}`);
   await page.locator('[data-view="local-run"]').click();
 
-  const importButton = page.getByRole('button', { name: 'Continue from starter manifest' });
-  assert.equal(await importButton.count(), 1, 'portable starter continuation control was not exposed');
-  const input = page.locator('#portable-starter-manifest');
-  assert.equal(await input.count(), 1, 'portable starter file input was not exposed');
-  await input.setInputFiles(manifestPath);
-  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Planning intent loaded locally'), null, { timeout: 5000 });
+  assert.equal(await page.getByRole('button', { name: 'Continue from extracted starter' }).count(), 1, 'extracted-starter continuation control was not exposed');
+  assert.equal(await page.getByRole('button', { name: 'Choose starter manifest' }).count(), 1, 'direct manifest fallback was not preserved');
+  const folderInput = page.locator('#portable-starter-folder');
+  assert.equal(await folderInput.count(), 1, 'portable starter folder input was not exposed');
+  await folderInput.setInputFiles(extractedStarter);
+  await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Planning intent loaded locally from the extracted starter folder'), null, { timeout: 5000 });
 
-  assert.equal(briefRequests.length, 0, 'loading a starter manifest must not execute the pipeline');
+  assert.equal(briefRequests.length, 0, 'loading an extracted starter folder must not execute the pipeline');
   assert.equal(await page.locator('#brief-name').inputValue(), 'Pipeline Sample Game');
   assert.equal(await page.locator('#brief-objective').inputValue(), 'Prove a dependency-free build, QA, release-candidate, and publishing dry run.');
   assert.equal(await page.locator('#brief-target').inputValue(), 'web');
   assert.equal(await page.locator('#brief-mechanic').inputValue(), 'collect');
   assert.equal(await page.locator('#creator-advanced').getAttribute('open'), '', 'imported target/mechanic were not revealed for review');
-  assert.match(await page.locator('#portable-starter-status').textContent(), /No file was uploaded and no execution evidence was imported/i);
+  assert.match(await page.locator('#portable-starter-status').textContent(), /read only starter\/project\.manifest\.json/i);
+  assert.match(await page.locator('#portable-starter-status').textContent(), /no project source was uploaded or executed/i);
   assert.match(await page.locator('#run-message').textContent(), /Nothing has run for this imported brief/i);
   assert.equal(await page.locator('#play-result').isVisible(), false);
   assert.equal(await page.locator('#run-evidence-panel').isVisible(), false);
@@ -56,7 +63,7 @@ try {
   });
   assert.equal(await page.locator('[data-run-step].pass').count(), 6, 'continued starter did not complete the real local pipeline');
   assert.equal(await page.locator('#play-result').isVisible(), true, 'continued starter did not expose the verified playable');
-  assert.equal(page.getByRole('link', { name: 'Download starter bundle' }) ? await page.getByRole('link', { name: 'Download starter bundle' }).count() : 0, 1);
+  assert.equal(await page.getByRole('link', { name: 'Download starter bundle' }).count(), 1);
   const evidence = await page.locator('#run-evidence').textContent();
   assert.match(evidence, /Pipeline Sample Game/);
   assert.match(evidence, /Publication executed: false/);
@@ -65,7 +72,8 @@ try {
 
   await page.screenshot({ path: `${artifacts}/portable-starter-continuation.png`, fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('Portable starter continuation dogfood passed: manifest intent loaded with zero execution, then one explicit real local pipeline run produced passing build/QA/release evidence and no publication authority.');
+  console.log('Portable starter continuation dogfood passed: extracted folder selection read only the reviewed manifest with zero execution, then one explicit real local pipeline run produced passing build/QA/release evidence and no publication authority.');
 } finally {
   await browser.close();
+  await rm(extractedStarter, { recursive: true, force: true });
 }
