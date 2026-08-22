@@ -1,0 +1,108 @@
+name: Benchmark 001 Three Gamepad Input
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/gamepad-input-gate/**'
+      - '.github/workflows/benchmark-001-three-gamepad-input.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gamepad-input:
+    name: gamepad-input
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      GATE: experiments/BYJTT-LAB-001/candidates/three-webgpu/gamepad-input-gate
+      ARTIFACTS: experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/gamepad-input
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXPECTED_LOCK_SHA256: b43707839476cc0ce4ef6f40b4d46bbbc31749bb67e927f7735fc001b4a32396
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '26'
+
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$CANDIDATE_HEAD_SHA"
+          printf 'candidate_head_sha=%s\nactual_head_sha=%s\nnode=%s\nnpm=%s\n' "$CANDIDATE_HEAD_SHA" "$actual" "$(node --version)" "$(npm --version)" | tee "$ARTIFACTS/environment.txt"
+
+      - name: Verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          printf '%s\n' "$observed" | tee artifacts/gamepad-input/observed-lock-sha256.txt
+          test "$observed" = "$EXPECTED_LOCK_SHA256"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/gamepad-input/dependency-tree.json || true
+
+      - name: Strict syntax and production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$GATE/probe.mjs"
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$ARTIFACTS/build.log"
+
+      - name: Re-run unchanged Phase A
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$ARTIFACTS/phase-a.log"
+          node --input-type=module - "$CANDIDATE/artifacts/phase-a/playtest-result.json" "$CANDIDATE_HEAD_SHA" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const [path, expected] = process.argv.slice(2);
+          const result = JSON.parse(readFileSync(path, 'utf8'));
+          if (result.candidate_head_revision !== expected) throw new Error(`Phase A head mismatch: ${result.candidate_head_revision} != ${expected}`);
+          if (result.execution_verified !== true) throw new Error('Phase A execution_verified is not true');
+          NODE
+
+      - name: Execute real-browser hardware-gamepad environment probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          CANDIDATE="$CANDIDATE" CANDIDATE_HEAD_SHA="$CANDIDATE_HEAD_SHA" node "$GATE/probe.mjs"
+          node --input-type=module - "$ARTIFACTS/runtime-result.json" "$CANDIDATE_HEAD_SHA" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const [path, expected] = process.argv.slice(2);
+          const r = JSON.parse(readFileSync(path, 'utf8'));
+          if (r.candidate_head_revision !== expected) throw new Error('runtime result head mismatch');
+          if (r.passed_environment_probe !== true) throw new Error('browser environment probe failed');
+          if (!['blocked-no-hardware-gamepad', 'hardware-gamepad-enumerated'].includes(r.proof_state)) throw new Error(`unexpected proof_state ${r.proof_state}`);
+          if (r.gamepad_gameplay_mapping_proven !== false) throw new Error('gameplay mapping must remain unproven in this gate');
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          find artifacts/gamepad-input -type f ! -name evidence.sha256 -print0 | sort -z | xargs -0 -r sha256sum > artifacts/gamepad-input/evidence.sha256
+
+      - name: Upload exact-head gamepad evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-three-gamepad-input-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/gamepad-input/**
+          if-no-files-found: error
+          retention-days: 30
