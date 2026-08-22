@@ -42,11 +42,7 @@ jobs:
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-lock-materialize.log
           OBSERVED_LOCK_SHA="$(sha256sum package-lock.json | awk '{print $1}')"
           printf '%s  package-lock.json\n' "$OBSERVED_LOCK_SHA" | tee evidence/package-lock-sha256.txt
-          EXPECTED_LOCK_SHA='BOOTSTRAP_REQUIRED'
-          if [ "$EXPECTED_LOCK_SHA" = 'BOOTSTRAP_REQUIRED' ]; then
-            echo "Dependency provenance bootstrap required. Pin observed package-lock SHA-256: $OBSERVED_LOCK_SHA" | tee evidence/dependency-bootstrap.txt
-            exit 42
-          fi
+          EXPECTED_LOCK_SHA='86007695ae5996156f95ef3cc317a7dccd24a14565e286b5df892650b149e0c4'
           test "$OBSERVED_LOCK_SHA" = "$EXPECTED_LOCK_SHA"
           npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee evidence/npm-ci.log
           cp package-lock.json evidence/package-lock.json
