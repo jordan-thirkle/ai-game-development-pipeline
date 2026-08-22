@@ -46,6 +46,7 @@ async function realSampleResult() {
         download: { filename: bundle.filename, sha256: bundle.sha256 }
       },
       publishing,
+      releaseCandidate,
       bundle
     };
   } catch (error) {
@@ -58,10 +59,24 @@ function factsObject(result) {
   return Object.fromEntries(buildInlineVerificationFacts(result));
 }
 
-test('dogfoods the real sample and exposes its exact non-executing publishing plan in Studio verification', async () => {
-  const { workspace, result, publishing, bundle } = await realSampleResult();
+test('dogfoods the real sample and exposes its exact release candidate plus non-executing publishing plan in Studio verification', async () => {
+  const { workspace, result, publishing, releaseCandidate, bundle } = await realSampleResult();
   try {
     const facts = factsObject(result);
+    assert.equal(releaseCandidate.dryRunOnly, true);
+    assert.equal(typeof releaseCandidate.candidateId, 'string');
+    assert(releaseCandidate.candidateId.length > 0);
+    assert.equal(typeof releaseCandidate.build?.artifactPath, 'string');
+    assert(releaseCandidate.build.artifactPath.length > 0);
+    assert.match(releaseCandidate.build.outputSha256, /^sha256:[a-f0-9]{64}$/);
+    assert.deepEqual(releaseCandidate.destination, publishing.destination);
+    assert.equal(facts['Release candidate ID'], releaseCandidate.candidateId);
+    assert.equal(facts['Release candidate artifact'], releaseCandidate.build.artifactPath);
+    assert.equal(facts['Release candidate'], 'dry-run only');
+    assert.equal(facts['Release destination'], publishing.destination.target);
+    assert.equal(facts['Release candidate provenance'], 'explicit identity + destination');
+    assert.equal(facts['Release candidate SHA-256'], releaseCandidate.build.outputSha256);
+    assert.equal(facts['Verified artifact'], releaseCandidate.build.outputSha256);
     assert.equal(publishing.executed, false);
     assert.equal(publishing.dryRun, true);
     assert.equal(publishing.provider, null);
@@ -74,7 +89,43 @@ test('dogfoods the real sample and exposes its exact non-executing publishing pl
     assert.equal(facts['Publishing plan'], publishing.plan[0]);
     assert.match(facts['Publishing authority'], /^none · .*separately authorized credentialed execution evidence$/);
     assert.equal(facts['Starter bundle'], bundle.sha256);
-    console.log(`Studio inline publishing-plan dogfood passed: ${JSON.stringify({ pipelineStatus: result.status, publicationExecuted: publishing.executed, dryRun: publishing.dryRun, destination: publishing.destination, plan: publishing.plan, bundleSha256: bundle.sha256 })}`);
+    console.log(`Studio inline release/publishing dogfood passed: ${JSON.stringify({ pipelineStatus: result.status, candidateId: releaseCandidate.candidateId, candidateArtifact: releaseCandidate.build.artifactPath, candidateSha256: releaseCandidate.build.outputSha256, publicationExecuted: publishing.executed, dryRun: publishing.dryRun, destination: publishing.destination, plan: publishing.plan, bundleSha256: bundle.sha256 })}`);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('inline Studio verification keeps safe legacy release identity and destination explicitly unavailable', async () => {
+  const { workspace, result, releaseCandidate } = await realSampleResult();
+  try {
+    delete result.evidence.releaseCandidate.candidateId;
+    delete result.evidence.releaseCandidate.destination;
+    const facts = factsObject(result);
+    assert.equal(facts['Release candidate ID'], 'unavailable in legacy evidence');
+    assert.equal(facts['Release destination'], 'unavailable in legacy evidence');
+    assert.equal(facts['Release candidate provenance'], 'legacy evidence · identity/destination unavailable; not inferred');
+    assert.equal(facts['Release candidate artifact'], releaseCandidate.build.artifactPath);
+    assert.equal(facts['Release candidate SHA-256'], releaseCandidate.build.outputSha256);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('inline Studio verification fails closed when release candidate destination contradicts the verified local destination', async () => {
+  const { workspace, result } = await realSampleResult();
+  try {
+    result.evidence.releaseCandidate.destination = { kind: 'local', target: 'local://planned/other-project' };
+    assert.throws(() => factsObject(result), /Release candidate evidence is incomplete or contradicts/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('inline Studio verification fails closed when release candidate identity contains control characters', async () => {
+  const { workspace, result } = await realSampleResult();
+  try {
+    result.evidence.releaseCandidate.candidateId = 'candidate\nforged';
+    assert.throws(() => factsObject(result), /Release candidate evidence is incomplete or contradicts/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
