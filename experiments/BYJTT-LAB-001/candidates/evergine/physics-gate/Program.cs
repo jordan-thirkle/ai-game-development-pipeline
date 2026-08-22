@@ -113,6 +113,11 @@ if (failures.Count != 0)
 
 sealed class PhysicsProbeScene : Scene
 {
+    private const float SceneArenaWidthM = 24.0f;
+    private const float SceneArenaDepthM = 32.0f;
+    private const float ScenePlayerRadiusM = 0.4f;
+    private const float ScenePlayerHeightM = 1.8f;
+    private const float SceneFixedDt = 1.0f / 60.0f;
     private readonly Vector3 playerSpawn;
 
     public PhysicsProbeScene(Vector3 playerSpawn)
@@ -129,7 +134,7 @@ sealed class PhysicsProbeScene : Scene
         base.RegisterManagers();
         this.Managers.AddManager(new BulletPhysicManager3D
         {
-            FixedTimeStep = FixedDt,
+            FixedTimeStep = SceneFixedDt,
         });
     }
 
@@ -137,11 +142,11 @@ sealed class PhysicsProbeScene : Scene
     {
         base.CreateScene();
 
-        this.AddStaticBox(new Vector3(0.0f, -0.10f, 0.0f), new Vector3(ArenaWidthM + 0.8f, 0.20f, ArenaDepthM + 0.8f));
-        this.AddStaticBox(new Vector3(-(ArenaWidthM / 2.0f + 0.20f), 1.0f, 0.0f), new Vector3(0.40f, 2.0f, ArenaDepthM));
-        this.AddStaticBox(new Vector3(ArenaWidthM / 2.0f + 0.20f, 1.0f, 0.0f), new Vector3(0.40f, 2.0f, ArenaDepthM));
-        this.AddStaticBox(new Vector3(0.0f, 1.0f, -(ArenaDepthM / 2.0f + 0.20f)), new Vector3(ArenaWidthM, 2.0f, 0.40f));
-        this.AddStaticBox(new Vector3(0.0f, 1.0f, ArenaDepthM / 2.0f + 0.20f), new Vector3(ArenaWidthM, 2.0f, 0.40f));
+        this.AddStaticBox(new Vector3(0.0f, -0.10f, 0.0f), new Vector3(SceneArenaWidthM + 0.8f, 0.20f, SceneArenaDepthM + 0.8f));
+        this.AddStaticBox(new Vector3(-(SceneArenaWidthM / 2.0f + 0.20f), 1.0f, 0.0f), new Vector3(0.40f, 2.0f, SceneArenaDepthM));
+        this.AddStaticBox(new Vector3(SceneArenaWidthM / 2.0f + 0.20f, 1.0f, 0.0f), new Vector3(0.40f, 2.0f, SceneArenaDepthM));
+        this.AddStaticBox(new Vector3(0.0f, 1.0f, -(SceneArenaDepthM / 2.0f + 0.20f)), new Vector3(SceneArenaWidthM, 2.0f, 0.40f));
+        this.AddStaticBox(new Vector3(0.0f, 1.0f, SceneArenaDepthM / 2.0f + 0.20f), new Vector3(SceneArenaWidthM, 2.0f, 0.40f));
 
         this.PlayerTransform = new Transform3D { Position = this.playerSpawn };
         this.PlayerController = new CharacterController3D();
@@ -150,8 +155,8 @@ sealed class PhysicsProbeScene : Scene
             .AddComponent(this.PlayerController)
             .AddComponent(new CapsuleCollider3D
             {
-                Radius = PlayerRadiusM,
-                Height = PlayerHeightM,
+                Radius = ScenePlayerRadiusM,
+                Height = ScenePlayerHeightM,
             });
         this.Managers.EntityManager.Add(player);
     }
