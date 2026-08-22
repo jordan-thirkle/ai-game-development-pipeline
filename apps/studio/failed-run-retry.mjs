@@ -276,6 +276,8 @@ const PORTABLE_FOLDER_BUTTON_ID = 'portable-starter-folder-import';
 const PORTABLE_BUNDLE_INPUT_ID = 'portable-starter-bundle';
 const PORTABLE_BUNDLE_BUTTON_ID = 'portable-starter-bundle-import';
 const PORTABLE_IMPORT_STATUS_ID = 'portable-starter-status';
+const PORTABLE_CONTINUATION_SESSION_KEY = 'byjtt:studio:verified-bundle-planning:v1';
+const PORTABLE_CONTINUATION_MAX_BYTES = 4096;
 
 function portableObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object.`);
@@ -354,6 +356,37 @@ function portableImportMessage(kind, text) {
   status.textContent = text;
 }
 
+function clearPortableContinuation() {
+  try { window.sessionStorage.removeItem(PORTABLE_CONTINUATION_SESSION_KEY); } catch {}
+}
+
+function writePortableContinuation(brief) {
+  const record = { kind: 'verified-bundle-planning', brief: validateBrief(brief) };
+  const serialized = JSON.stringify(record);
+  if (serialized.length > PORTABLE_CONTINUATION_MAX_BYTES) throw new Error('Verified starter planning intent is too large to preserve safely.');
+  try { window.sessionStorage.setItem(PORTABLE_CONTINUATION_SESSION_KEY, serialized); }
+  catch { throw new Error('Verified starter planning intent could not be preserved in this browser session.'); }
+}
+
+function readPortableContinuation() {
+  let serialized;
+  try { serialized = window.sessionStorage.getItem(PORTABLE_CONTINUATION_SESSION_KEY); }
+  catch { return null; }
+  if (!serialized) return null;
+  if (serialized.length > PORTABLE_CONTINUATION_MAX_BYTES) {
+    clearPortableContinuation();
+    return null;
+  }
+  try {
+    const record = JSON.parse(serialized);
+    if (!record || typeof record !== 'object' || Array.isArray(record) || record.kind !== 'verified-bundle-planning') throw new Error('Malformed verified starter planning state.');
+    return validateBrief(record.brief);
+  } catch {
+    clearPortableContinuation();
+    return null;
+  }
+}
+
 function applyPortableBrief(brief) {
   const evidencePanel = document.querySelector('#run-evidence-panel');
   const playResult = document.querySelector('#play-result');
@@ -376,6 +409,20 @@ function applyPortableBrief(brief) {
   if (runMessage) {
     runMessage.className = 'notice';
     runMessage.textContent = 'Starter planning intent loaded locally. Nothing has run for this imported brief; review it, then explicitly choose Create playable starter.';
+  }
+}
+
+function restorePortableContinuation() {
+  const brief = readPortableContinuation();
+  if (!brief) return false;
+  try {
+    applyPortableBrief(brief);
+    document.querySelector('[data-view="local-run"]')?.click();
+    portableImportMessage('pass', 'Recovered the four validated planning fields from a verified bundle you previously checked in this browser tab. No pipeline stage was re-executed. Archive-byte verification is not re-asserted from session storage after refresh; reselect the downloaded bundle if you want Studio to verify and display its proof again before running.');
+    return true;
+  } catch {
+    clearPortableContinuation();
+    return false;
   }
 }
 
@@ -438,9 +485,15 @@ function ensurePortableStarterImport() {
   actions.prepend(bundleButton);
   bundleButton.addEventListener('click', () => bundleInput.click());
 
+  form.addEventListener('submit', clearPortableContinuation);
+  document.addEventListener('click', (event) => {
+    if (event.target?.closest?.('#start-new-project')) clearPortableContinuation();
+  });
+
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) return;
+    clearPortableContinuation();
     try {
       if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter manifest.');
       if (file.size <= 0 || file.size > PORTABLE_MANIFEST_MAX_BYTES) throw new Error(`Starter manifest must be between 1 byte and ${PORTABLE_MANIFEST_MAX_BYTES} bytes.`);
@@ -455,6 +508,7 @@ function ensurePortableStarterImport() {
   });
 
   folderInput.addEventListener('change', async () => {
+    clearPortableContinuation();
     try {
       if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter folder.');
       const file = portableStarterManifestFileFromSelection(folderInput.files);
@@ -471,19 +525,24 @@ function ensurePortableStarterImport() {
   bundleInput.addEventListener('change', async () => {
     const file = bundleInput.files?.[0];
     if (!file) return;
+    clearPortableContinuation();
     try {
       if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter bundle.');
       const imported = await verifiedPortableStarterImportFromBundleFile(file);
       const brief = parsePortableStarterBriefText(imported.manifestText);
       applyPortableBrief(brief);
+      writePortableContinuation(brief);
       const proof = imported.verification;
       portableImportMessage('pass', `Verified bundle checked locally before continuation. Build: ${proof.buildStatus}; QA: ${proof.qaStatus}; release candidate: ${proof.releaseCandidateStatus}; publication: ${proof.publicationStatus}; secrets: ${proof.secretsStatus}; artifact: ${proof.artifactPath} ${proof.artifactSha256}; destination: ${proof.destination}. Planning intent loaded from ${file.name}, but historical evidence was not imported as execution authority. Nothing was uploaded or executed; review the four Creator fields before explicitly running again.`);
     } catch (error) {
+      clearPortableContinuation();
       portableImportMessage('fail', `Starter bundle was not loaded: ${error.message}`);
     } finally {
       bundleInput.value = '';
     }
   });
+
+  restorePortableContinuation();
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
