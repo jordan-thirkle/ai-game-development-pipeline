@@ -42,12 +42,12 @@ try {
   await page.getByText('Failed attempt evidence', { exact: true }).waitFor({ state: 'visible' });
 
   const message = await page.locator('#run-message').innerText();
-  assert.match(message, /Run stopped safely:/);
-  assert.match(message, /Build failed|usable artifact/i);
+  assert.equal(message, 'Run stopped safely: Pipeline evidence did not pass.');
 
   const evidencePanel = page.locator('#run-evidence-panel');
   await assert.doesNotReject(() => evidencePanel.waitFor({ state: 'visible' }));
   const evidenceText = await evidencePanel.innerText();
+  assert.match(evidenceText, /Build failed or did not produce a contained artifact/i);
   assert.match(evidenceText, /Partial evidence is retained exactly as returned by the local pipeline/);
   assert.match(evidenceText, /Intake & scaffold/);
   assert.match(evidenceText, /Tool selection/);
