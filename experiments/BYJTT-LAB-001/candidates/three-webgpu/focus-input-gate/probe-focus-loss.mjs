@@ -33,6 +33,7 @@ async function waitForServer() {
 const errors = [];
 let browser;
 let page;
+let focusSink;
 const result = {
   tested_revision: testedRevision,
   proof_state: 'not-run',
@@ -40,6 +41,10 @@ const result = {
   movement_before_blur_m: null,
   movement_after_blur_m: null,
   focus_loss_drift_m: null,
+  focus_transfer_method: 'secondary-page-bring-to-front',
+  focus_before_transfer: null,
+  focus_after_transfer: null,
+  trusted_blur_observed: false,
   safe_focus_release_proven: false,
   production_source_modified: false,
   direct_input_state_mutation: false,
@@ -49,12 +54,30 @@ const result = {
 try {
   await waitForServer();
   browser = await chromium.launch({ headless: true, executablePath: '/usr/bin/google-chrome' });
-  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  page = await context.newPage();
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
   page.on('pageerror', (error) => errors.push(`page:${error.message}`));
   await page.goto(origin, { waitUntil: 'networkidle', timeout: 30_000 });
+  await page.bringToFront();
+  await page.waitForFunction(() => document.hasFocus() === true, null, { timeout: 5_000 });
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__?.snapshot?.()['runtime.ready'] === true, null, { timeout: 30_000 });
   result.runtime_ready = true;
+  result.focus_before_transfer = await page.evaluate(() => document.hasFocus());
+
+  await page.evaluate(() => {
+    Object.defineProperty(window, '__BYJTT_FOCUS_PROBE__', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: { blurCount: 0, trustedBlur: false, hasFocusDuringBlur: null },
+    });
+    window.addEventListener('blur', (event) => {
+      window.__BYJTT_FOCUS_PROBE__.blurCount += 1;
+      window.__BYJTT_FOCUS_PROBE__.trustedBlur ||= event.isTrusted === true;
+      window.__BYJTT_FOCUS_PROBE__.hasFocusDuringBlur = document.hasFocus();
+    }, { once: true });
+  });
 
   const readX = () => page.evaluate(() => window.__BYJTT_BENCHMARK__.snapshot()['player.position'].x);
   const startX = await readX();
@@ -63,16 +86,29 @@ try {
   const beforeBlurX = await readX();
   result.movement_before_blur_m = Math.abs(beforeBlurX - startX);
 
-  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  focusSink = await context.newPage();
+  await focusSink.goto('about:blank');
+  await focusSink.bringToFront();
+  await page.waitForFunction(() => document.hasFocus() === false, null, { timeout: 5_000 });
+  result.focus_after_transfer = await page.evaluate(() => document.hasFocus());
+  const focusEvidence = await page.evaluate(() => ({ ...window.__BYJTT_FOCUS_PROBE__ }));
+  result.trusted_blur_observed = focusEvidence.blurCount === 1
+    && focusEvidence.trustedBlur === true
+    && focusEvidence.hasFocusDuringBlur === false;
+
   await page.waitForTimeout(700);
   const afterBlurX = await readX();
   result.movement_after_blur_m = Math.abs(afterBlurX - startX);
   result.focus_loss_drift_m = Math.abs(afterBlurX - beforeBlurX);
+
+  await page.bringToFront();
   await page.keyboard.up('KeyD');
   await page.waitForTimeout(350);
 
   if (result.movement_before_blur_m < 0.5) errors.push(`pre-blur movement too small: ${result.movement_before_blur_m}`);
-  if (errors.length === 0 && result.focus_loss_drift_m <= 0.15) {
+  if (result.focus_before_transfer !== true || result.focus_after_transfer !== false || result.trusted_blur_observed !== true) {
+    result.proof_state = 'inconclusive-focus-transfer';
+  } else if (errors.length === 0 && result.focus_loss_drift_m <= 0.15) {
     result.proof_state = 'focus-input-release-proven';
     result.safe_focus_release_proven = true;
   } else if (errors.length === 0) {
@@ -85,8 +121,14 @@ try {
 } catch (error) {
   errors.push(error instanceof Error ? error.stack || error.message : String(error));
   result.proof_state = 'execution-failed';
-  try { if (page) await page.keyboard.up('KeyD'); } catch {}
+  try {
+    if (page) {
+      await page.bringToFront();
+      await page.keyboard.up('KeyD');
+    }
+  } catch {}
 } finally {
+  if (focusSink) await focusSink.close().catch(() => {});
   if (browser) await browser.close();
   server.kill('SIGTERM');
   await fs.writeFile(path.join(artifactDir, 'preview.log'), serverLog);
@@ -94,4 +136,4 @@ try {
 }
 
 console.log(JSON.stringify(result, null, 2));
-if (result.proof_state === 'execution-failed') process.exitCode = 1;
+if (result.proof_state !== 'focus-input-release-proven') process.exitCode = 1;
