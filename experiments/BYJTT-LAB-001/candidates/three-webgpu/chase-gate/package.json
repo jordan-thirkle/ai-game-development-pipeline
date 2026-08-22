@@ -1,0 +1,22 @@
+{
+  "name": "byjtt-three-chase-gate",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "runtime": "node tools/runtime.mjs"
+  },
+  "dependencies": {
+    "jolt-physics": "1.1.0",
+    "recast-navigation": "0.43.1",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@types/three": "0.185.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.3"
+  }
+}
