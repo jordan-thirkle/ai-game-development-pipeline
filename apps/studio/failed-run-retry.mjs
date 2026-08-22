@@ -1,4 +1,5 @@
 import { recoverableBriefValues } from './latest-run-recovery.mjs';
+import { portableStarterManifestTextFromBundleFile } from './portable-starter-bundle.mjs';
 
 const FAILED_RUN_SESSION_KEY = 'byjtt:studio:failed-run:v1';
 const RETRY_DRAFT_SESSION_KEY = 'byjtt:studio:failed-retry-draft:v1';
@@ -272,6 +273,8 @@ const PORTABLE_IMPORT_INPUT_ID = 'portable-starter-manifest';
 const PORTABLE_IMPORT_BUTTON_ID = 'portable-starter-import';
 const PORTABLE_FOLDER_INPUT_ID = 'portable-starter-folder';
 const PORTABLE_FOLDER_BUTTON_ID = 'portable-starter-folder-import';
+const PORTABLE_BUNDLE_INPUT_ID = 'portable-starter-bundle';
+const PORTABLE_BUNDLE_BUTTON_ID = 'portable-starter-bundle-import';
 const PORTABLE_IMPORT_STATUS_ID = 'portable-starter-status';
 
 function portableObject(value, label) {
@@ -386,7 +389,7 @@ function ensurePortableStarterImport() {
   status.className = 'notice';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  status.textContent = 'Continue a downloaded starter by choosing its extracted folder or starter/project.manifest.json. Studio reads only reviewed planning intent in this browser; nothing is uploaded or executed.';
+  status.textContent = 'Continue a downloaded verified starter bundle directly, or use the extracted-folder / manifest fallbacks. Studio imports only reviewed planning intent in this browser; nothing is uploaded or executed.';
   actions.before(status);
 
   const input = document.createElement('input');
@@ -404,6 +407,13 @@ function ensurePortableStarterImport() {
   folderInput.setAttribute('webkitdirectory', '');
   form.append(folderInput);
 
+  const bundleInput = document.createElement('input');
+  bundleInput.id = PORTABLE_BUNDLE_INPUT_ID;
+  bundleInput.className = 'hidden';
+  bundleInput.type = 'file';
+  bundleInput.accept = '.tar.gz,application/gzip,application/x-gzip';
+  form.append(bundleInput);
+
   const button = document.createElement('button');
   button.id = PORTABLE_IMPORT_BUTTON_ID;
   button.className = 'btn secondary';
@@ -419,6 +429,14 @@ function ensurePortableStarterImport() {
   folderButton.textContent = 'Continue from extracted starter';
   actions.prepend(folderButton);
   folderButton.addEventListener('click', () => folderInput.click());
+
+  const bundleButton = document.createElement('button');
+  bundleButton.id = PORTABLE_BUNDLE_BUTTON_ID;
+  bundleButton.className = 'btn primary';
+  bundleButton.type = 'button';
+  bundleButton.textContent = 'Continue from downloaded bundle';
+  actions.prepend(bundleButton);
+  bundleButton.addEventListener('click', () => bundleInput.click());
 
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
@@ -447,6 +465,22 @@ function ensurePortableStarterImport() {
       portableImportMessage('fail', `Starter folder was not loaded: ${error.message}`);
     } finally {
       folderInput.value = '';
+    }
+  });
+
+  bundleInput.addEventListener('change', async () => {
+    const file = bundleInput.files?.[0];
+    if (!file) return;
+    try {
+      if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter bundle.');
+      const manifestText = await portableStarterManifestTextFromBundleFile(file);
+      const brief = parsePortableStarterBriefText(manifestText);
+      applyPortableBrief(brief);
+      portableImportMessage('pass', `Planning intent loaded locally from ${file.name}. Studio decompressed the bounded archive in this browser and read only starter/project.manifest.json; project source was not uploaded or executed and historical build/QA/release evidence was not imported.`);
+    } catch (error) {
+      portableImportMessage('fail', `Starter bundle was not loaded: ${error.message}`);
+    } finally {
+      bundleInput.value = '';
     }
   });
 }
