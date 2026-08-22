@@ -27,6 +27,7 @@ var failures = new List<string>();
 using var application = new Application();
 using var scene = new PhysicsProbeScene(physicsSpawn);
 scene.Initialize();
+scene.Begin();
 
 scene.PlayerController.SetVelocity(new Vector3(WalkSpeedMps, 0.0f, 0.0f));
 float maxX = scene.PlayerTransform.Position.X;
@@ -75,6 +76,7 @@ var result = new
     native_physics_world_executed = true,
     character_controller_executed = true,
     set_velocity_executed = true,
+    scene_start_executed = true,
     headless_debug_draw_bypass = true,
     external_input_executed = false,
     rendered_execution = false,
@@ -170,6 +172,11 @@ sealed class PhysicsProbeScene : Scene
                 Height = ScenePlayerHeightM,
             });
         this.Managers.EntityManager.Add(player);
+    }
+
+    public void Begin()
+    {
+        base.Start();
     }
 
     public void Step(TimeSpan elapsed)
