@@ -27,6 +27,7 @@ const VARIATION_SESSION_KEY = 'byjtt:studio:verified-variation:v1';
 const MAX_VARIATION_BYTES = 4096;
 let pendingFreshRun = null;
 let variationDraftListenersInstalled = false;
+let variationDraftPersistenceActive = false;
 
 export function recoverableBriefValues(result) {
   const brief = result?.brief;
@@ -207,6 +208,7 @@ function restoreBriefForm(result) {
 }
 
 function clearVariationDraft() {
+  variationDraftPersistenceActive = false;
   try { window.sessionStorage.removeItem(VARIATION_SESSION_KEY); } catch {}
 }
 
@@ -262,6 +264,7 @@ function currentVariationBrief() {
 }
 
 function persistVariationDraftFromControls() {
+  if (!variationDraftPersistenceActive) return;
   try {
     const brief = currentVariationBrief();
     if (brief) writeVariationBrief(brief);
@@ -285,6 +288,7 @@ function restoreVariationDraft() {
   const brief = readVariationDraft();
   if (!brief) return false;
   if (!applyBriefValues(brief, `Starter shape: ${MECHANIC_LABELS[brief.mechanic]} · copied from the latest verified run for a new variation.`)) return false;
+  variationDraftPersistenceActive = true;
   installVariationDraftPersistence();
   persistVariationDraftFromControls();
   document.querySelector('[data-view="local-run"]')?.click();
