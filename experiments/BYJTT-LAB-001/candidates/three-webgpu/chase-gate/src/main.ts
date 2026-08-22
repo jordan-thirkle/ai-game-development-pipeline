@@ -181,17 +181,18 @@ function fixedStep(): void {
   if (!acquired) {
     if (before > ACQUIRE_RANGE) lastOutsideAcquireDistance = before;
     if (before <= ACQUIRE_RANGE) {
-      acquired = true;
-      acquiredDistance = before;
       acquirePath();
+      acquiredDistance = before;
+      acquired = true;
     }
   }
 
   const enemyCurrent = enemy.GetLinearVelocity();
   if (acquired) {
     const ep = horizontalPosition(enemy);
-    const target = new THREE.Vector2(player.GetPosition().GetX(), player.GetPosition().GetZ());
-    const delta = target.sub(ep);
+    const pathTarget = pathPoints[pathPoints.length - 1];
+    if (!pathTarget) throw new Error('Detour path endpoint missing during chase');
+    const delta = new THREE.Vector2(pathTarget.x, pathTarget.z).sub(ep);
     if (delta.lengthSq() > 0.000001) delta.normalize().multiplyScalar(ENEMY_SPEED);
     enemyVelocity.Set(delta.x, enemyCurrent.GetY(), delta.y);
   } else {
@@ -236,16 +237,13 @@ try { if (isolationProbe.pathPoints[0]) (isolationProbe.pathPoints[0] as Point).
 observationIsolation = pathPoints.length === 0;
 (document.querySelector('#status') as HTMLElement).textContent = 'ready';
 
-let accumulator = 0;
-let previous = performance.now();
-function frame(now: number): void {
-  accumulator += Math.min((now - previous) / 1000, 0.1);
-  previous = now;
-  while (accumulator >= FIXED_DT) { fixedStep(); accumulator -= FIXED_DT; }
-  const pp = player.GetPosition(); const ep = enemy.GetPosition();
+window.setInterval(fixedStep, FIXED_DT * 1000);
+function renderFrame(): void {
+  const pp = player.GetPosition();
+  const ep = enemy.GetPosition();
   playerMesh.position.set(pp.GetX(), pp.GetY(), pp.GetZ());
   enemyMesh.position.set(ep.GetX(), ep.GetY(), ep.GetZ());
   renderer.render(scene, camera);
-  requestAnimationFrame(frame);
+  requestAnimationFrame(renderFrame);
 }
-requestAnimationFrame(frame);
+requestAnimationFrame(renderFrame);
