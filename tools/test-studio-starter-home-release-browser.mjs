@@ -26,8 +26,16 @@ try {
 
   const pipeline = await runPipeline({ projectDir, outputDir, dryRun: true, sourceRevision: 'starter-home-release-browser-dogfood' });
   assert.equal(pipeline.status, 'pass');
+  const buildResult = JSON.parse(await readFile(resolve(outputDir, 'build-result.json'), 'utf8'));
+  const qaResult = JSON.parse(await readFile(resolve(outputDir, 'qa-result.json'), 'utf8'));
   const releaseCandidate = JSON.parse(await readFile(resolve(outputDir, 'release-candidate.json'), 'utf8'));
   const publishingReceipt = JSON.parse(await readFile(resolve(outputDir, 'publishing-receipt.json'), 'utf8'));
+  assert.equal(buildResult.executed, true);
+  assert.equal(buildResult.status, 'pass');
+  assert.equal(qaResult.executed, true);
+  assert.equal(qaResult.status, 'pass');
+  assert.equal(buildResult.artifactSha256, qaResult.artifactSha256);
+  assert.equal(qaResult.artifactSha256, releaseCandidate.build.outputSha256);
   assert.equal(releaseCandidate.dryRunOnly, true);
   assert.equal(releaseCandidate.destination?.kind, 'local');
   assert.equal(releaseCandidate.destination?.target, publishingReceipt.destination?.target);
@@ -48,6 +56,17 @@ try {
   page.on('pageerror', (error) => browserErrors.push(error.message));
 
   await page.goto(pathToFileURL(resolve(extractedDir, 'OPEN_PROJECT.html')).href, { waitUntil: 'load' });
+  const qaPanel = page.locator('[aria-label="QA artifact proof"]');
+  await qaPanel.waitFor({ state: 'visible' });
+  const qaText = (await qaPanel.textContent()) ?? '';
+  assert.match(qaText, /The same bytes passed build, QA, and promotion/);
+  assert.match(qaText, /Build.*executed · pass/s);
+  assert.match(qaText, /QA.*executed · pass/s);
+  assert.match(qaText, new RegExp(buildResult.artifactSha256.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(qaText, new RegExp(qaResult.artifactSha256.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(qaText, new RegExp(releaseCandidate.build.outputSha256.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(qaText, /fails closed if those artifact identities disagree/);
+
   const panel = page.locator('[aria-label="Release candidate"]');
   await panel.waitFor({ state: 'visible' });
   const text = (await panel.textContent()) ?? '';
@@ -70,6 +89,9 @@ try {
     sample: 'examples/sample-game',
     projectId: manifest.projectId,
     pipelineStatus: pipeline.status,
+    qaArtifactProofBrowserVerified: true,
+    buildArtifactSha256: buildResult.artifactSha256,
+    qaArtifactSha256: qaResult.artifactSha256,
     releaseCandidateBrowserVerified: true,
     candidateId: releaseCandidate.candidateId,
     artifactPath: releaseCandidate.build.artifactPath,

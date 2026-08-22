@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createStarterHomePage } from './studio-starter-home-page.mjs';
 
 const hash = `sha256:${'a'.repeat(64)}`;
+const otherHash = `sha256:${'b'.repeat(64)}`;
 const manifest = {
   name: 'Harbour Run',
   objective: 'A small verified local starter.',
@@ -39,9 +40,52 @@ function evidence(overrides = {}) {
   return { ...base, ...overrides };
 }
 
-function htmlFor(value) {
-  return createStarterHomePage(manifest, value, hash).toString('utf8');
+function htmlFor(value, bundledHash = hash) {
+  return createStarterHomePage(manifest, value, bundledHash).toString('utf8');
 }
+
+test('starter home surfaces exact QA artifact binding without raw evidence inspection', () => {
+  const html = htmlFor(evidence());
+  assert.match(html, /aria-label="QA artifact proof"/);
+  assert.match(html, /The same bytes passed build, QA, and promotion/);
+  assert.match(html, /Build SHA-256/);
+  assert.match(html, /QA SHA-256/);
+  assert.match(html, /Promoted candidate SHA-256/);
+  assert.match(html, new RegExp(hash.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(html, /fails closed if those artifact identities disagree/);
+});
+
+test('legacy starter home remains renderable but does not invent missing build/QA artifact binding', () => {
+  const value = evidence();
+  delete value.build.artifactSha256;
+  delete value.qa.artifactSha256;
+  const html = htmlFor(value);
+  assert.match(html, /Artifact binding unavailable in legacy evidence/);
+  assert.match(html, /No byte-identity proof is inferred/);
+  assert.doesNotMatch(html, /The same bytes passed build, QA, and promotion/);
+});
+
+test('partially supplied current artifact proof fails closed instead of falling back to legacy', () => {
+  const value = evidence();
+  delete value.qa.artifactSha256;
+  assert.throws(() => htmlFor(value), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence/);
+});
+
+test('starter home refuses build, QA, candidate, or packaged-artifact digest disagreement', () => {
+  const buildMismatch = evidence();
+  buildMismatch.build.artifactSha256 = otherHash;
+  assert.throws(() => htmlFor(buildMismatch), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence/);
+
+  const qaMismatch = evidence();
+  qaMismatch.qa.artifactSha256 = otherHash;
+  assert.throws(() => htmlFor(qaMismatch), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence/);
+
+  const candidateMismatch = evidence();
+  candidateMismatch.releaseCandidate.build.outputSha256 = otherHash;
+  assert.throws(() => htmlFor(candidateMismatch), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence/);
+
+  assert.throws(() => htmlFor(evidence(), otherHash), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence/);
+});
 
 test('starter home surfaces the exact truthful local release candidate', () => {
   const html = htmlFor(evidence());
@@ -98,6 +142,6 @@ test('malformed candidate provenance fails closed', () => {
   ]) {
     const value = evidence();
     mutate(value);
-    assert.throws(() => htmlFor(value), /Release candidate evidence is incomplete/);
+    assert.throws(() => htmlFor(value), /matching build, QA, release-candidate, and packaged artifact SHA-256 evidence|validated local dry-run project and evidence state|Release candidate evidence is incomplete/);
   }
 });
