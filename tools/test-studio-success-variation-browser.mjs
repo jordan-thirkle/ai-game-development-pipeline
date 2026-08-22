@@ -105,6 +105,19 @@ try {
   assert.match(variationEvidence, /Secrets used: false/);
   assert.match(variationEvidence, /Dry-run only: true/);
 
+  await page.locator('#brief-name').fill('Ordinary follow-up project');
+  await page.locator('#brief-objective').fill('This ordinary Creator edit after a completed variation must never reactivate verified variation persistence.');
+  await page.locator('#brief-target').selectOption('web');
+  await page.locator('#brief-mechanic').selectOption('survive');
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), variationKey), null, 'ordinary Creator edits after explicit variation execution reactivated the cleared variation draft');
+  assert.equal(pipelinePosts, 2, 'ordinary Creator edits after variation completion must not execute the pipeline');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('#run-message')?.textContent.includes('Recovered the latest verified run'), null, { timeout: 10000 });
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), variationKey), null, 'refresh after ordinary Creator edits recreated variation state');
+  assert.doesNotMatch(await page.locator('#run-message').textContent(), /variation draft restored/i, 'refresh falsely restored an ordinary Creator edit as a verified variation');
+  assert.equal(pipelinePosts, 2, 'post-clear refresh must not execute another pipeline run');
+
   await page.evaluate((key) => {
     sessionStorage.setItem(key, JSON.stringify({
       brief: {
@@ -176,10 +189,12 @@ try {
   const evidence = {
     verifiedVariationBrowserVerified: true,
     unsentVariationRefreshRecoveryVerified: true,
+    variationLifecycleDeactivationVerified: true,
     initialExecutionAttempts: 1,
     variationPreparationExecutionAttemptsAdded: 0,
     unsentVariationRefreshExecutionAttemptsAdded: 0,
     explicitVariationExecutionAttemptsAdded: 1,
+    postClearOrdinaryEditExecutionAttemptsAdded: 0,
     totalPipelinePosts: pipelinePosts,
     priorArtifactHandlesInvalidated: true,
     staleVariationDraftRejectedInFavorOfVerifiedRun: true,
@@ -191,7 +206,7 @@ try {
     externalHttpRequests: externalRequests.length
   };
   await writeFile(`${artifacts}/verified-brief-variation.json`, `${JSON.stringify(evidence, null, 2)}\n`);
-  console.log('Verified brief variation dogfood passed: valid unsent variation edits survived refresh with zero execution, stale/invalid drafts failed closed, prior success authority stayed invalidated, and only explicit submission created one new local dry-run pipeline execution.');
+  console.log('Verified brief variation dogfood passed: valid unsent variation edits survived refresh with zero execution, persistence deactivated after explicit execution, stale/invalid drafts failed closed, prior success authority stayed invalidated, and only explicit submission created one new local dry-run pipeline execution.');
 } finally {
   await browser.close();
 }
