@@ -172,7 +172,10 @@ function acquirePath(): void {
   const endPoint: Point = { ...endResult.point };
   const endPolyRef = endResult.polyRef;
   if (startPolyRef === endPolyRef) {
-    pathPoints = [startPoint, endPoint];
+    pathPoints = [
+      { x: ep.GetX(), y: startPoint.y, z: ep.GetZ() },
+      { x: pp.GetX(), y: endPoint.y, z: pp.GetZ() },
+    ];
   } else {
     const result = navQuery.computePath(startPoint, endPoint);
     if (!result.success || result.path.length < 2) throw new Error(`Detour path failed after acquisition: ${String(result.error)}`);
