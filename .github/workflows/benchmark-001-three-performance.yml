@@ -1,0 +1,120 @@
+name: Benchmark 001 Three WebGPU Performance
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/performance-gate/**'
+      - '.github/workflows/benchmark-001-three-performance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    name: performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/performance"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/performance/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < performance-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/performance/observed-lock-sha256.txt
+          npm ls --all --json > artifacts/performance/dependency-tree.json || true
+          if [ "$expected" = "UNSET" ]; then
+            echo "Dependency bootstrap is intentionally fail-closed. Pin observed SHA-256 $observed and rerun the revised exact head." >&2
+            exit 42
+          fi
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/performance/build.log"
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/performance/phase-a.log"
+
+      - name: Execute hosted-browser performance measurement
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          timeout 120s node performance-gate/performance-smoke.mjs 2>&1 | tee artifacts/performance/runtime.log
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/performance/runtime-result.json', 'utf8'));
+          if (result.tested_revision !== process.env.CANDIDATE_HEAD_SHA) throw new Error(`tested_revision ${result.tested_revision} != ${process.env.CANDIDATE_HEAD_SHA}`);
+          if (result.passed !== true || result.execution_valid !== true) throw new Error(`invalid performance evidence: ${JSON.stringify(result.failures)}`);
+          if (result.performance_readiness_claim !== false) throw new Error('hosted runner must not claim performance readiness');
+          if (result.device_profile_claim !== false) throw new Error('hosted runner must not claim device profiling');
+          if (result.human_tested !== false) throw new Error('automation must not claim human testing');
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/performance
+          {
+            find artifacts/performance -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/performance/evidence.sha256
+
+      - name: Upload exact-head performance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-performance-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/performance/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
