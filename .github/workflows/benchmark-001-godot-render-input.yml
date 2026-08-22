@@ -1,0 +1,212 @@
+name: Benchmark 001 Godot rendered physical input
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/godot/render-input-gate/**'
+      - '.github/workflows/benchmark-001-godot-render-input.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-input-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROJECT_DIR: experiments/BYJTT-LAB-001/candidates/godot/render-input-gate
+      EVIDENCE_DIR: artifacts/godot-render-input
+      GODOT_URL: https://godot-releases.nbg1.your-objectstorage.com/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+      EXPECTED_GODOT_SHA256: c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout and prepare evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          printf 'checked_out_sha=%s\nexpected_sha=%s\n' "$actual" "$expected" | tee "$EVIDENCE_DIR/revision.txt"
+          test "$actual" = "$expected"
+          uname -a > "$EVIDENCE_DIR/uname.txt"
+          cat /etc/os-release > "$EVIDENCE_DIR/os-release.txt"
+
+      - name: Install desktop proof dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb openbox wmctrl xdotool x11-utils mesa-utils imagemagick unzip jq \
+            libgl1-mesa-dri libglx-mesa0 libgl1 libx11-6 libxcursor1 libxinerama1 \
+            libxi6 libxrandr2 libxrender1 libfontconfig1 libdbus-1-3 libasound2t64 libpulse0
+
+      - name: Acquire and verify pinned Godot runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --location --retry 3 --output "$EVIDENCE_DIR/godot.zip" "$GODOT_URL"
+          observed="$(sha256sum "$EVIDENCE_DIR/godot.zip" | awk '{print $1}')"
+          printf 'url=%s\nexpected_sha256=%s\nobserved_sha256=%s\n' "$GODOT_URL" "$EXPECTED_GODOT_SHA256" "$observed" | tee "$EVIDENCE_DIR/godot-provenance.txt"
+          test "$observed" = "$EXPECTED_GODOT_SHA256"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$EVIDENCE_DIR/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.7.1-stable_linux.x86_64*' | head -n1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          "$GODOT_BIN" --version | tee "$EVIDENCE_DIR/godot-version.txt"
+
+      - name: Parse candidate project fail closed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --editor --quit 2>&1 | tee "$EVIDENCE_DIR/parse.log"
+          if grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Cannot open file' "$EVIDENCE_DIR/parse.log"; then
+            echo "Godot parse errors detected" >&2
+            exit 1
+          fi
+
+      - name: Start X11 OpenGL proof environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp +extension GLX +render -noreset > "$EVIDENCE_DIR/xvfb.log" 2>&1 &
+          echo $! > "$EVIDENCE_DIR/xvfb.pid"
+          openbox > "$EVIDENCE_DIR/openbox.log" 2>&1 &
+          echo $! > "$EVIDENCE_DIR/openbox.pid"
+          sleep 2
+          xdpyinfo > "$EVIDENCE_DIR/xdpyinfo.txt" 2>&1
+          glxinfo -B > "$EVIDENCE_DIR/glxinfo.txt" 2>&1
+          grep -Eiq 'OpenGL renderer string|OpenGL version string' "$EVIDENCE_DIR/glxinfo.txt"
+          grep -Eiq 'llvmpipe|softpipe|Mesa' "$EVIDENCE_DIR/glxinfo.txt"
+
+      - name: Execute rendered CharacterBody gate through physical keyboard
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DISPLAY=:99
+          export LIBGL_ALWAYS_SOFTWARE=1
+
+          cleanup() {
+            if [[ -n "${runtime_pid:-}" ]] && kill -0 "$runtime_pid" 2>/dev/null; then
+              kill -TERM "$runtime_pid" 2>/dev/null || true
+              sleep 1
+              kill -KILL "$runtime_pid" 2>/dev/null || true
+            fi
+            for pid_file in "$EVIDENCE_DIR/openbox.pid" "$EVIDENCE_DIR/xvfb.pid"; do
+              if [[ -f "$pid_file" ]]; then kill "$(cat "$pid_file")" 2>/dev/null || true; fi
+            done
+          }
+          trap cleanup EXIT
+
+          "$GODOT_BIN" --path "$PROJECT_DIR" --display-driver x11 --rendering-method gl_compatibility \
+            > "$EVIDENCE_DIR/runtime.log" 2>&1 &
+          runtime_pid=$!
+          printf '%s\n' "$runtime_pid" > "$EVIDENCE_DIR/runtime.pid"
+
+          window_id=''
+          : > "$EVIDENCE_DIR/windows.txt"
+          for attempt in $(seq 1 12); do
+            sleep 1
+            wmctrl -lx > "$EVIDENCE_DIR/windows-${attempt}.txt" 2>/dev/null || true
+            cat "$EVIDENCE_DIR/windows-${attempt}.txt" >> "$EVIDENCE_DIR/windows.txt"
+            window_id="$(xdotool search --name 'BYJTT Godot Render Input' 2>/dev/null | head -n1 || true)"
+            if [[ -n "$window_id" ]]; then break; fi
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then break; fi
+          done
+          test -n "$window_id"
+          printf '%s\n' "$window_id" > "$EVIDENCE_DIR/window-id.txt"
+          xwininfo -id "$window_id" > "$EVIDENCE_DIR/window-info.txt" 2>&1
+          # Focus the actual Godot X11 window, then send untargeted key events so
+          # xdotool uses the focused input path rather than XSendEvent --window.
+          xdotool windowfocus --sync "$window_id"
+          focused_window="$(xdotool getwindowfocus)"
+          printf 'target_window=%s\nfocused_window=%s\n' "$window_id" "$focused_window" | tee "$EVIDENCE_DIR/focus.txt"
+          test "$focused_window" = "$window_id"
+          sleep 1
+          import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/before-input.png"
+          test -s "$EVIDENCE_DIR/before-input.png"
+
+          xdotool keydown d
+          sleep 4.5
+          import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/during-input.png"
+          test -s "$EVIDENCE_DIR/during-input.png"
+          xdotool keyup d
+          sleep 0.4
+          import -display "$DISPLAY" -window "$window_id" "$EVIDENCE_DIR/after-release.png"
+          test -s "$EVIDENCE_DIR/after-release.png"
+
+          runtime_status=124
+          for _ in $(seq 1 8); do
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then
+              set +e
+              wait "$runtime_pid"
+              runtime_status=$?
+              set -e
+              break
+            fi
+            sleep 1
+          done
+          printf 'runtime_status=%s\n' "$runtime_status" | tee "$EVIDENCE_DIR/runtime-status.txt"
+          test "$runtime_status" -eq 0
+
+          grep '^BYJTT_READY=1$' "$EVIDENCE_DIR/runtime.log" > "$EVIDENCE_DIR/ready-line.txt"
+          grep '^BYJTT_RESULT=' "$EVIDENCE_DIR/runtime.log" | tail -n1 > "$EVIDENCE_DIR/result-line.txt"
+          test -s "$EVIDENCE_DIR/result-line.txt"
+          sed 's/^BYJTT_RESULT=//' "$EVIDENCE_DIR/result-line.txt" > "$EVIDENCE_DIR/runtime-result.json"
+          jq -e '
+            .result == "pass" and
+            .passed == true and
+            .engine_system == "CharacterBody3D.move_and_slide" and
+            .arena_width == 24 and
+            .arena_depth == 32 and
+            .walk_speed == 3.5 and
+            .physics_hz == 60 and
+            .external_input_executed == true and
+            .press_callbacks >= 1 and
+            .release_callbacks >= 1 and
+            .native_wall_collision_observed == true and
+            .observation_mutation_isolated == true and
+            .post_physics_arena_clamp == false and
+            ((.final_x - .expected_east_stop_x) | fabs) <= 0.08 and
+            .max_x <= (.expected_east_stop_x + 0.08) and
+            .release_drift <= 0.02 and
+            .rendered_frames > 0
+          ' "$EVIDENCE_DIR/runtime-result.json"
+          if grep -E 'SCRIPT ERROR|Parse Error|ERROR: Failed to load script|ERROR: Condition' "$EVIDENCE_DIR/runtime.log"; then
+            echo "Godot runtime errors detected" >&2
+            exit 1
+          fi
+
+      - name: Hash retained exact-head evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          if [[ -d "$EVIDENCE_DIR" ]]; then
+            (
+              cd "$EVIDENCE_DIR"
+              find . -maxdepth 1 -type f ! -name 'sha256-manifest.txt' -print0 \
+                | sort -z | xargs -0 -r sha256sum > sha256-manifest.txt
+              cat sha256-manifest.txt
+            )
+          fi
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: godot-render-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/godot-render-input
+          if-no-files-found: error
+          retention-days: 30
