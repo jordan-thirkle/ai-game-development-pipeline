@@ -1,0 +1,121 @@
+name: Benchmark 001 Three WebGPU Bundle Attribution
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/**'
+      - '.github/workflows/benchmark-001-three-bundle-attribution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle-attribution:
+    name: bundle-attribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/bundle-attribution"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/bundle-attribution/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < bundle-attribution-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/bundle-attribution/observed-lock-sha256.txt
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/bundle-attribution/dependency-tree.json
+
+      - name: Strict production build with source maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          npx vite build --sourcemap 2>&1 | tee artifacts/bundle-attribution/build.log
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/bundle-attribution/phase-a.log"
+
+      - name: Attribute production bundle composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          node bundle-attribution-gate/analyze-bundle.mjs 2>&1 | tee artifacts/bundle-attribution/analyzer.log
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/bundle-attribution/bundle-attribution-result.json', 'utf8'));
+          const expected = process.env.CANDIDATE_HEAD_SHA;
+          if (result.tested_revision !== expected) throw new Error(`tested_revision ${result.tested_revision} != ${expected}`);
+          if (result.passed !== true) throw new Error(`bundle attribution failed: ${JSON.stringify(result.failures)}`);
+          if (result.source_map_attribution.categories.three?.source_bytes <= 0) throw new Error('three attribution missing');
+          if (result.source_map_attribution.categories['jolt-physics']?.source_bytes <= 0) throw new Error('jolt-physics attribution missing');
+          if (result.source_map_attribution.categories.candidate?.source_bytes <= 0) throw new Error('candidate attribution missing');
+          if (result.interpretation_limits.target_device_performance_claimed !== false) throw new Error('must not claim target-device performance');
+          if (result.interpretation_limits.optimization_success_claimed !== false) throw new Error('must not claim optimization success');
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/bundle-attribution
+          {
+            find artifacts/bundle-attribution -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            find dist -type f \( -name '*.js' -o -name '*.js.map' \) -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/bundle-attribution/evidence.sha256
+
+      - name: Upload exact-head bundle attribution evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-bundle-attribution-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/bundle-attribution/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
