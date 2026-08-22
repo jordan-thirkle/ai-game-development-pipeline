@@ -11,6 +11,8 @@ const FIELD_LABELS = {
   mechanic: 'Mechanic'
 };
 
+let activeRetryBaseline = null;
+
 function readRetryableFailure() {
   let serialized;
   try { serialized = window.sessionStorage.getItem(FAILED_RUN_SESSION_KEY); }
@@ -112,18 +114,22 @@ function renderRetryPreflight(originalBrief) {
 }
 
 function beginEditableRetry(originalBrief) {
-  applyRetryBrief(originalBrief, { submit: false });
+  activeRetryBaseline = { ...originalBrief };
+  applyRetryBrief(activeRetryBaseline, { submit: false });
   showRetryPreparationMessage();
-  renderRetryPreflight(originalBrief);
+  renderRetryPreflight(activeRetryBaseline);
   const form = document.querySelector('#brief-form');
   if (!form || form.dataset.retryPreflightBound === 'true') return;
   form.dataset.retryPreflightBound = 'true';
   const refresh = () => {
-    if (document.querySelector(`#${REVIEW_ID}`)) renderRetryPreflight(originalBrief);
+    if (activeRetryBaseline && document.querySelector(`#${REVIEW_ID}`)) renderRetryPreflight(activeRetryBaseline);
   };
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);
-  form.addEventListener('submit', () => document.querySelector(`#${REVIEW_ID}`)?.remove());
+  form.addEventListener('submit', () => {
+    activeRetryBaseline = null;
+    document.querySelector(`#${REVIEW_ID}`)?.remove();
+  });
 }
 
 function ensureRetryActions() {
