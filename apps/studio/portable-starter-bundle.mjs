@@ -233,20 +233,33 @@ function assertVerificationEvidence(entries) {
     && artifactHashes.every((value) => typeof value === 'string' && SHA256_PATTERN.test(value))
     && artifactHashes.every((value) => value === artifactHashes[0]);
   if (!safe) throw new Error('Starter bundle evidence does not satisfy the verified local dry-run contract.');
-  return { artifactPath: artifactPaths[0], artifactSha256: artifactHashes[0] };
+  return {
+    artifactPath: artifactPaths[0],
+    artifactSha256: artifactHashes[0],
+    destination: destinationTarget,
+    buildStatus: 'executed-pass',
+    qaStatus: 'executed-pass',
+    releaseCandidateStatus: 'dry-run-only',
+    publicationStatus: 'not-executed',
+    secretsStatus: 'not-used'
+  };
 }
 
 export function portableStarterManifestTextFromTarBytes(value) {
   return manifestTextFromEntries(parsePortableStarterTarEntries(value));
 }
 
-export async function verifiedPortableStarterManifestTextFromTarBytes(value) {
+export async function verifiedPortableStarterImportFromTarBytes(value) {
   const entries = parsePortableStarterTarEntries(value);
   const manifestText = manifestTextFromEntries(entries);
-  const evidence = assertVerificationEvidence(entries);
-  const artifactSha256 = await verifiedArtifactSha256(entries, evidence.artifactPath);
-  if (artifactSha256 !== evidence.artifactSha256) throw new Error('Starter bundle artifact bytes do not match the build, QA, and release-candidate evidence.');
-  return manifestText;
+  const verification = assertVerificationEvidence(entries);
+  const artifactSha256 = await verifiedArtifactSha256(entries, verification.artifactPath);
+  if (artifactSha256 !== verification.artifactSha256) throw new Error('Starter bundle artifact bytes do not match the build, QA, and release-candidate evidence.');
+  return Object.freeze({ manifestText, verification: Object.freeze({ ...verification }) });
+}
+
+export async function verifiedPortableStarterManifestTextFromTarBytes(value) {
+  return (await verifiedPortableStarterImportFromTarBytes(value)).manifestText;
 }
 
 async function readBoundedStream(stream, maxBytes) {
@@ -273,7 +286,7 @@ async function readBoundedStream(stream, maxBytes) {
   return result;
 }
 
-export async function portableStarterManifestTextFromBundleFile(file) {
+async function decompressedPortableStarterBytes(file) {
   if (!file || typeof file.stream !== 'function') throw new Error('Choose a verified starter .tar.gz bundle.');
   if (file.size <= 0 || file.size > STARTER_BUNDLE_MAX_COMPRESSED_BYTES) throw new Error(`Starter bundle must be between 1 byte and ${STARTER_BUNDLE_MAX_COMPRESSED_BYTES} bytes compressed.`);
   if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot safely open gzip starter bundles; use the extracted-folder fallback instead.');
@@ -283,14 +296,20 @@ export async function portableStarterManifestTextFromBundleFile(file) {
   } catch {
     throw new Error('Starter bundle must be a valid gzip archive.');
   }
-  let bytes;
   try {
-    bytes = await readBoundedStream(stream, STARTER_BUNDLE_MAX_UNCOMPRESSED_BYTES);
+    return await readBoundedStream(stream, STARTER_BUNDLE_MAX_UNCOMPRESSED_BYTES);
   } catch (error) {
     if (/safe uncompressed size limit/i.test(error.message)) throw error;
     throw new Error('Starter bundle could not be decompressed safely.');
   }
-  return verifiedPortableStarterManifestTextFromTarBytes(bytes);
+}
+
+export async function verifiedPortableStarterImportFromBundleFile(file) {
+  return verifiedPortableStarterImportFromTarBytes(await decompressedPortableStarterBytes(file));
+}
+
+export async function portableStarterManifestTextFromBundleFile(file) {
+  return (await verifiedPortableStarterImportFromBundleFile(file)).manifestText;
 }
 
 export const portableStarterBundleLimits = Object.freeze({
