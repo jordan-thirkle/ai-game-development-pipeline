@@ -166,9 +166,13 @@ function acquirePath(): void {
   const start = navQuery.findClosestPoint({ x: ep.GetX(), y: 0, z: ep.GetZ() });
   const end = navQuery.findClosestPoint({ x: pp.GetX(), y: 0, z: pp.GetZ() });
   if (!start.success || !end.success) throw new Error('Recast closest-point failed after acquisition');
-  const result = navQuery.computePath(start.point, end.point);
-  if (!result.success || result.path.length < 2) throw new Error('Detour path failed after acquisition');
-  pathPoints = result.path.map((p) => ({ ...p }));
+  if (start.polyRef === end.polyRef) {
+    pathPoints = [{ ...start.point }, { ...end.point }];
+  } else {
+    const result = navQuery.computePath(start.point, end.point);
+    if (!result.success || result.path.length < 2) throw new Error(`Detour path failed after acquisition: ${String(result.error)}`);
+    pathPoints = result.path.map((p) => ({ ...p }));
+  }
   pathInsideArena = pathPoints.every((p) => Math.abs(p.x) <= ARENA_WIDTH / 2 + 0.001 && Math.abs(p.z) <= ARENA_DEPTH / 2 + 0.001);
 }
 
