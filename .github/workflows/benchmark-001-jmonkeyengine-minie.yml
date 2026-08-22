@@ -1,0 +1,81 @@
+name: Benchmark 001 jMonkeyEngine Minie gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/jmonkeyengine/minie-gate/**'
+      - '.github/workflows/benchmark-001-jmonkeyengine-minie.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  minie-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/minie-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/minie-gate/pom.xml
+      - name: Record exact execution environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/minie-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java=$(java -version 2>&1 | head -n 1)"
+            echo "maven=$(mvn -version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/minie-gate/environment.txt"
+      - name: Strict compile and package
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee artifacts/minie-gate/maven-verify.log
+      - name: Freeze and validate resolved dependency graph
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress dependency:tree -DoutputFile=artifacts/minie-gate/dependency-tree.txt
+          grep -F 'org.jmonkeyengine:jme3-core:jar:3.9.0-stable' artifacts/minie-gate/dependency-tree.txt
+          grep -F 'com.github.stephengold:Minie:jar:9.0.3' artifacts/minie-gate/dependency-tree.txt
+          grep -Ei 'Libbulletjme|libbulletjme' artifacts/minie-gate/dependency-tree.txt
+      - name: Execute real Minie Libbulletjme simulation
+        shell: bash
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress exec:java -Dexec.args="artifacts/minie-gate/result.json" 2>&1 | tee artifacts/minie-gate/runtime.log
+      - name: Assert machine-readable pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs"); const p=process.argv[1]; const r=JSON.parse(fs.readFileSync(p,"utf8")); if(!r.passed || !r.native_wall_stop_observed || !r.release_stable || r.post_physics_arena_clamp || r.external_input_executed || !r.observation_copy_isolated) process.exit(1);' "$CANDIDATE/artifacts/minie-gate/result.json"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/lab/MiniePhysicsGate.java" \
+            "$CANDIDATE/artifacts/minie-gate/dependency-tree.txt" \
+            "$CANDIDATE/artifacts/minie-gate/result.json" \
+            > "$CANDIDATE/artifacts/minie-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-jmonkeyengine-minie-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/jmonkeyengine/minie-gate/artifacts/minie-gate/**
+          if-no-files-found: error
+          retention-days: 30
