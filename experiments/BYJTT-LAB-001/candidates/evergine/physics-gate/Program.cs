@@ -142,7 +142,7 @@ sealed class PhysicsProbeScene : Scene
     public override void RegisterManagers()
     {
         base.RegisterManagers();
-        this.Managers.AddManager(new HeadlessBulletPhysicManager3D
+        this.Managers.AddManager<PhysicManager3D>(new HeadlessBulletPhysicManager3D
         {
             FixedTimeStep = SceneFixedDt,
         });
