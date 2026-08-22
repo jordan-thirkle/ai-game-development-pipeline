@@ -26,7 +26,7 @@ await new Promise((resolvePromise, reject) => {
 const address = server.address();
 const studioUrl = `http://127.0.0.1:${address.port}/apps/studio/`;
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const page = await browser.newPage();
 const externalRequests = [];
 page.on('request', (request) => {
