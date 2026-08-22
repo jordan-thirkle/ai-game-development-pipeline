@@ -265,10 +265,13 @@ function ensureRetryActions() {
 }
 
 const PORTABLE_MANIFEST_MAX_BYTES = 64 * 1024;
+const PORTABLE_FOLDER_MAX_FILES = 256;
 const PORTABLE_TARGETS = new Set(['web', 'desktop', 'mobile']);
 const PORTABLE_MECHANICS = new Set(['collect', 'dodge', 'survive']);
 const PORTABLE_IMPORT_INPUT_ID = 'portable-starter-manifest';
 const PORTABLE_IMPORT_BUTTON_ID = 'portable-starter-import';
+const PORTABLE_FOLDER_INPUT_ID = 'portable-starter-folder';
+const PORTABLE_FOLDER_BUTTON_ID = 'portable-starter-folder-import';
 const PORTABLE_IMPORT_STATUS_ID = 'portable-starter-status';
 
 function portableObject(value, label) {
@@ -319,6 +322,28 @@ export function parsePortableStarterBriefText(text) {
   return portableStarterBriefFromManifest(parsed);
 }
 
+export function portableStarterManifestFileFromSelection(files) {
+  const selected = Array.from(files || []);
+  if (selected.length === 0) throw new Error('Choose the extracted verified starter folder.');
+  if (selected.length > PORTABLE_FOLDER_MAX_FILES) throw new Error(`Starter folder must contain no more than ${PORTABLE_FOLDER_MAX_FILES} files.`);
+
+  const manifests = [];
+  for (const file of selected) {
+    const relativePath = typeof file?.webkitRelativePath === 'string' ? file.webkitRelativePath : '';
+    if (!relativePath) continue;
+    if (relativePath.includes('\\')) throw new Error('Starter folder contains an unsupported path separator.');
+    const segments = relativePath.split('/');
+    if (segments.some((segment) => segment === '..' || segment === '.')) throw new Error('Starter folder contains an unsafe relative path.');
+    if (/(^|\/)starter\/project\.manifest\.json$/.test(relativePath)) manifests.push(file);
+  }
+
+  if (manifests.length === 0) throw new Error('Starter folder must contain exactly one starter/project.manifest.json.');
+  if (manifests.length > 1) throw new Error('Starter folder contains more than one starter/project.manifest.json and is ambiguous.');
+  const [manifest] = manifests;
+  if (manifest.size <= 0 || manifest.size > PORTABLE_MANIFEST_MAX_BYTES) throw new Error(`Starter manifest must be between 1 byte and ${PORTABLE_MANIFEST_MAX_BYTES} bytes.`);
+  return manifest;
+}
+
 function portableImportMessage(kind, text) {
   const status = document.querySelector(`#${PORTABLE_IMPORT_STATUS_ID}`);
   if (!status) return;
@@ -361,7 +386,7 @@ function ensurePortableStarterImport() {
   status.className = 'notice';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  status.textContent = 'Continue a downloaded starter by selecting starter/project.manifest.json. Studio reads planning intent in this browser only; nothing is uploaded or executed.';
+  status.textContent = 'Continue a downloaded starter by choosing its extracted folder or starter/project.manifest.json. Studio reads only reviewed planning intent in this browser; nothing is uploaded or executed.';
   actions.before(status);
 
   const input = document.createElement('input');
@@ -371,13 +396,29 @@ function ensurePortableStarterImport() {
   input.accept = '.json,application/json';
   form.append(input);
 
+  const folderInput = document.createElement('input');
+  folderInput.id = PORTABLE_FOLDER_INPUT_ID;
+  folderInput.className = 'hidden';
+  folderInput.type = 'file';
+  folderInput.multiple = true;
+  folderInput.setAttribute('webkitdirectory', '');
+  form.append(folderInput);
+
   const button = document.createElement('button');
   button.id = PORTABLE_IMPORT_BUTTON_ID;
-  button.className = 'btn';
+  button.className = 'btn secondary';
   button.type = 'button';
-  button.textContent = 'Continue from starter manifest';
+  button.textContent = 'Choose starter manifest';
   actions.prepend(button);
   button.addEventListener('click', () => input.click());
+
+  const folderButton = document.createElement('button');
+  folderButton.id = PORTABLE_FOLDER_BUTTON_ID;
+  folderButton.className = 'btn';
+  folderButton.type = 'button';
+  folderButton.textContent = 'Continue from extracted starter';
+  actions.prepend(folderButton);
+  folderButton.addEventListener('click', () => folderInput.click());
 
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
@@ -392,6 +433,20 @@ function ensurePortableStarterImport() {
       portableImportMessage('fail', `Starter manifest was not loaded: ${error.message}`);
     } finally {
       input.value = '';
+    }
+  });
+
+  folderInput.addEventListener('change', async () => {
+    try {
+      if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter folder.');
+      const file = portableStarterManifestFileFromSelection(folderInput.files);
+      const brief = parsePortableStarterBriefText(await file.text());
+      applyPortableBrief(brief);
+      portableImportMessage('pass', 'Planning intent loaded locally from the extracted starter folder. Studio read only starter/project.manifest.json; no project source was uploaded or executed and no historical execution evidence was imported. Review the four Creator fields before you explicitly run the reviewed local scaffold.');
+    } catch (error) {
+      portableImportMessage('fail', `Starter folder was not loaded: ${error.message}`);
+    } finally {
+      folderInput.value = '';
     }
   });
 }
