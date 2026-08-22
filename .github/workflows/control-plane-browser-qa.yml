@@ -81,6 +81,11 @@ jobs:
       - name: Install pinned Playwright package
         if: steps.changes.outputs.run == 'true'
         run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.62.0
+      - name: Dogfood failed attempt evidence in real Chrome
+        if: steps.changes.outputs.run == 'true'
+        env:
+          BROWSER_ARTIFACTS: artifacts/control-plane-browser
+        run: node tools/test-studio-failed-attempt-browser.mjs
       - name: Dogfood starter-home release candidate in real Chrome
         if: steps.changes.outputs.run == 'true'
         env:
