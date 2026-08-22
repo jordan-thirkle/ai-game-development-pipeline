@@ -1,0 +1,71 @@
+name: Benchmark 001 libGDX Bullet gate
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/libgdx/**'
+      - 'experiments/BYJTT-LAB-001/shared/**'
+      - '.github/workflows/benchmark-001-libgdx.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physics-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/libgdx
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Record exact execution environment
+        run: |
+          mkdir -p "$CANDIDATE/artifacts/physics-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "java_version=$(java -version 2>&1 | head -n 1)"
+            echo "maven_version=$(mvn --version | head -n 1)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/physics-gate/environment.txt"
+      - name: Strict Maven verification
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          mvn -B -ntp verify | tee artifacts/physics-gate/build.log
+      - name: Freeze resolved dependency graph
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          mvn -B -ntp dependency:tree | tee artifacts/physics-gate/dependency-tree.txt
+      - name: Execute native libGDX Bullet world
+        working-directory: ${{ env.CANDIDATE }}
+        run: |
+          set -o pipefail
+          mvn -B -ntp exec:java -Dexec.args="artifacts/physics-gate/result.json" | tee artifacts/physics-gate/runtime.log
+      - name: Assert machine-readable evidence boundary
+        run: |
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || r.libgdx_version!=="1.14.2" || r.physics_backend!=="gdx-bullet" || !r.native_wall_stop_observed || !r.release_stable || !r.observation_copy_isolated || r.post_physics_arena_clamp || r.external_input_executed) process.exit(1);' "$CANDIDATE/artifacts/physics-gate/result.json"
+          sha256sum \
+            "$CANDIDATE/pom.xml" \
+            "$CANDIDATE/src/main/java/com/byjtt/lab/LibgdxBulletGate.java" \
+            "$CANDIDATE/artifacts/physics-gate/dependency-tree.txt" \
+            "$CANDIDATE/artifacts/physics-gate/result.json" \
+            > "$CANDIDATE/artifacts/physics-gate/sha256.txt"
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: byjtt-lab-001-libgdx-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/libgdx/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
