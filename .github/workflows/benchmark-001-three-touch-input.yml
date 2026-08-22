@@ -58,9 +58,9 @@ jobs:
           observed="$(sha256sum package-lock.json | awk '{print $1}')"
           expected="$(tr -d '[:space:]' < touch-input-gate/expected-lock-sha256.txt)"
           printf '%s\n' "$observed" | tee artifacts/touch-input/observed-lock-sha256.txt
-          npm ls --all --json > artifacts/touch-input/dependency-tree.json || true
           test "$observed" = "$expected"
           npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/touch-input/dependency-tree.json
 
       - name: Strict JavaScript syntax check
         shell: bash
@@ -90,6 +90,7 @@ jobs:
           const fs = require('fs');
           const result = JSON.parse(fs.readFileSync('artifacts/touch-input/runtime-result.json', 'utf8'));
           const expected = process.env.CANDIDATE_HEAD_SHA;
+          console.log('TOUCH_RUNTIME_RESULT=' + JSON.stringify(result));
           if (result.tested_revision !== expected) throw new Error(`tested_revision ${result.tested_revision} != ${expected}`);
           if (result.passed !== true || result.execution_verified !== true) throw new Error(`touch runtime failed: ${JSON.stringify(result.failures)}`);
           if (result.touch_pointer_events_executed !== true) throw new Error('touch pointer execution not proven');
@@ -98,6 +99,8 @@ jobs:
           if (result.human_tested !== false) throw new Error('automation must not claim HUMAN-TESTED');
           if (!(result.moved_metres > 1)) throw new Error(`movement too small: ${result.moved_metres}`);
           if (!(result.release_drift_metres <= 0.03)) throw new Error(`release drift too high: ${result.release_drift_metres}`);
+          if (!(result.salvage_distance_before_attack_metres <= 1.8)) throw new Error(`attack range proof failed: ${result.salvage_distance_before_attack_metres}`);
+          if (!(result.salvage_health_after_attack < result.salvage_health_before_attack)) throw new Error('touch attack did not damage salvage');
           if (result.observation_isolation !== true) throw new Error('observation isolation failed');
           if (result.console_errors.length || result.page_errors.length) throw new Error('browser errors retained in successful result');
           NODE
