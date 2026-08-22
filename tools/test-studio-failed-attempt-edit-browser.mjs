@@ -91,15 +91,33 @@ try {
   assert.equal(await page.locator('#brief-mechanic').inputValue(), failedBrief.mechanic);
   assert.match(await page.locator('#run-message').innerText(), /No pipeline stage was re-executed/);
 
+  const preflight = page.locator('#failed-retry-preflight');
+  await preflight.waitFor({ state: 'visible' });
+  assert.match(await preflight.innerText(), /No brief changes yet/);
+  assert.match(await preflight.innerText(), /Execution authority: none/);
+  assert.match(await preflight.innerText(), /local dry-run only/);
+  assert.equal(await preflight.locator('li').count(), 0, 'unchanged recovered brief must not invent a diff');
+
   await page.locator('#brief-objective').fill(revisedBrief.objective);
   await page.locator('#brief-target').selectOption(revisedBrief.targetPlatform);
   assert.equal(pipelinePosts, 1, 'editing recovered fields must remain non-executing until explicit submit');
+
+  const preflightText = await preflight.innerText();
+  assert.match(preflightText, /2 brief fields changed/);
+  assert.match(preflightText, /Objective:/);
+  assert.match(preflightText, new RegExp(`${failedBrief.objective.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} → ${revisedBrief.objective.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.match(preflightText, /Requested target: mobile → desktop/);
+  assert.doesNotMatch(preflightText, /Project name:/, 'unchanged name must not be presented as changed');
+  assert.doesNotMatch(preflightText, /Mechanic:/, 'unchanged mechanic must not be presented as changed');
+  assert.equal(await preflight.locator('li').count(), 2, 'preflight must enumerate exactly the two changed fields');
+  assert.equal(pipelinePosts, 1, 'reviewing the preflight must not execute anything');
 
   await page.getByRole('button', { name: 'Create playable starter' }).click();
   await page.locator('#run-message.pass').waitFor({ state: 'visible', timeout: 30_000 });
   assert.equal(pipelinePosts, 2, 'explicit submit after editing must execute exactly one additional pipeline run');
   assert.equal(executionAttempts, 2);
   assert.deepEqual(briefBodies, [failedBrief, revisedBrief]);
+  assert.equal(await page.locator('#failed-retry-preflight').count(), 0, 'preflight must clear once execution is explicitly submitted');
   assert.equal(await page.locator('#brief-name').inputValue(), revisedBrief.name);
   assert.equal(await page.locator('#brief-objective').inputValue(), revisedBrief.objective);
   assert.equal(await page.locator('#brief-target').inputValue(), revisedBrief.targetPlatform);
@@ -124,6 +142,10 @@ try {
     editBeforeRetryVisible: true,
     editPreparationExecutedPipeline: false,
     fieldsRestored: ['name', 'objective', 'targetPlatform', 'mechanic'],
+    preflightVisibleBeforeRetry: true,
+    preflightChangedFields: ['objective', 'targetPlatform'],
+    preflightExecutionAuthority: 'none until explicit submit',
+    preflightExecutedPipeline: false,
     explicitSubmitRequired: true,
     editedBriefSubmitted: revisedBrief,
     originalBrief: failedBrief,
