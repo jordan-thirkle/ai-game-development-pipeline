@@ -21,6 +21,11 @@ const pageErrors = [];
 page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 page.on('pageerror', (error) => pageErrors.push(String(error)));
 
+async function retainDiagnostic(name) {
+  const observation = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
+  await writeFile(`${evidenceDir}/${name}.json`, `${JSON.stringify({ observation, consoleErrors, pageErrors }, null, 2)}\n`);
+}
+
 try {
   await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle', timeout: 30_000 });
   await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().ready === true, null, { timeout: 30_000 });
@@ -30,13 +35,17 @@ try {
   try {
     await page.waitForFunction(() => window.__BYJTT_OBSERVE__?.().acquired === true, null, { timeout: 30_000 });
   } catch (error) {
-    const diagnostic = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
-    await writeFile(`${evidenceDir}/acquisition-timeout.json`, `${JSON.stringify(diagnostic, null, 2)}\n`);
+    await retainDiagnostic('acquisition-timeout');
     throw error;
   } finally {
     await page.keyboard.up('s');
   }
-  await page.waitForFunction(() => (window.__BYJTT_OBSERVE__?.().chaseSteps ?? 0) >= 180, null, { timeout: 30_000 });
+  try {
+    await page.waitForFunction(() => (window.__BYJTT_OBSERVE__?.().chaseSteps ?? 0) >= 180, null, { timeout: 30_000 });
+  } catch (error) {
+    await retainDiagnostic('chase-timeout');
+    throw error;
+  }
   await page.waitForTimeout(250);
   const result = await page.evaluate(() => window.__BYJTT_OBSERVE__?.());
   await page.screenshot({ path: `${evidenceDir}/runtime.png`, fullPage: true });
