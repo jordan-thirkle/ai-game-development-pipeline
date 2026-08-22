@@ -23,6 +23,8 @@ const MECHANIC_LABELS = {
 const NAME_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const MULTILINE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
 const FRESH_RUN_PATHS = new Set(['/api/pipeline/runs', '/api/pipeline/brief-runs']);
+const VARIATION_SESSION_KEY = 'byjtt:studio:verified-variation:v1';
+const MAX_VARIATION_BYTES = 4096;
 let pendingFreshRun = null;
 
 export function recoverableBriefValues(result) {
@@ -173,24 +175,80 @@ function appendInlineVerification(result, container = document.querySelector('#r
   else container.append(row);
 }
 
-function restoreBriefForm(result) {
-  const values = recoverableBriefValues(result);
-  if (!values) return;
+function briefControls() {
   const name = document.querySelector('#brief-name');
   const objective = document.querySelector('#brief-objective');
   const target = document.querySelector('#brief-target');
   const mechanic = document.querySelector('#brief-mechanic');
   const advanced = document.querySelector('#creator-advanced');
   const suggestion = document.querySelector('#creator-suggestion');
-  if (!name || !objective || !target || !mechanic) return;
-  name.value = values.name;
-  objective.value = values.objective;
-  target.value = values.targetPlatform;
-  mechanic.value = values.mechanic;
-  if (advanced) advanced.open = true;
-  if (suggestion) {
-    suggestion.textContent = `Starter shape: ${MECHANIC_LABELS[values.mechanic]} · restored from the latest verified run.`;
+  if (!name || !objective || !target || !mechanic) return null;
+  return { name, objective, target, mechanic, advanced, suggestion };
+}
+
+function applyBriefValues(values, suggestionText) {
+  const controls = briefControls();
+  if (!controls) return false;
+  controls.name.value = values.name;
+  controls.objective.value = values.objective;
+  controls.target.value = values.targetPlatform;
+  controls.mechanic.value = values.mechanic;
+  if (controls.advanced) controls.advanced.open = true;
+  if (controls.suggestion && suggestionText) controls.suggestion.textContent = suggestionText;
+  controls.mechanic.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+function restoreBriefForm(result) {
+  const values = recoverableBriefValues(result);
+  if (!values) return;
+  applyBriefValues(values, `Starter shape: ${MECHANIC_LABELS[values.mechanic]} · restored from the latest verified run.`);
+}
+
+function clearVariationDraft() {
+  try { window.sessionStorage.removeItem(VARIATION_SESSION_KEY); } catch {}
+}
+
+function writeVariationDraft(result) {
+  const brief = recoverableBriefValues(result);
+  if (!brief) throw new Error('Verified run has no Creator Mode brief to vary.');
+  const serialized = JSON.stringify({ brief });
+  if (serialized.length > MAX_VARIATION_BYTES) throw new Error('Verified brief is too large to preserve safely.');
+  try { window.sessionStorage.setItem(VARIATION_SESSION_KEY, serialized); }
+  catch { throw new Error('Verified brief could not be preserved in this browser session.'); }
+}
+
+function readVariationDraft() {
+  let serialized;
+  try { serialized = window.sessionStorage.getItem(VARIATION_SESSION_KEY); }
+  catch { return null; }
+  if (!serialized) return null;
+  if (serialized.length > MAX_VARIATION_BYTES) {
+    clearVariationDraft();
+    return null;
   }
+  try {
+    const record = JSON.parse(serialized);
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('Malformed variation draft.');
+    return recoverableBriefValues({ brief: record.brief });
+  } catch {
+    clearVariationDraft();
+    return null;
+  }
+}
+
+function restoreVariationDraft() {
+  const brief = readVariationDraft();
+  if (!brief) return false;
+  clearVariationDraft();
+  if (!applyBriefValues(brief, `Starter shape: ${MECHANIC_LABELS[brief.mechanic]} · copied from the latest verified run for a new variation.`)) return false;
+  document.querySelector('[data-view="local-run"]')?.click();
+  const message = document.querySelector('#run-message');
+  if (message) {
+    message.className = 'notice';
+    message.textContent = 'Verified brief copied into Creator Mode for a variation. Nothing has run for this variation; review or edit it, then explicitly choose Create playable starter.';
+  }
+  return true;
 }
 
 function restoreJourney() {
@@ -248,9 +306,13 @@ async function resetLatestRun() {
   if (payload?.reset !== true) throw new Error('Latest-run reset response was malformed.');
 }
 
+function resultHeader() {
+  return document.querySelector('#play-result header');
+}
+
 function ensureStartNewProjectAction() {
   if (document.querySelector('#start-new-project')) return;
-  const header = document.querySelector('#play-result header');
+  const header = resultHeader();
   if (!header) return;
   const button = document.createElement('button');
   button.className = 'btn';
@@ -261,6 +323,7 @@ function ensureStartNewProjectAction() {
   button.style.marginRight = '8px';
   button.addEventListener('click', async () => {
     button.disabled = true;
+    clearVariationDraft();
     const message = document.querySelector('#run-message');
     try {
       await resetLatestRun();
@@ -276,10 +339,48 @@ function ensureStartNewProjectAction() {
   header.append(button);
 }
 
+function ensureMakeVariationAction(result) {
+  if (document.querySelector('#make-verified-variation')) return;
+  let brief;
+  try { brief = recoverableBriefValues(result); }
+  catch { return; }
+  if (!brief) return;
+  const header = resultHeader();
+  if (!header) return;
+  const button = document.createElement('button');
+  button.className = 'btn secondary';
+  button.id = 'make-verified-variation';
+  button.type = 'button';
+  button.textContent = 'Make a variation';
+  button.style.float = 'right';
+  button.style.marginRight = '8px';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    const message = document.querySelector('#run-message');
+    try {
+      writeVariationDraft(result);
+      await resetLatestRun();
+      location.reload();
+    } catch (error) {
+      clearVariationDraft();
+      button.disabled = false;
+      if (message) {
+        message.className = 'notice fail';
+        message.textContent = `Variation was not prepared: ${error.message}`;
+      }
+    }
+  });
+  header.append(button);
+}
+
 async function recoverLatestRun() {
   const envelope = await fetchLatestRun();
-  if (envelope?.available === false) return;
+  if (envelope?.available === false) {
+    restoreVariationDraft();
+    return;
+  }
   if (envelope?.available !== true || !envelope.run) throw new Error('Latest-run recovery response was malformed.');
+  clearVariationDraft();
   const result = envelope.run;
   const { playable, download } = assertRecoverableRun(result);
   restoreBriefForm(result);
@@ -300,6 +401,7 @@ async function recoverLatestRun() {
   }
   document.querySelector('#open-result')?.addEventListener('click', () => window.open(playable.href, '_blank', 'noopener,noreferrer'));
   ensureStartNewProjectAction();
+  ensureMakeVariationAction(result);
 }
 
 function installFreshRunCapture() {
@@ -335,7 +437,9 @@ function watchFreshRuns() {
     const capturedRun = pendingFreshRun;
     pendingFreshRun = null;
     try {
-      appendInlineVerification(await capturedRun, container);
+      const result = await capturedRun;
+      appendInlineVerification(result, container);
+      ensureMakeVariationAction(result);
     } catch (error) {
       console.error('Inline verification summary was not attached:', error);
     } finally {
