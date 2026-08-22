@@ -117,6 +117,7 @@ async function staticFileFor(url) {
     '/apps/studio/index.html',
     '/apps/studio/latest-run-recovery.mjs',
     '/apps/studio/failed-run-retry.mjs',
+    '/apps/studio/portable-starter-bundle.mjs',
     '/fixtures/control-plane/BYJTT-LAB-001.json',
     '/tools/control-plane-freshness.mjs',
     '/tools/studio-starter-home-page.mjs',
