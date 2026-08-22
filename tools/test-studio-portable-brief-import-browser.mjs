@@ -97,6 +97,9 @@ try {
   assert.doesNotMatch(await page.locator('#portable-starter-status').textContent(), /Recovered the four validated planning fields/i);
   assert.equal(briefRequests.length, postsBeforeRefresh, 'discarding malformed continuation state must not execute the pipeline');
 
+  // A malformed recovery intentionally leaves Studio on its normal Overview landing view.
+  // Return to Creator Mode before exercising the user-accessible bundle/folder controls again.
+  await page.locator('[data-view="local-run"]').click();
   await bundleInput.setInputFiles(archivePath);
   await page.waitForFunction(() => document.querySelector('#portable-starter-status')?.textContent.includes('Verified bundle checked locally before continuation'), null, { timeout: 5000 });
   assert.equal(await page.evaluate((key) => Boolean(sessionStorage.getItem(key)), continuationKey), true);
