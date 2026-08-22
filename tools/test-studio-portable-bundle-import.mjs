@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   portableStarterBundleLimits,
   portableStarterManifestTextFromTarBytes,
+  verifiedPortableStarterImportFromTarBytes,
   verifiedPortableStarterManifestTextFromTarBytes
 } from '../apps/studio/portable-starter-bundle.mjs';
 import { parsePortableStarterBriefText } from '../apps/studio/failed-run-retry.mjs';
@@ -134,10 +135,11 @@ test('rejects duplicate, missing, unsafe and non-regular canonical manifest entr
 });
 
 test('requires complete padded records and a strict two-block tar terminator', () => {
-  const missingTerminators = tar([tarEntry('starter/project.manifest.json', manifestText)]).subarray(0, tarEntry('starter/project.manifest.json', manifestText).byteLength);
+  const entry = tarEntry('starter/project.manifest.json', manifestText);
+  const missingTerminators = tar([entry]).subarray(0, entry.byteLength);
   assert.throws(() => portableStarterManifestTextFromTarBytes(missingTerminators), /two-block tar terminator/i);
 
-  const complete = tar([tarEntry('starter/project.manifest.json', manifestText)]);
+  const complete = tar([entry]);
   const singleTerminator = complete.subarray(0, complete.byteLength - 512);
   assert.throws(() => portableStarterManifestTextFromTarBytes(singleTerminator), /two-block tar terminator/i);
 
@@ -170,6 +172,21 @@ test('rejects corrupt checksums, truncated archives and unsafe size/count bounds
   ])), /between 1 byte/i);
 });
 
+test('returns a bounded truthful verification preflight for a valid local bundle', async () => {
+  const imported = await verifiedPortableStarterImportFromTarBytes(verifiedArchive());
+  assert.equal(imported.manifestText, manifestText);
+  assert.deepEqual(imported.verification, {
+    artifactPath: 'dist',
+    artifactSha256: artifactSha256('<!doctype html><title>playable</title>'),
+    destination: 'local://planned/sample-game',
+    buildStatus: 'executed-pass',
+    qaStatus: 'executed-pass',
+    releaseCandidateStatus: 'dry-run-only',
+    publicationStatus: 'not-executed',
+    secretsStatus: 'not-used'
+  });
+});
+
 test('accepts a verified local bundle only when build, QA, release and packaged artifact bytes agree', async () => {
   const text = await verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive());
   assert.equal(text, manifestText);
@@ -182,12 +199,13 @@ test('accepts a verified local bundle only when build, QA, release and packaged 
 });
 
 test('rejects manifest-shaped archives that are not verified local starter bundles', async () => {
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ includeEvidence: false })), /evidence\/build-result\.json/i);
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ build: { executed: false } })), /verified local dry-run contract/i);
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ qa: { status: 'fail' } })), /verified local dry-run contract/i);
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ release: { dryRunOnly: false } })), /verified local dry-run contract/i);
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ publishing: { executed: true } })), /verified local dry-run contract/i);
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ publishing: { destination: { kind: 'remote', target: 'https://example.com' } } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ includeEvidence: false })), /evidence\/build-result\.json/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ build: { executed: false } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ qa: { status: 'fail' } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ release: { dryRunOnly: false } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ publishing: { executed: true } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ publishing: { secretsUsed: true } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(verifiedArchive({ publishing: { destination: { kind: 'remote', target: 'https://example.com' } } })), /verified local dry-run contract/i);
 });
 
 test('rejects a bundle whose packaged playable bytes no longer match the retained evidence', async () => {
@@ -200,15 +218,18 @@ test('rejects a bundle whose packaged playable bytes no longer match the retaine
     qa: { artifactSha256: digest },
     release: { build: { artifactPath: 'dist', outputSha256: digest } }
   });
-  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(archive), /artifact bytes do not match/i);
+  await assert.rejects(() => verifiedPortableStarterImportFromTarBytes(archive), /artifact bytes do not match/i);
 });
 
 test('does not upgrade historical execution or publication authority', async () => {
-  const brief = parsePortableStarterBriefText(await verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive()));
+  const imported = await verifiedPortableStarterImportFromTarBytes(verifiedArchive());
+  const brief = parsePortableStarterBriefText(imported.manifestText);
   assert.deepEqual(Object.keys(brief).sort(), ['mechanic', 'name', 'objective', 'targetPlatform']);
   assert.equal('build' in brief, false);
   assert.equal('qa' in brief, false);
   assert.equal('releaseCandidate' in brief, false);
   assert.equal('publish' in brief, false);
   assert.equal('secrets' in brief, false);
+  assert.equal('executed' in imported.verification, false);
+  assert.equal('authority' in imported.verification, false);
 });
