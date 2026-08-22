@@ -22,6 +22,8 @@ const MECHANIC_LABELS = {
 };
 const NAME_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const MULTILINE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
+const FRESH_RUN_PATHS = new Set(['/api/pipeline/runs', '/api/pipeline/brief-runs']);
+let pendingFreshRun = null;
 
 export function recoverableBriefValues(result) {
   const brief = result?.brief;
@@ -300,17 +302,40 @@ async function recoverLatestRun() {
   ensureStartNewProjectAction();
 }
 
+function installFreshRunCapture() {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const response = await originalFetch(input, init);
+    let url;
+    try {
+      const rawUrl = typeof input === 'string' || input instanceof URL ? input : input?.url;
+      url = new URL(rawUrl, location.href);
+    } catch {
+      return response;
+    }
+    const method = String(init?.method || input?.method || 'GET').toUpperCase();
+    if (method === 'POST' && response.ok && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) {
+      pendingFreshRun = response.clone().json().then((result) => {
+        buildInlineVerificationFacts(result);
+        return result;
+      });
+    }
+    return response;
+  };
+}
+
 function watchFreshRuns() {
   const container = document.querySelector('#run-evidence');
   if (!container || typeof MutationObserver === 'undefined') return;
   let checking = false;
   const observer = new MutationObserver(async () => {
     if (container.children.length > 0) ensureStartNewProjectAction();
-    if (checking || container.querySelector('[data-inline-verification="true"]') || container.children.length === 0) return;
+    if (checking || container.querySelector('[data-inline-verification="true"]') || container.children.length === 0 || !pendingFreshRun) return;
     checking = true;
+    const capturedRun = pendingFreshRun;
+    pendingFreshRun = null;
     try {
-      const envelope = await fetchLatestRun();
-      if (envelope?.available === true && envelope.run) appendInlineVerification(envelope.run, container);
+      appendInlineVerification(await capturedRun, container);
     } catch (error) {
       console.error('Inline verification summary was not attached:', error);
     } finally {
@@ -321,6 +346,7 @@ function watchFreshRuns() {
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  installFreshRunCapture();
   watchFreshRuns();
   recoverLatestRun().catch((error) => {
     const message = document.querySelector('#run-message');
