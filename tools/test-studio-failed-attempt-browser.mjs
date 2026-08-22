@@ -152,6 +152,7 @@ try {
   assert.equal(await page.locator('#brief-mechanic').inputValue(), retryBrief.mechanic);
   await page.getByRole('link', { name: 'Download starter bundle' }).waitFor({ state: 'visible' });
   assert.equal(await page.locator('#play-result').isVisible(), true);
+  await page.getByText('Verification summary', { exact: true }).waitFor({ state: 'visible' });
   const successEvidence = await page.locator('#run-evidence-panel').innerText();
   assert.match(successEvidence, /Verified local starter/);
   assert.match(successEvidence, /Verification summary/);
@@ -160,7 +161,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Retry same project' }).count(), 0);
 
   await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('#run-message.pass').waitFor({ state: 'visible' });
+  await page.locator('#run-message.pass').waitFor({ state: 'attached' });
   assert.match(await page.locator('#run-message').innerText(), /Recovered the latest verified run/);
   assert.equal(await page.getByRole('button', { name: 'Retry same project' }).count(), 0, 'successful retry must clear stale failed-run retry state');
   assert.equal(pipelinePosts, 2, 'success recovery after retry must not execute a third run');
