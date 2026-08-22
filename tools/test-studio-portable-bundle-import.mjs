@@ -38,15 +38,18 @@ function tarEntry(name, body = '', type = '0') {
   return result;
 }
 
-function tar(entries) {
-  const length = entries.reduce((sum, entry) => sum + entry.byteLength, 0) + 1024;
-  const result = new Uint8Array(length);
+function concat(...parts) {
+  const result = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0));
   let offset = 0;
-  for (const entry of entries) {
-    result.set(entry, offset);
-    offset += entry.byteLength;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.byteLength;
   }
   return result;
+}
+
+function tar(entries) {
+  return concat(...entries, new Uint8Array(1024));
 }
 
 test('reads only reviewed planning intent from a bounded starter tar', () => {
@@ -65,11 +68,23 @@ test('reads only reviewed planning intent from a bounded starter tar', () => {
   });
 });
 
-test('rejects duplicate, missing, unsafe and non-regular manifest entries', () => {
+test('requires the exact canonical manifest path and ignores nested lookalikes', () => {
+  assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
+    tarEntry('untrusted/starter/project.manifest.json', manifestText)
+  ])), /exactly one starter\/project\.manifest\.json/i);
+
+  const canonicalWithLookalike = tar([
+    tarEntry('starter/project.manifest.json', manifestText),
+    tarEntry('untrusted/starter/project.manifest.json', '{"not":"authority"}')
+  ]);
+  assert.equal(portableStarterManifestTextFromTarBytes(canonicalWithLookalike), manifestText);
+});
+
+test('rejects duplicate, missing, unsafe and non-regular canonical manifest entries', () => {
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([tarEntry('OPEN_PROJECT.html', 'x')])), /exactly one starter\/project\.manifest\.json/i);
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('starter/project.manifest.json', manifestText),
-    tarEntry('copy/starter/project.manifest.json', manifestText)
+    tarEntry('starter/project.manifest.json', manifestText)
   ])), /more than one/i);
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('../starter/project.manifest.json', manifestText)
@@ -77,6 +92,26 @@ test('rejects duplicate, missing, unsafe and non-regular manifest entries', () =
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('starter/project.manifest.json', '', '2')
   ])), /unsupported archive entry type/i);
+});
+
+test('requires complete padded records and a strict two-block tar terminator', () => {
+  const missingTerminators = tar([tarEntry('starter/project.manifest.json', manifestText)]).subarray(0, tarEntry('starter/project.manifest.json', manifestText).byteLength);
+  assert.throws(() => portableStarterManifestTextFromTarBytes(missingTerminators), /two-block tar terminator/i);
+
+  const complete = tar([tarEntry('starter/project.manifest.json', manifestText)]);
+  const singleTerminator = complete.subarray(0, complete.byteLength - 512);
+  assert.throws(() => portableStarterManifestTextFromTarBytes(singleTerminator), /two-block tar terminator/i);
+
+  const shortEntry = tarEntry('starter/project.manifest.json', '{}');
+  const truncatedPadding = shortEntry.subarray(0, 513);
+  assert.throws(() => portableStarterManifestTextFromTarBytes(truncatedPadding), /truncated/i);
+
+  const trailingGarbage = concat(complete, new Uint8Array([1]));
+  assert.throws(() => portableStarterManifestTextFromTarBytes(trailingGarbage), /invalid trailing data/i);
+
+  const malformedSecondTerminator = complete.slice();
+  malformedSecondTerminator[malformedSecondTerminator.byteLength - 512] = 1;
+  assert.throws(() => portableStarterManifestTextFromTarBytes(malformedSecondTerminator), /malformed tar terminator/i);
 });
 
 test('rejects corrupt checksums, truncated archives and unsafe size/count bounds', () => {
