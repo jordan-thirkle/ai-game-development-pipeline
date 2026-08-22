@@ -3,6 +3,15 @@ import { recoverableBriefValues } from './latest-run-recovery.mjs';
 const FAILED_RUN_SESSION_KEY = 'byjtt:studio:failed-run:v1';
 const RETRY_BUTTON_ID = 'retry-failed-project';
 const EDIT_BUTTON_ID = 'edit-failed-project';
+const REVIEW_ID = 'failed-retry-preflight';
+const FIELD_LABELS = {
+  name: 'Project name',
+  objective: 'Objective',
+  targetPlatform: 'Requested target',
+  mechanic: 'Mechanic'
+};
+
+let activeRetryBaseline = null;
 
 function readRetryableFailure() {
   let serialized;
@@ -19,6 +28,20 @@ function readRetryableFailure() {
   } catch {
     return null;
   }
+}
+
+function creatorBriefValues() {
+  const name = document.querySelector('#brief-name');
+  const objective = document.querySelector('#brief-objective');
+  const target = document.querySelector('#brief-target');
+  const mechanic = document.querySelector('#brief-mechanic');
+  if (!name || !objective || !target || !mechanic) throw new Error('Creator Mode brief controls are unavailable.');
+  return {
+    name: name.value,
+    objective: objective.value,
+    targetPlatform: target.value,
+    mechanic: mechanic.value
+  };
 }
 
 function applyRetryBrief(brief, { submit = true } = {}) {
@@ -43,7 +66,70 @@ function showRetryPreparationMessage() {
   const message = document.querySelector('#run-message');
   if (!message) return;
   message.className = 'notice';
-  message.textContent = 'Recovered the failed brief for editing. No pipeline stage was re-executed; review your changes, then create the playable starter.';
+  message.textContent = 'Recovered the failed brief for editing. No pipeline stage was re-executed; review the preflight changes, then create the playable starter.';
+}
+
+function renderRetryPreflight(originalBrief) {
+  const form = document.querySelector('#brief-form');
+  if (!form) throw new Error('Creator Mode brief form is unavailable.');
+  let panel = document.querySelector(`#${REVIEW_ID}`);
+  if (!panel) {
+    panel = document.createElement('section');
+    panel.id = REVIEW_ID;
+    panel.className = 'item';
+    panel.setAttribute('aria-live', 'polite');
+    form.append(panel);
+  }
+
+  const currentBrief = creatorBriefValues();
+  const changed = Object.keys(FIELD_LABELS).filter((key) => currentBrief[key] !== originalBrief[key]);
+  panel.replaceChildren();
+
+  const title = document.createElement('b');
+  title.textContent = 'Retry preflight';
+  const summary = document.createElement('p');
+  summary.textContent = changed.length === 0
+    ? 'No brief changes yet. Submitting now would retry the same validated project brief.'
+    : `${changed.length} brief field${changed.length === 1 ? '' : 's'} changed. No pipeline stage has executed since recovery.`;
+  panel.append(title, summary);
+
+  if (changed.length > 0) {
+    const list = document.createElement('ul');
+    for (const key of changed) {
+      const item = document.createElement('li');
+      const label = document.createElement('strong');
+      label.textContent = `${FIELD_LABELS[key]}: `;
+      const values = document.createElement('span');
+      values.textContent = `${originalBrief[key]} → ${currentBrief[key]}`;
+      item.append(label, values);
+      list.append(item);
+    }
+    panel.append(list);
+  }
+
+  const authority = document.createElement('p');
+  authority.textContent = 'Execution authority: none until you explicitly choose Create playable starter. Retry remains local dry-run only.';
+  panel.append(authority);
+  return { changed, currentBrief };
+}
+
+function beginEditableRetry(originalBrief) {
+  activeRetryBaseline = { ...originalBrief };
+  applyRetryBrief(activeRetryBaseline, { submit: false });
+  showRetryPreparationMessage();
+  renderRetryPreflight(activeRetryBaseline);
+  const form = document.querySelector('#brief-form');
+  if (!form || form.dataset.retryPreflightBound === 'true') return;
+  form.dataset.retryPreflightBound = 'true';
+  const refresh = () => {
+    if (activeRetryBaseline && document.querySelector(`#${REVIEW_ID}`)) renderRetryPreflight(activeRetryBaseline);
+  };
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  form.addEventListener('submit', () => {
+    activeRetryBaseline = null;
+    document.querySelector(`#${REVIEW_ID}`)?.remove();
+  });
 }
 
 function ensureRetryActions() {
@@ -85,10 +171,8 @@ function ensureRetryActions() {
     editButton.type = 'button';
     editButton.textContent = 'Edit before retry';
     editButton.addEventListener('click', () => {
-      try {
-        applyRetryBrief(retryable.brief, { submit: false });
-        showRetryPreparationMessage();
-      } catch (error) {
+      try { beginEditableRetry(retryable.brief); }
+      catch (error) {
         const message = document.querySelector('#run-message');
         if (message) {
           message.className = 'notice fail';
