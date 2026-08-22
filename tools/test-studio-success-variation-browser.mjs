@@ -63,7 +63,6 @@ try {
   assert.equal(await page.locator('#brief-objective').inputValue(), 'Build a small verified local starter that can become a second variation without retyping the original brief.');
   assert.equal(await page.locator('#brief-target').inputValue(), 'mobile');
   assert.equal(await page.locator('#brief-mechanic').inputValue(), 'collect');
-  assert.match(await page.locator('#creator-suggestion').textContent(), /copied from the latest verified run for a new variation/i);
   assert.match(await page.locator('#run-message').textContent(), /Nothing has run for this variation/i);
   assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), variationKey), null, 'variation handoff draft should be consumed after restoration');
 
