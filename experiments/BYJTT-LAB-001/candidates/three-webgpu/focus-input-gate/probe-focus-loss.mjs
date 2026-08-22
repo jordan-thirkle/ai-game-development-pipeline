@@ -41,7 +41,7 @@ const result = {
   movement_before_blur_m: null,
   movement_after_blur_m: null,
   focus_loss_drift_m: null,
-  focus_transfer_method: 'secondary-page-bring-to-front',
+  focus_transfer_method: 'headed-secondary-tab-bring-to-front',
   focus_before_transfer: null,
   focus_after_transfer: null,
   trusted_blur_observed: false,
@@ -53,7 +53,7 @@ const result = {
 
 try {
   await waitForServer();
-  browser = await chromium.launch({ headless: true, executablePath: '/usr/bin/google-chrome' });
+  browser = await chromium.launch({ headless: false, executablePath: '/usr/bin/google-chrome' });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   page = await context.newPage();
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
