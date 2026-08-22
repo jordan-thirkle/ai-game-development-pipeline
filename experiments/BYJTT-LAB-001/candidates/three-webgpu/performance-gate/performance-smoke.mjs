@@ -107,14 +107,15 @@ try {
   const startupMs = Date.now() - launchStarted;
   await page.screenshot({ path: path.join(artifacts, '01-ready.png'), fullPage: true });
 
-  const idleSamples = await collectFrameIntervals(3000);
+  const sampleWindowMs = 5000;
+  const idleSamples = await collectFrameIntervals(sampleWindowMs);
 
   const before = await snapshot();
   const beforePosition = before['player.position'];
   await page.keyboard.down('KeyD');
   await page.keyboard.down('ArrowLeft');
-  const activeSamplesPromise = collectFrameIntervals(3000);
-  await page.waitForTimeout(3000);
+  const activeSamplesPromise = collectFrameIntervals(sampleWindowMs);
+  await page.waitForTimeout(sampleWindowMs);
   await page.keyboard.up('ArrowLeft');
   await page.keyboard.up('KeyD');
   const activeSamples = await activeSamplesPromise;
@@ -164,6 +165,7 @@ try {
     renderer_backend: ready['renderer.backend'],
     navigator_gpu: ready['renderer.navigator_gpu'] ?? null,
     startup_ms: startupMs,
+    sample_window_ms: sampleWindowMs,
     idle,
     active_input: active,
     player_movement_metres: moved,
@@ -188,7 +190,8 @@ try {
       'Measurements are execution evidence from a GitHub-hosted Linux Chrome runner at the shared 390x844 viewport.',
       'The shared 60 FPS target is compared but not promoted into a device/mobile performance-readiness claim.',
       'Normal physical keyboard movement and camera input are used during the active sampling window; no gameplay mutation shortcut is exposed.',
-      'Release stability is measured after a 600 ms no-input deceleration interval because the unchanged shared player contract specifies finite 22 m/s² deceleration.'
+      'Release stability is measured after a 600 ms no-input deceleration interval because the unchanged shared player contract specifies finite 22 m/s² deceleration.',
+      'Five-second idle and active windows preserve the >=60-sample evidence-quality gate even when the hosted runner operates well below the shared 60 FPS target.'
     ]
   };
 
