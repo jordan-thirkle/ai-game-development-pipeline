@@ -28,7 +28,15 @@ try {
     return latest.json();
   });
   assert.equal(envelope.available, true);
+  const releaseCandidate = envelope.run?.evidence?.releaseCandidate;
   const publishing = envelope.run?.evidence?.publishing;
+  assert.equal(releaseCandidate?.dryRunOnly, true);
+  assert.equal(typeof releaseCandidate?.candidateId, 'string');
+  assert(releaseCandidate.candidateId.length > 0);
+  assert.equal(typeof releaseCandidate?.build?.artifactPath, 'string');
+  assert(releaseCandidate.build.artifactPath.length > 0);
+  assert.match(releaseCandidate.build.outputSha256, /^sha256:[a-f0-9]{64}$/);
+  assert.deepEqual(releaseCandidate.destination, publishing.destination);
   assert.equal(publishing?.executed, false);
   assert.equal(publishing?.dryRun, true);
   assert.equal(publishing?.provider, null);
@@ -38,12 +46,20 @@ try {
   assert.deepEqual(publishing?.plan, [`Would publish release-candidate.json to ${publishing.destination.target}`]);
 
   await page.waitForFunction(
-    (expectedPlan) => document.querySelector('[data-inline-verification="true"]')?.textContent?.includes(expectedPlan),
-    publishing.plan[0],
+    ({ candidateId, plan }) => {
+      const text = document.querySelector('[data-inline-verification="true"]')?.textContent || '';
+      return text.includes(candidateId) && text.includes(plan);
+    },
+    { candidateId: releaseCandidate.candidateId, plan: publishing.plan[0] },
     { timeout: 10000 }
   );
   const summary = await page.locator('[data-inline-verification="true"]').textContent();
   assert.match(summary, /Verification summary/);
+  assert(summary.includes(`Release candidate ID: ${releaseCandidate.candidateId}`), 'release candidate ID was not visible in Studio');
+  assert(summary.includes(`Release candidate artifact: ${releaseCandidate.build.artifactPath}`), 'release artifact path was not visible in Studio');
+  assert(summary.includes(`Release destination: ${publishing.destination.target}`), 'release destination was not visible in Studio');
+  assert(summary.includes(`Release candidate SHA-256: ${releaseCandidate.build.outputSha256}`), 'release candidate digest was not visible in Studio');
+  assert.match(summary, /Release candidate provenance: explicit identity \+ destination/);
   assert(summary.includes(`Publishing plan: ${publishing.plan[0]}`), 'exact dry-run publishing plan was not visible in Studio');
   assert.match(summary, /Publishing authority: none/);
   assert.match(summary, /separately authorized credentialed execution evidence/);
@@ -52,8 +68,8 @@ try {
   assert(summary.includes(`Destination: ${publishing.destination.target}`), 'local destination was not visible in Studio');
   assert.deepEqual(consoleErrors, []);
 
-  await page.screenshot({ path: resolve(artifacts, 'studio-inline-publishing-plan.png'), fullPage: true });
-  console.log(`Studio inline publishing browser dogfood passed: ${JSON.stringify({ publicationExecuted: publishing.executed, dryRun: publishing.dryRun, destination: publishing.destination, plan: publishing.plan })}`);
+  await page.screenshot({ path: resolve(artifacts, 'studio-inline-release-candidate.png'), fullPage: true });
+  console.log(`Studio inline release-candidate browser dogfood passed: ${JSON.stringify({ candidateId: releaseCandidate.candidateId, artifactPath: releaseCandidate.build.artifactPath, candidateSha256: releaseCandidate.build.outputSha256, publicationExecuted: publishing.executed, dryRun: publishing.dryRun, destination: publishing.destination, plan: publishing.plan })}`);
   await page.close();
 } finally {
   await browser.close();
