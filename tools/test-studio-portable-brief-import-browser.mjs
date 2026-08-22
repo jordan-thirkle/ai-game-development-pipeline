@@ -97,7 +97,24 @@ try {
   assert.doesNotMatch(await page.locator('#portable-starter-status').textContent(), /Recovered the four validated planning fields/i);
   assert.equal(briefRequests.length, postsBeforeRefresh, 'discarding malformed continuation state must not execute the pipeline');
 
-  // A malformed recovery intentionally leaves Studio on its normal Overview landing view.
+  const oversizedContinuation = JSON.stringify({
+    kind: 'verified-bundle-planning',
+    brief: {
+      name: 'Pipeline Sample Game',
+      objective: `Oversized recovery state ${'x'.repeat(4096)}`,
+      targetPlatform: 'web',
+      mechanic: 'collect'
+    }
+  });
+  assert(oversizedContinuation.length > 4096, 'oversized continuation fixture must exceed the production byte limit');
+  await page.evaluate(({ key, value }) => sessionStorage.setItem(key, value), { key: continuationKey, value: oversizedContinuation });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(document.querySelector('#portable-starter-status')), null, { timeout: 5000 });
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), continuationKey), null, 'oversized continuation state was not discarded');
+  assert.doesNotMatch(await page.locator('#portable-starter-status').textContent(), /Recovered the four validated planning fields/i);
+  assert.equal(briefRequests.length, postsBeforeRefresh, 'discarding oversized continuation state must not execute the pipeline');
+
+  // Invalid recovery intentionally leaves Studio on its normal Overview landing view.
   // Return to Creator Mode before exercising the user-accessible bundle/folder controls again.
   await page.locator('[data-view="local-run"]').click();
   await bundleInput.setInputFiles(archivePath);
@@ -133,7 +150,7 @@ try {
 
   await page.screenshot({ path: `${artifacts}/portable-starter-continuation.png`, fullPage: true });
   assert.deepEqual(errors, []);
-  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} exposed build/QA/dry-run/non-publication/no-secret/artifact proof, restored only validated planning intent across same-tab refresh with zero Studio execution and no re-asserted archive proof, rejected malformed recovery state, preserved the extracted-folder fallback, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
+  console.log(`Portable starter continuation dogfood passed: real verified ${bundle.filename} exposed build/QA/dry-run/non-publication/no-secret/artifact proof, restored only validated planning intent across same-tab refresh with zero Studio execution and no re-asserted archive proof, rejected malformed and oversized recovery state, preserved the extracted-folder fallback, then one explicit real local pipeline run produced passing build/QA/release evidence with no publication authority.`);
 } finally {
   await browser.close();
   await rm(extractedStarter, { recursive: true, force: true });
