@@ -1,8 +1,10 @@
 import { chromium } from 'playwright';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+const execFileAsync = promisify(execFile);
 const root = process.cwd();
 const artifactDir = path.join(root, 'artifacts', 'focus-input');
 await fs.mkdir(artifactDir, { recursive: true });
@@ -30,10 +32,23 @@ async function waitForServer() {
   throw new Error(`preview server did not become ready: ${serverLog}`);
 }
 
+async function waitForWindow(name, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const { stdout } = await execFileAsync('xdotool', ['search', '--onlyvisible', '--name', name]);
+      const id = stdout.trim().split(/\s+/).find(Boolean);
+      if (id) return id;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`X11 focus sink window did not appear: ${name}`);
+}
+
 const errors = [];
 let browser;
 let page;
-let focusSink;
+let focusSinkProcess;
 const result = {
   tested_revision: testedRevision,
   proof_state: 'not-run',
@@ -41,10 +56,11 @@ const result = {
   movement_before_blur_m: null,
   movement_after_blur_m: null,
   focus_loss_drift_m: null,
-  focus_transfer_method: 'headed-secondary-tab-bring-to-front',
+  focus_transfer_method: 'x11-window-manager-xmessage',
   focus_before_transfer: null,
   focus_after_transfer: null,
   trusted_blur_observed: false,
+  focus_sink_window_id: null,
   safe_focus_release_proven: false,
   production_source_modified: false,
   direct_input_state_mutation: false,
@@ -86,9 +102,14 @@ try {
   const beforeBlurX = await readX();
   result.movement_before_blur_m = Math.abs(beforeBlurX - startX);
 
-  focusSink = await context.newPage();
-  await focusSink.goto('about:blank');
-  await focusSink.bringToFront();
+  const sinkTitle = `BYJTT Focus Sink ${process.pid}`;
+  focusSinkProcess = spawn('xmessage', ['-center', '-buttons', 'OK:0', '-title', sinkTitle, 'BYJTT focus-loss proof sink'], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+    env: process.env,
+  });
+  const sinkWindowId = await waitForWindow(sinkTitle);
+  result.focus_sink_window_id = sinkWindowId;
+  await execFileAsync('xdotool', ['windowactivate', '--sync', sinkWindowId]);
   await page.waitForFunction(() => document.hasFocus() === false, null, { timeout: 5_000 });
   result.focus_after_transfer = await page.evaluate(() => document.hasFocus());
   const focusEvidence = await page.evaluate(() => ({ ...window.__BYJTT_FOCUS_PROBE__ }));
@@ -101,7 +122,6 @@ try {
   result.movement_after_blur_m = Math.abs(afterBlurX - startX);
   result.focus_loss_drift_m = Math.abs(afterBlurX - beforeBlurX);
 
-  await page.bringToFront();
   await page.keyboard.up('KeyD');
   await page.waitForTimeout(350);
 
@@ -121,14 +141,9 @@ try {
 } catch (error) {
   errors.push(error instanceof Error ? error.stack || error.message : String(error));
   result.proof_state = 'execution-failed';
-  try {
-    if (page) {
-      await page.bringToFront();
-      await page.keyboard.up('KeyD');
-    }
-  } catch {}
+  try { if (page) await page.keyboard.up('KeyD'); } catch {}
 } finally {
-  if (focusSink) await focusSink.close().catch(() => {});
+  if (focusSinkProcess && !focusSinkProcess.killed) focusSinkProcess.kill('SIGTERM');
   if (browser) await browser.close();
   server.kill('SIGTERM');
   await fs.writeFile(path.join(artifactDir, 'preview.log'), serverLog);
