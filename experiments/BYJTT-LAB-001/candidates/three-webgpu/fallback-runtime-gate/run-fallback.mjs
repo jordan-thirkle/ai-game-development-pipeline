@@ -54,6 +54,7 @@ let browser;
 try {
   await waitForServer();
   browser = await chromium.launch({
+    executablePath: '/usr/bin/google-chrome',
     headless: true,
     args: [
       '--disable-features=WebGPU,WebGPUService,UnsafeWebGPU',
