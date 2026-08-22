@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "experiment_id": "BYJTT-LAB-001",
+  "candidate": "flax",
+  "flax_version": "1.12.6912",
+  "linux_package_url": "https://vps3.flaxengine.com/store/builds/Package_1_12_06912/FlaxEditorLinux.zip",
+  "linux_package_sha256": "d7d6c835e0845e9b7de67ec2f79df62df67a82cb645b43be9e8c8c28d28dbb45",
+  "shared_contract_path": "experiments/BYJTT-LAB-001/shared/contract.json",
+  "expected_shared_constants": {
+    "world_up": "+Y",
+    "viewport": [390, 844],
+    "target_fps": 60,
+    "arena": [24, 32],
+    "player_spawn": [0, 0, 10],
+    "walk_speed": 3.5
+  },
+  "evidence_boundary": {
+    "official_binary_verified": false,
+    "headless_engine_executed": false,
+    "project_generated": false,
+    "character_controller_executed": false,
+    "external_input_executed": false,
+    "phase_a_executed": false
+  }
+}

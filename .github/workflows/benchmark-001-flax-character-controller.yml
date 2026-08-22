@@ -1,0 +1,143 @@
+name: Benchmark 001 Flax CharacterController
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/flax/**'
+      - '.github/workflows/benchmark-001-flax-character-controller.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flax-character-controller:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/flax
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BYJTT_FLAX_CHARACTER_GATE: '1'
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checkout and shared contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+          python3 -m json.tool "$CANDIDATE/runtime-manifest.json" >/dev/null
+          python3 "$CANDIDATE/verify_contract.py"
+          grep -F 'public sealed class CharacterGatePlugin : GamePlugin' "$CANDIDATE/smoke/Source/Game/CharacterGatePlugin.cs"
+          grep -F 'player.Move(displacement)' "$CANDIDATE/smoke/Source/Game/CharacterGatePlugin.cs"
+          if grep -E 'Mathf\.Clamp|Math\.Clamp|Position\s*=.*step|SetPosition' "$CANDIDATE/smoke/Source/Game/CharacterGatePlugin.cs"; then
+            echo 'Forbidden post-physics clamp/position movement pattern detected.' >&2
+            exit 41
+          fi
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/character-controller"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "checked_out_sha=$(git rev-parse HEAD)"
+            echo "os=$(uname -a)"
+            echo "python=$(python3 --version 2>&1)"
+            echo "dotnet=$(dotnet --version 2>/dev/null || echo unavailable)"
+          } | tee "$CANDIDATE/artifacts/character-controller/environment.txt"
+
+      - name: Download and verify official Flax Linux package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('experiments/BYJTT-LAB-001/candidates/flax/runtime-manifest.json')
+          manifest = json.loads(p.read_text())
+          Path('/tmp/flax-url').write_text(manifest['linux_package_url'])
+          Path('/tmp/flax-expected-sha').write_text(manifest['linux_package_sha256'])
+          PY
+          URL="$(cat /tmp/flax-url)"
+          EXPECTED="$(cat /tmp/flax-expected-sha)"
+          test "$EXPECTED" != "BOOTSTRAP_REQUIRED"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 "$URL" -o /tmp/FlaxEditorLinux.zip
+          OBSERVED="$(sha256sum /tmp/FlaxEditorLinux.zip | awk '{print $1}')"
+          printf 'expected=%s\nobserved=%s\nurl=%s\n' "$EXPECTED" "$OBSERVED" "$URL" | tee "$CANDIDATE/artifacts/character-controller/flax-package-provenance.txt"
+          test "$OBSERVED" = "$EXPECTED"
+          printf '%s  /tmp/FlaxEditorLinux.zip\n' "$EXPECTED" | sha256sum -c -
+
+      - name: Execute native Flax CharacterController gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/flax
+          unzip -q /tmp/FlaxEditorLinux.zip -d /tmp/flax
+          EDITOR="/tmp/flax/Binaries/Editor/Linux/Development/FlaxEditor"
+          PROJECT="$GITHUB_WORKSPACE/$CANDIDATE/smoke/Smoke.flaxproj"
+          LOG="$CANDIDATE/artifacts/character-controller/flax-character-controller.log"
+          test -f "$EDITOR"
+          test -f "$PROJECT"
+          chmod +x "$EDITOR"
+
+          set +e
+          timeout 90s "$EDITOR" -project "$PROJECT" -headless -null -mute -std -exit 2>&1 | tee "$LOG"
+          EDITOR_STATUS=${PIPESTATUS[0]}
+          set -e
+          printf 'editor_exit_status=%s\n' "$EDITOR_STATUS" | tee "$CANDIDATE/artifacts/character-controller/editor-status.txt"
+          test "$EDITOR_STATUS" -eq 0
+
+          grep -F 'Version 1.12.6912' "$LOG"
+          grep -F 'Engine services are ready!' "$LOG"
+          grep -F 'Loaded project BYJTT Flax Smoke, version 1.0' "$LOG"
+          if grep -E 'error CS[0-9]+|Exception: Failed to build assembly|Failed to run build tool' "$LOG"; then
+            echo 'Flax script/build failure detected despite editor exit status.' >&2
+            exit 42
+          fi
+
+          RESULT_LINE="$(grep -F 'BYJTT_FLAX_CHARACTER_GATE_RESULT ' "$LOG" | tail -n 1 || true)"
+          if [ -z "$RESULT_LINE" ]; then
+            echo 'Native CharacterController gate marker missing: the C# assembly may compile but the runtime GamePlugin lifecycle did not execute in this headless editor mode.' \
+              | tee "$CANDIDATE/artifacts/character-controller/blocker.txt"
+            exit 43
+          fi
+          printf '%s\n' "$RESULT_LINE" | tee "$CANDIDATE/artifacts/character-controller/result.txt"
+          grep -F 'passed=true' "$CANDIDATE/artifacts/character-controller/result.txt"
+          grep -F 'flax_character_controller_executed=true' "$CANDIDATE/artifacts/character-controller/result.txt"
+          grep -F 'post_physics_arena_clamp=false' "$CANDIDATE/artifacts/character-controller/result.txt"
+          grep -F 'observation_isolation=true' "$CANDIDATE/artifacts/character-controller/result.txt"
+
+          sha256sum \
+            "$CANDIDATE/runtime-manifest.json" \
+            "$CANDIDATE/smoke/Source/Game/CharacterGatePlugin.cs" \
+            "$CANDIDATE/artifacts/character-controller/environment.txt" \
+            "$CANDIDATE/artifacts/character-controller/flax-package-provenance.txt" \
+            "$CANDIDATE/artifacts/character-controller/editor-status.txt" \
+            "$LOG" \
+            "$CANDIDATE/artifacts/character-controller/result.txt" \
+            > "$CANDIDATE/artifacts/character-controller/SHA256SUMS"
+
+      - name: Record failure hash manifest
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$CANDIDATE/artifacts/character-controller" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 -r sha256sum \
+            > "$CANDIDATE/artifacts/character-controller/SHA256SUMS"
+
+      - name: Upload exact-head Flax CharacterController evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-flax-character-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/flax/artifacts/character-controller/**
+          if-no-files-found: error
+          retention-days: 30
