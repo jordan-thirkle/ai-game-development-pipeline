@@ -1,0 +1,121 @@
+name: Benchmark 001 Three WebGPU Fallback Runtime
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/**'
+      - '.github/workflows/benchmark-001-three-fallback-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fallback-runtime:
+    name: fallback-runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/fallback-runtime"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/fallback-runtime/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < fallback-runtime-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/fallback-runtime/observed-lock-sha256.txt
+          npm ls --all --json > artifacts/fallback-runtime/dependency-tree.json || true
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Strict syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$CANDIDATE/fallback-runtime-gate/run-fallback.mjs" 2>&1 | tee "$CANDIDATE/artifacts/fallback-runtime/syntax.log"
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/fallback-runtime/build.log"
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/fallback-runtime/phase-a.log"
+
+      - name: Execute no-WebGPU compatibility probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          node fallback-runtime-gate/run-fallback.mjs 2>&1 | tee artifacts/fallback-runtime/runtime.log
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/fallback-runtime/runtime-result.json', 'utf8'));
+          const expected = process.env.CANDIDATE_HEAD_SHA;
+          if (result.tested_revision !== expected) throw new Error(`tested_revision ${result.tested_revision} != ${expected}`);
+          if (result.proof_state !== 'webgl-fallback-proven') throw new Error(`fallback not proven: ${result.proof_state}`);
+          if (result.passed !== true) throw new Error(`fallback runtime failed: ${JSON.stringify(result.failures)}`);
+          NODE
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/fallback-runtime
+          {
+            find artifacts/fallback-runtime -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/fallback-runtime/evidence.sha256
+
+      - name: Upload exact-head fallback evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-fallback-runtime-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/fallback-runtime/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
