@@ -29,7 +29,7 @@ function safeResult() {
       },
       build: { executed: true, status: 'pass', artifactSha256: HASH },
       qa: { executed: true, status: 'pass', artifactSha256: HASH },
-      releaseCandidate: { dryRunOnly: true, build: { outputSha256: HASH } },
+      releaseCandidate: { dryRunOnly: true, build: { artifactPath: 'dist', outputSha256: HASH } },
       publishing: {
         dryRun: true,
         executed: false,
@@ -53,14 +53,19 @@ function safeResult() {
   };
 }
 
-test('summarizes only consistent passing local evidence', () => {
+test('summarizes only consistent passing local evidence without inventing legacy release identity', () => {
   const facts = Object.fromEntries(buildInlineVerificationFacts(safeResult()));
   assert.match(facts['Solved-system selection'], /Reviewed Starter \(system\.reviewed-starter\)/);
   assert.match(facts['Solved-system selection'], /selection is not this run's runtime execution/);
   assert.equal(facts['Registry provenance'], `requested · ${REGISTRY_HASH}`);
   assert.equal(facts.Build, 'executed · pass');
   assert.equal(facts.QA, 'executed · pass');
+  assert.equal(facts['Release candidate ID'], 'unavailable in legacy evidence');
+  assert.equal(facts['Release candidate artifact'], 'dist');
   assert.equal(facts['Release candidate'], 'dry-run only');
+  assert.equal(facts['Release destination'], 'unavailable in legacy evidence');
+  assert.equal(facts['Release candidate provenance'], 'legacy evidence · identity/destination unavailable; not inferred');
+  assert.equal(facts['Release candidate SHA-256'], HASH);
   assert.equal(facts.Publication, 'not executed');
   assert.equal(facts.Secrets, 'not used');
   assert.equal(facts.Destination, 'local://planned/sample-game');
