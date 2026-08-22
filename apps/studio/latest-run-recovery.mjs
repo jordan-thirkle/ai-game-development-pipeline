@@ -194,8 +194,8 @@ function applyBriefValues(values, suggestionText) {
   controls.target.value = values.targetPlatform;
   controls.mechanic.value = values.mechanic;
   if (controls.advanced) controls.advanced.open = true;
-  if (controls.suggestion && suggestionText) controls.suggestion.textContent = suggestionText;
   controls.mechanic.dispatchEvent(new Event('change', { bubbles: true }));
+  if (controls.suggestion && suggestionText) controls.suggestion.textContent = suggestionText;
   return true;
 }
 
