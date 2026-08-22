@@ -264,8 +264,141 @@ function ensureRetryActions() {
   }
 }
 
+const PORTABLE_MANIFEST_MAX_BYTES = 64 * 1024;
+const PORTABLE_TARGETS = new Set(['web', 'desktop', 'mobile']);
+const PORTABLE_MECHANICS = new Set(['collect', 'dodge', 'survive']);
+const PORTABLE_IMPORT_INPUT_ID = 'portable-starter-manifest';
+const PORTABLE_IMPORT_BUTTON_ID = 'portable-starter-import';
+const PORTABLE_IMPORT_STATUS_ID = 'portable-starter-status';
+
+function portableObject(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object.`);
+  return value;
+}
+
+function portableText(value, label, maxLength) {
+  if (typeof value !== 'string') throw new Error(`${label} must be text.`);
+  const text = value.trim().replace(/\s+/g, ' ');
+  if (!text) throw new Error(`${label} is required.`);
+  if (text.length > maxLength) throw new Error(`${label} is too long.`);
+  if (/[^\P{Cc}\t\n\r]/u.test(text) || /[\u0000-\u001f\u007f]/.test(text)) throw new Error(`${label} contains unsupported control characters.`);
+  return text;
+}
+
+export function portableStarterBriefFromManifest(value) {
+  const manifest = portableObject(value, 'Starter manifest');
+  if (manifest.manifestVersion !== '1.0.0') throw new Error('Starter manifest must use manifestVersion 1.0.0.');
+  if (!Array.isArray(manifest.targetPlatforms) || manifest.targetPlatforms.length !== 1 || manifest.targetPlatforms[0] !== 'web') {
+    throw new Error('Starter manifest must retain the reviewed local web target only.');
+  }
+  const starter = portableObject(manifest.starter, 'Starter intent');
+  const requestedTarget = portableText(starter.requestedTargetPlatform, 'Requested target', 20).toLowerCase();
+  if (!PORTABLE_TARGETS.has(requestedTarget)) throw new Error('Requested target must be web, desktop, or mobile.');
+  if (starter.executedTargetPlatform !== 'web') throw new Error('Starter manifest executed target must remain local web.');
+  const expectedStatus = requestedTarget === 'web' ? 'executed-local-web' : 'requested-not-executed';
+  if (starter.targetExecutionStatus !== expectedStatus) throw new Error('Starter manifest target execution status contradicts the requested/executed target boundary.');
+  const mechanic = portableText(starter.mechanic, 'Starter mechanic', 20).toLowerCase();
+  if (!PORTABLE_MECHANICS.has(mechanic)) throw new Error('Starter mechanic must be collect, dodge, or survive.');
+  const publish = portableObject(manifest.publish, 'Publication plan');
+  if (publish.provider !== 'local' || typeof publish.destination !== 'string' || !publish.destination.startsWith('local://planned/')) {
+    throw new Error('Starter manifest must retain a local-only publication plan.');
+  }
+  return {
+    name: portableText(manifest.name, 'Project name', 80),
+    objective: portableText(manifest.objective, 'Project objective', 500),
+    targetPlatform: requestedTarget,
+    mechanic
+  };
+}
+
+export function parsePortableStarterBriefText(text) {
+  if (typeof text !== 'string') throw new Error('Starter manifest must be text.');
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { throw new Error('Starter manifest must contain valid JSON.'); }
+  return portableStarterBriefFromManifest(parsed);
+}
+
+function portableImportMessage(kind, text) {
+  const status = document.querySelector(`#${PORTABLE_IMPORT_STATUS_ID}`);
+  if (!status) return;
+  status.className = `notice ${kind}`;
+  status.textContent = text;
+}
+
+function applyPortableBrief(brief) {
+  const evidencePanel = document.querySelector('#run-evidence-panel');
+  const playResult = document.querySelector('#play-result');
+  if ((evidencePanel && !evidencePanel.classList.contains('hidden')) || (playResult && !playResult.classList.contains('hidden'))) {
+    throw new Error('Start a new project before loading another starter manifest so prior evidence cannot be confused with new planning intent.');
+  }
+  const name = document.querySelector('#brief-name');
+  const objective = document.querySelector('#brief-objective');
+  const target = document.querySelector('#brief-target');
+  const mechanic = document.querySelector('#brief-mechanic');
+  const advanced = document.querySelector('#creator-advanced');
+  if (!name || !objective || !target || !mechanic) throw new Error('Creator Mode brief controls are unavailable.');
+  name.value = brief.name;
+  objective.value = brief.objective;
+  target.value = brief.targetPlatform;
+  mechanic.value = brief.mechanic;
+  if (advanced) advanced.open = true;
+  mechanic.dispatchEvent(new Event('change', { bubbles: true }));
+  const runMessage = document.querySelector('#run-message');
+  if (runMessage) {
+    runMessage.className = 'notice';
+    runMessage.textContent = 'Starter planning intent loaded locally. Nothing has run for this imported brief; review it, then explicitly choose Create playable starter.';
+  }
+}
+
+function ensurePortableStarterImport() {
+  const form = document.querySelector('#brief-form');
+  const actions = form?.querySelector('.brief-actions');
+  if (!form || !actions || document.querySelector(`#${PORTABLE_IMPORT_BUTTON_ID}`)) return;
+
+  const status = document.createElement('div');
+  status.id = PORTABLE_IMPORT_STATUS_ID;
+  status.className = 'notice';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  status.textContent = 'Continue a downloaded starter by selecting starter/project.manifest.json. Studio reads planning intent in this browser only; nothing is uploaded or executed.';
+  actions.before(status);
+
+  const input = document.createElement('input');
+  input.id = PORTABLE_IMPORT_INPUT_ID;
+  input.className = 'hidden';
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  form.append(input);
+
+  const button = document.createElement('button');
+  button.id = PORTABLE_IMPORT_BUTTON_ID;
+  button.className = 'btn';
+  button.type = 'button';
+  button.textContent = 'Continue from starter manifest';
+  actions.prepend(button);
+  button.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter manifest.');
+      if (file.size <= 0 || file.size > PORTABLE_MANIFEST_MAX_BYTES) throw new Error(`Starter manifest must be between 1 byte and ${PORTABLE_MANIFEST_MAX_BYTES} bytes.`);
+      const brief = parsePortableStarterBriefText(await file.text());
+      applyPortableBrief(brief);
+      portableImportMessage('pass', `Planning intent loaded locally from ${file.name}. No file was uploaded and no execution evidence was imported. Review the four Creator fields before you explicitly run the reviewed local scaffold.`);
+    } catch (error) {
+      portableImportMessage('fail', `Starter manifest was not loaded: ${error.message}`);
+    } finally {
+      input.value = '';
+    }
+  });
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   ensureRetryActions();
+  ensurePortableStarterImport();
   const panel = document.querySelector('#run-evidence-panel');
   if (panel && typeof MutationObserver !== 'undefined') {
     new MutationObserver(ensureRetryActions).observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
