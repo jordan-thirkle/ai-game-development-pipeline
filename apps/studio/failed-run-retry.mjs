@@ -1,9 +1,11 @@
 import { recoverableBriefValues } from './latest-run-recovery.mjs';
 
 const FAILED_RUN_SESSION_KEY = 'byjtt:studio:failed-run:v1';
+const RETRY_DRAFT_SESSION_KEY = 'byjtt:studio:failed-retry-draft:v1';
 const RETRY_BUTTON_ID = 'retry-failed-project';
 const EDIT_BUTTON_ID = 'edit-failed-project';
 const REVIEW_ID = 'failed-retry-preflight';
+const MAX_RETRY_DRAFT_BYTES = 4096;
 const FIELD_LABELS = {
   name: 'Project name',
   objective: 'Objective',
@@ -12,6 +14,54 @@ const FIELD_LABELS = {
 };
 
 let activeRetryBaseline = null;
+
+function sameBrief(left, right) {
+  return Boolean(left && right) && Object.keys(FIELD_LABELS).every((key) => left[key] === right[key]);
+}
+
+function clearRetryDraft() {
+  try { window.sessionStorage.removeItem(RETRY_DRAFT_SESSION_KEY); } catch {}
+}
+
+function validateBrief(brief) {
+  return recoverableBriefValues({ brief });
+}
+
+function readRetryDraft(expectedBaseline) {
+  let serialized;
+  try { serialized = window.sessionStorage.getItem(RETRY_DRAFT_SESSION_KEY); }
+  catch { return null; }
+  if (!serialized) return null;
+  if (serialized.length > MAX_RETRY_DRAFT_BYTES) {
+    clearRetryDraft();
+    return null;
+  }
+  try {
+    const record = JSON.parse(serialized);
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('Malformed retry draft.');
+    const baseline = validateBrief(record.baseline);
+    const draft = validateBrief(record.draft);
+    if (!sameBrief(baseline, expectedBaseline)) {
+      clearRetryDraft();
+      return null;
+    }
+    return draft;
+  } catch {
+    clearRetryDraft();
+    return null;
+  }
+}
+
+function writeRetryDraft(baseline, draft) {
+  const record = {
+    baseline: validateBrief(baseline),
+    draft: validateBrief(draft)
+  };
+  const serialized = JSON.stringify(record);
+  if (serialized.length > MAX_RETRY_DRAFT_BYTES) throw new Error('Retry draft is too large to preserve safely.');
+  try { window.sessionStorage.setItem(RETRY_DRAFT_SESSION_KEY, serialized); }
+  catch { throw new Error('Retry draft could not be preserved in this browser session.'); }
+}
 
 function readRetryableFailure() {
   let serialized;
@@ -62,11 +112,13 @@ function applyRetryBrief(brief, { submit = true } = {}) {
   else name.focus();
 }
 
-function showRetryPreparationMessage() {
+function showRetryPreparationMessage({ restored = false } = {}) {
   const message = document.querySelector('#run-message');
   if (!message) return;
   message.className = 'notice';
-  message.textContent = 'Recovered the failed brief for editing. No pipeline stage was re-executed; review the preflight changes, then create the playable starter.';
+  message.textContent = restored
+    ? 'Recovered your unsent retry edits from this browser session. No pipeline stage was re-executed; review the preflight changes, then create the playable starter.'
+    : 'Recovered the failed brief for editing. No pipeline stage was re-executed; review the preflight changes, then create the playable starter.';
 }
 
 function renderRetryPreflight(originalBrief) {
@@ -113,28 +165,45 @@ function renderRetryPreflight(originalBrief) {
   return { changed, currentBrief };
 }
 
-function beginEditableRetry(originalBrief) {
+function beginEditableRetry(originalBrief, draft = originalBrief, { restored = false } = {}) {
   activeRetryBaseline = { ...originalBrief };
-  applyRetryBrief(activeRetryBaseline, { submit: false });
-  showRetryPreparationMessage();
-  renderRetryPreflight(activeRetryBaseline);
+  applyRetryBrief(validateBrief(draft), { submit: false });
+  showRetryPreparationMessage({ restored });
+  const firstPreflight = renderRetryPreflight(activeRetryBaseline);
+  writeRetryDraft(activeRetryBaseline, firstPreflight.currentBrief);
   const form = document.querySelector('#brief-form');
   if (!form || form.dataset.retryPreflightBound === 'true') return;
   form.dataset.retryPreflightBound = 'true';
   const refresh = () => {
-    if (activeRetryBaseline && document.querySelector(`#${REVIEW_ID}`)) renderRetryPreflight(activeRetryBaseline);
+    if (!activeRetryBaseline || !document.querySelector(`#${REVIEW_ID}`)) return;
+    try {
+      const preflight = renderRetryPreflight(activeRetryBaseline);
+      writeRetryDraft(activeRetryBaseline, preflight.currentBrief);
+    } catch (error) {
+      const message = document.querySelector('#run-message');
+      if (message) {
+        message.className = 'notice fail';
+        message.textContent = `Retry edits could not be preserved: ${error.message}`;
+      }
+    }
   };
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);
   form.addEventListener('submit', () => {
     activeRetryBaseline = null;
+    clearRetryDraft();
     document.querySelector(`#${REVIEW_ID}`)?.remove();
   });
 }
 
 function ensureRetryActions() {
   const retryable = readRetryableFailure();
-  if (!retryable) return;
+  if (!retryable) {
+    activeRetryBaseline = null;
+    clearRetryDraft();
+    document.querySelector(`#${REVIEW_ID}`)?.remove();
+    return;
+  }
   const evidencePanel = document.querySelector('#run-evidence-panel');
   if (!evidencePanel || evidencePanel.classList.contains('hidden')) return;
   const failedTitle = [...evidencePanel.querySelectorAll('.item b')].find((node) => node.textContent === 'Failed attempt evidence');
@@ -150,6 +219,7 @@ function ensureRetryActions() {
     button.addEventListener('click', () => {
       button.disabled = true;
       button.textContent = 'Retrying…';
+      clearRetryDraft();
       try { applyRetryBrief(retryable.brief); }
       catch (error) {
         button.disabled = false;
@@ -181,6 +251,16 @@ function ensureRetryActions() {
       }
     });
     actions.append(editButton);
+  }
+
+  if (!document.querySelector(`#${REVIEW_ID}`)) {
+    const draft = readRetryDraft(retryable.brief);
+    if (draft) {
+      try { beginEditableRetry(retryable.brief, draft, { restored: true }); }
+      catch {
+        clearRetryDraft();
+      }
+    }
   }
 }
 
