@@ -1,4 +1,5 @@
 import { publishingPlanProjection } from '../../tools/studio-starter-home-page.mjs';
+import { releaseCandidateProjection } from '../../tools/studio-verification-page.mjs';
 
 const runSteps = [
   ['intake', 'Intake & scaffold'],
@@ -93,8 +94,14 @@ export function buildInlineVerificationFacts(result) {
     result.safety?.destination?.kind !== 'local' ||
     !String(result.safety?.destination?.target).startsWith('local://')
   ) throw new Error('Recovered publishing safety evidence did not pass.');
-  const publishingPlan = publishingPlanProjection(publishing, String(result.safety.destination.target));
-  const hashes = [build?.artifactSha256, qa?.artifactSha256, release?.build?.outputSha256];
+  const destinationTarget = String(result.safety.destination.target);
+  const publishingPlan = publishingPlanProjection(publishing, destinationTarget);
+  const releaseCandidate = releaseCandidateProjection({
+    releaseCandidate: release,
+    destination: result.safety.destination,
+    destinationTarget
+  });
+  const hashes = [build?.artifactSha256, qa?.artifactSha256, releaseCandidate.outputSha256];
   if (!hashes.every((value) => SHA256_PATTERN.test(String(value))) || !hashes.every((value) => value === hashes[0])) {
     throw new Error('Recovered artifact evidence is not revision-consistent.');
   }
@@ -105,10 +112,15 @@ export function buildInlineVerificationFacts(result) {
     ...solvedSystemFacts,
     ['Build', 'executed · pass'],
     ['QA', 'executed · pass'],
+    ['Release candidate ID', releaseCandidate.candidateId],
+    ['Release candidate artifact', releaseCandidate.artifactPath],
     ['Release candidate', 'dry-run only'],
+    ['Release destination', releaseCandidate.destinationTarget],
+    ['Release candidate provenance', releaseCandidate.provenanceComplete ? 'explicit identity + destination' : 'legacy evidence · identity/destination unavailable; not inferred'],
+    ['Release candidate SHA-256', releaseCandidate.outputSha256],
     ['Publication', 'not executed'],
     ['Secrets', 'not used'],
-    ['Destination', String(result.safety.destination.target)],
+    ['Destination', destinationTarget],
     ['Publishing plan', publishingPlan.copy],
     ['Publishing authority', 'none · external provider, device, or store action requires separately authorized credentialed execution evidence'],
     ['Verified artifact', hashes[0]],
@@ -153,6 +165,7 @@ function verificationText(result) {
   return [
     'Human-readable summary of the same machine evidence used by this local run.',
     'Solved-system selection below is registry/provenance evidence, not a claim that the selected external system executed in this run.',
+    'Release-candidate identity/destination are shown only when the retained evidence explicitly carries them; legacy gaps stay unavailable rather than inferred.',
     'This does not claim store/provider publication, secret-backed execution, requested native/device execution, or human playability.',
     '',
     ...buildInlineVerificationFacts(result).map(([label, value]) => `${label}: ${value}`),
