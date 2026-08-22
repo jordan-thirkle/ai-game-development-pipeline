@@ -1,0 +1,59 @@
+name: Benchmark 001 Panda3D proof
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/panda3d/**'
+      - '.github/workflows/benchmark-001-panda3d.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  panda3d-physics-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/panda3d/requirements.txt
+
+      - name: Install pinned runtime
+        run: python -m pip install --disable-pip-version-check -r experiments/BYJTT-LAB-001/candidates/panda3d/requirements.txt
+
+      - name: Record exact revision and versions
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/exact-head.txt
+          python --version | tee evidence/python-version.txt
+          python -c "import panda3d; print(panda3d.__version__)" | tee evidence/panda3d-version.txt
+
+      - name: Compile candidate source
+        run: python -m compileall -q experiments/BYJTT-LAB-001/candidates/panda3d
+
+      - name: Strict static type check
+        run: pyright --level error experiments/BYJTT-LAB-001/candidates/panda3d/physics_gate.py
+
+      - name: Execute native Bullet physics gate
+        run: python experiments/BYJTT-LAB-001/candidates/panda3d/physics_gate.py | tee evidence/runtime.log
+
+      - name: Hash evidence
+        if: always()
+        run: sha256sum evidence/* > evidence/SHA256SUMS.txt || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: panda3d-physics-gate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: evidence/
+          retention-days: 14
