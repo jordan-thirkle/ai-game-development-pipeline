@@ -1,0 +1,113 @@
+name: Benchmark 001 Evergine native physics gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/evergine/physics-gate/**'
+      - '.github/workflows/benchmark-001-evergine-physics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physics-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GATE: experiments/BYJTT-LAB-001/candidates/evergine/physics-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      REQUIRED_DOTNET_SDK: 10.0.400
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up exact .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.400'
+
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE/artifacts/physics-gate"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKED_OUT_SHA" = "$CANDIDATE_HEAD_SHA"
+          DOTNET_SDK="$(dotnet --version)"
+          test "$DOTNET_SDK" = "$REQUIRED_DOTNET_SDK"
+          {
+            echo "checked_out_sha=$CHECKED_OUT_SHA"
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "required_dotnet_sdk=$REQUIRED_DOTNET_SDK"
+            echo "dotnet_sdk=$DOTNET_SDK"
+            echo "os=$(uname -a)"
+          } | tee "$GATE/artifacts/physics-gate/environment.txt"
+          dotnet --info >> "$GATE/artifacts/physics-gate/environment.txt"
+
+      - name: Restore exact locked dependency graph
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore EverginePhysicsGate.csproj --locked-mode | tee artifacts/physics-gate/restore.log
+          cp packages.lock.json artifacts/physics-gate/packages.lock.json
+          dotnet list EverginePhysicsGate.csproj package --include-transitive | tee artifacts/physics-gate/dependency-tree.txt
+
+      - name: Strict release build
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build EverginePhysicsGate.csproj -c Release --no-restore /warnaserror | tee artifacts/physics-gate/build.log
+
+      - name: Execute real Evergine Bullet scene
+        working-directory: ${{ env.GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project EverginePhysicsGate.csproj -c Release --no-build -- artifacts/physics-gate/result.json | tee artifacts/physics-gate/runtime.log
+
+      - name: Assert machine-readable native physics evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$GATE/artifacts/physics-gate/result.json"
+          node - "$RESULT" "$CANDIDATE_HEAD_SHA" <<'NODE'
+          const fs = require('fs');
+          const [resultPath, head] = process.argv.slice(2);
+          const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          if (!r.passed || r.candidate_head_sha !== head) process.exit(1);
+          if (!r.native_physics_world_executed || !r.character_controller_executed || !r.set_velocity_executed) process.exit(1);
+          if (!r.native_wall_stop_observed || !r.release_stable || !r.arena_contained || !r.observation_copy_isolated) process.exit(1);
+          if (r.post_physics_arena_clamp !== false || r.direct_position_mutation_exposed_to_proof !== false) process.exit(1);
+          if (r.external_input_executed !== false || r.rendered_execution !== false) process.exit(1);
+          if (r.arena_width_m !== 24 || r.arena_depth_m !== 32 || r.player_radius_m !== 0.4 || r.walk_speed_mps !== 3.5) process.exit(1);
+          if (r.driven_steps !== 300 || r.released_steps !== 60) process.exit(1);
+          if (!Array.isArray(r.failures) || r.failures.length !== 0) process.exit(1);
+          NODE
+          sha256sum \
+            "$GATE/EverginePhysicsGate.csproj" \
+            "$GATE/packages.lock.json" \
+            "$GATE/Program.cs" \
+            "$GATE/README.md" \
+            "$GATE/artifacts/physics-gate/environment.txt" \
+            "$GATE/artifacts/physics-gate/packages.lock.json" \
+            "$GATE/artifacts/physics-gate/dependency-tree.txt" \
+            "$GATE/artifacts/physics-gate/restore.log" \
+            "$GATE/artifacts/physics-gate/build.log" \
+            "$GATE/artifacts/physics-gate/runtime.log" \
+            "$RESULT" \
+            > "$GATE/artifacts/physics-gate/SHA256SUMS.txt"
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-lab-001-evergine-physics-${{ github.run_id }}
+          path: experiments/BYJTT-LAB-001/candidates/evergine/physics-gate/artifacts/physics-gate/**
+          if-no-files-found: error
+          retention-days: 30
