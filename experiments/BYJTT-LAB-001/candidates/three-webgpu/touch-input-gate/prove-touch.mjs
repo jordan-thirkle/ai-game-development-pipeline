@@ -63,44 +63,42 @@ async function touchDown(locator, pointerId = 1) {
   const point = await touchPoint(locator);
   await cdp.send('Input.dispatchTouchEvent', {
     type: 'touchStart',
-    touchPoints: [{
-      x: point.x,
-      y: point.y,
-      id: pointerId,
-      radiusX: 2,
-      radiusY: 2,
-      force: 1
-    }]
+    touchPoints: [{ x: point.x, y: point.y, id: pointerId, radiusX: 2, radiusY: 2, force: 1 }]
   });
 }
 
 async function touchUp() {
-  await cdp.send('Input.dispatchTouchEvent', {
-    type: 'touchEnd',
-    touchPoints: []
-  });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
 async function touchTap(locator) {
   const point = await touchPoint(locator);
   await page.touchscreen.tap(point.x, point.y);
-  await page.waitForTimeout(100);
+  await page.waitForTimeout(50);
+}
+
+async function touchHoldUntil(locator, predicate, label, pointerId, timeout = 5000) {
+  const started = Date.now();
+  await touchDown(locator, pointerId);
+  try {
+    while (Date.now() - started < timeout) {
+      const current = await snapshot();
+      if (predicate(current)) return current;
+      await page.waitForTimeout(80);
+    }
+    throw new Error(`timed out holding touch for ${label}; final=${JSON.stringify(await snapshot())}`);
+  } finally {
+    await touchUp();
+  }
 }
 
 async function main() {
   await waitForServer();
   browser = await chromium.launch({ headless: true, channel: 'chrome' });
-  context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    hasTouch: true,
-    isMobile: true,
-    deviceScaleFactor: 1
-  });
+  context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
   page = await context.newPage();
   cdp = await context.newCDPSession(page);
-  page.on('console', (message) => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
-  });
+  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('pageerror', (error) => pageErrors.push(error.stack || error.message));
 
   await page.goto(URL, { waitUntil: 'domcontentloaded' });
@@ -131,20 +129,14 @@ async function main() {
   await page.waitForTimeout(850);
   await touchUp();
   current = await snapshot();
-  const movedMetres = Math.hypot(
-    current['player.position'].x - beforeMove.x,
-    current['player.position'].z - beforeMove.z
-  );
+  const movedMetres = Math.hypot(current['player.position'].x - beforeMove.x, current['player.position'].z - beforeMove.z);
   if (!(movedMetres > 1)) failures.push(`touch movement too small: ${movedMetres}`);
 
   await page.waitForTimeout(650);
   const releaseStart = (await snapshot())['player.position'];
   await page.waitForTimeout(500);
   current = await snapshot();
-  const releaseDrift = Math.hypot(
-    current['player.position'].x - releaseStart.x,
-    current['player.position'].z - releaseStart.z
-  );
+  const releaseDrift = Math.hypot(current['player.position'].x - releaseStart.x, current['player.position'].z - releaseStart.z);
   if (!(releaseDrift <= 0.03)) failures.push(`release drift ${releaseDrift} exceeded 0.03m`);
 
   const pause = page.getByRole('button', { name: 'Pause' });
@@ -153,9 +145,23 @@ async function main() {
   await touchTap(pause);
   current = await waitFor((state) => state['paused'] === false, 'resume through touch');
 
+  // Put the engine-owned player in legitimate salvage attack range using only the production touch movement controls.
+  current = await snapshot();
+  if (current['player.position'].x < 4.15) {
+    current = await touchHoldUntil(moveRight, (state) => state['player.position'].x >= 4.15, 'x approach to salvage', 21, 2500);
+  }
+  const moveForward = page.getByRole('button', { name: 'Move forward' });
+  current = await touchHoldUntil(moveForward, (state) => state['player.position'].z <= 1.0, 'z approach to salvage', 22, 5000);
+  await page.waitForTimeout(300);
+  current = await snapshot();
+  const salvageDistanceBeforeAttack = Math.hypot(current['player.position'].x - 5, current['player.position'].z);
+  if (!(salvageDistanceBeforeAttack <= 1.8)) failures.push(`touch route did not reach salvage attack range: ${salvageDistanceBeforeAttack}`);
+
+  const salvageHealthBeforeAttack = current['salvage.health'];
   const attack = page.getByRole('button', { name: 'Attack' });
   await touchTap(attack);
-  current = await waitFor((state) => Number(state['player.attack_cooldown']) > 0, 'attack cooldown through touch', 1500);
+  current = await waitFor((state) => state['salvage.health'] < salvageHealthBeforeAttack, 'salvage damage through touch attack', 2000);
+  const salvageHealthAfterAttack = current['salvage.health'];
 
   await touchTap(page.getByRole('button', { name: 'Camera left' }));
   await touchTap(page.getByRole('button', { name: 'Camera right' }));
@@ -174,13 +180,10 @@ async function main() {
   if (!isolation) failures.push('benchmark observation mutation leaked into engine-owned state');
 
   const events = await page.evaluate(() => window.__TOUCH_GATE_EVENTS__);
-  for (const required of ['Move right', 'Pause', 'Attack', 'Camera left', 'Camera right', 'Interact', 'save']) {
+  for (const required of ['Move right', 'Move forward', 'Pause', 'Attack', 'Camera left', 'Camera right', 'Interact', 'save']) {
     const record = events[required];
-    if (!record || record.pointerdown < 1 || record.pointerup < 1) {
-      failures.push(`missing touch pointer delivery for ${required}`);
-    } else if (!record.pointerTypes.includes('touch')) {
-      failures.push(`pointerType touch not observed for ${required}`);
-    }
+    if (!record || record.pointerdown < 1 || record.pointerup < 1) failures.push(`missing touch pointer delivery for ${required}`);
+    else if (!record.pointerTypes.includes('touch')) failures.push(`pointerType touch not observed for ${required}`);
   }
 
   if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
@@ -206,6 +209,9 @@ async function main() {
     human_tested: false,
     moved_metres: movedMetres,
     release_drift_metres: releaseDrift,
+    salvage_distance_before_attack_metres: salvageDistanceBeforeAttack,
+    salvage_health_before_attack: salvageHealthBeforeAttack,
+    salvage_health_after_attack: salvageHealthAfterAttack,
     observation_isolation: isolation,
     event_counts: events,
     final_snapshot: current,
