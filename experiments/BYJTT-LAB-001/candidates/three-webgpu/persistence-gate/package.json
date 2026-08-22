@@ -1,0 +1,21 @@
+{
+  "name": "byjtt-benchmark-001-three-progression-gate",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "runtime": "node scripts/runtime.mjs"
+  },
+  "dependencies": {
+    "jolt-physics": "1.1.0",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.185.0",
+    "playwright": "1.55.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.3"
+  }
+}
