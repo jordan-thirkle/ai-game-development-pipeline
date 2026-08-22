@@ -3,7 +3,7 @@ name: Benchmark 001 Three WebGPU Human Alpha
 on:
   pull_request:
     paths:
-      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/human-alpha/**'
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/**'
       - '.github/workflows/benchmark-001-three-human-alpha.yml'
   workflow_dispatch:
 
