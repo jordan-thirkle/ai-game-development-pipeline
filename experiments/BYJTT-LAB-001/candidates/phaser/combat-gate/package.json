@@ -1,0 +1,19 @@
+{
+  "name": "byjtt-phaser-combat-gate",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "test:browser": "node scripts/run-browser.mjs"
+  },
+  "dependencies": {
+    "phaser": "4.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.3"
+  }
+}

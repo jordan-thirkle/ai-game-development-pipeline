@@ -1,0 +1,127 @@
+name: Benchmark 001 Phaser combat gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/phaser/combat-gate/**'
+      - '.github/workflows/benchmark-001-phaser-combat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phaser-combat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GATE_DIR: experiments/BYJTT-LAB-001/candidates/phaser/combat-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Assert exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          printf 'expected=%s\nactual=%s\n' "$CANDIDATE_HEAD_SHA" "$actual"
+          test "$actual" = "$CANDIDATE_HEAD_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.17.0'
+
+      - name: Materialize and inspect dependency lock
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR/evidence"
+          cd "$GATE_DIR"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          sha256sum package-lock.json | tee evidence/package-lock.sha256
+          npm --version | tee evidence/npm-version.txt
+          node --version | tee evidence/node-version.txt
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo 'committed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'committed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload dependency bootstrap evidence
+        if: steps.lock.outputs.committed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phaser-combat-lock-bootstrap
+          path: |
+            ${{ env.GATE_DIR }}/package-lock.json
+            ${{ env.GATE_DIR }}/evidence/package-lock.sha256
+            ${{ env.GATE_DIR }}/evidence/npm-version.txt
+            ${{ env.GATE_DIR }}/evidence/node-version.txt
+          if-no-files-found: error
+
+      - name: Require committed dependency graph
+        if: steps.lock.outputs.committed != 'true'
+        run: |
+          echo 'package-lock.json must be committed before executable proof.' >&2
+          exit 1
+
+      - name: Install exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all | tee evidence/npm-tree.txt
+
+      - name: Strict TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+
+      - name: Production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          npm run build 2>&1 | tee evidence/build.log
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          npx playwright install --with-deps chromium 2>&1 | tee evidence/playwright-install.log
+
+      - name: Execute real browser combat gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          timeout 90s npm run test:browser 2>&1 | tee evidence/browser-run.log
+
+      - name: Record exact-head evidence
+        if: always() && steps.lock.outputs.committed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GATE_DIR"
+          printf '%s\n' "$CANDIDATE_HEAD_SHA" > evidence/candidate-head.txt
+          git rev-parse HEAD > evidence/actual-head.txt
+          find evidence -type f ! -name sha256.txt -print0 | sort -z | xargs -0 sha256sum > evidence/sha256.txt
+
+      - name: Upload executable evidence
+        if: always() && steps.lock.outputs.committed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phaser-combat-evidence
+          path: ${{ env.GATE_DIR }}/evidence
+          if-no-files-found: error
