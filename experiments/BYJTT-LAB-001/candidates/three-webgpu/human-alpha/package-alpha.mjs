@@ -59,7 +59,7 @@ const types = new Map([
 
 const server = http.createServer(async (request, response) => {
   try {
-    const requestUrl = new URL(request.url || '/', \\`http://\\${host}:\\${port}\\`);
+    const requestUrl = new URL(request.url || '/', 'http://' + host + ':' + port);
     const decoded = decodeURIComponent(requestUrl.pathname);
     const normalized = path.posix.normalize(decoded).replace(/^\\/+(\\.\\.\\/)+/, '/');
     let target = path.resolve(root, '.' + normalized);
@@ -83,7 +83,7 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-server.listen(port, host, () => console.log(\\`BYJTT Three.js human alpha: http://\\${host}:\\${port}\\`));
+server.listen(port, host, () => console.log('BYJTT Three.js human alpha: http://' + host + ':' + port));
 `;
 
 const playtest = `# BYJTT-LAB-001 Three.js/WebGPU local alpha\n\nThis package is the exact production build tested by the human-alpha gate. It has **not** been publicly published and a green automation result is **not** a human playability verdict.\n\n## Start\n\n- macOS/Linux: double-click or run \`./START.command\`\n- Windows: double-click \`START.cmd\`\n- manual: \`node serve.mjs\` then open http://127.0.0.1:4175\n\nNode is only used as a local static-file server; gameplay runs in the browser.\n\n## Controls\n\n- WASD: move\n- Shift: sprint\n- Space: attack\n- E: interact/select upgrade\n- P: save when the game exposes the normal save action\n\n## Human test focus\n\nComplete the visible loop normally and record anything confusing, broken, unfair, visually poor, or unpleasant. Do not use developer tools to manufacture gameplay state.\n`;
