@@ -106,21 +106,23 @@ jobs:
             return 1
           }
 
-          xdotool keydown --window "$WINDOW_ID" d
+          # Route through normal physical keys along the actual shared spawn -> salvage vector:
+          # first reduce z from 10 toward 0, then increase x toward 5.
           xdotool keydown --window "$WINDOW_ID" s
+          wait_for_distance 5.10
+          xdotool keyup --window "$WINDOW_ID" s
+          sleep 0.10
+          xdotool keydown --window "$WINDOW_ID" d
           wait_for_distance 1.75
           xdotool keyup --window "$WINDOW_ID" d
-          xdotool keyup --window "$WINDOW_ID" s
           sleep 0.15
           xdotool key --window "$WINDOW_ID" space
           sleep 0.2
           node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(r.salvage_health!==0 || !r.reward_available) process.exit(1);' "$ARTIFACTS/live-observation.json"
 
           xdotool keydown --window "$WINDOW_ID" d
-          xdotool keydown --window "$WINDOW_ID" s
           wait_for_distance 1.20
           xdotool keyup --window "$WINDOW_ID" d
-          xdotool keyup --window "$WINDOW_ID" s
           sleep 0.2
           node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(r.reward_count!==1 || !r.upgrade_menu_visible) process.exit(1);' "$ARTIFACTS/live-observation.json"
           xdotool key --window "$WINDOW_ID" e
@@ -141,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           RESULT="$CANDIDATE/evidence/runtime-result.json"
-          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.external_input_executed || !r.rendered_window_executed || !r.gameplay_attack_action_executed || !r.gameplay_interact_action_executed || r.movement_press_callbacks < 4 || r.movement_release_callbacks < 4 || r.attack_press_callbacks < 1 || r.attack_release_callbacks < 1 || r.interact_press_callbacks < 1 || r.interact_release_callbacks < 1 || r.attack_distance_m > 1.8 || r.pickup_distance_m > 1.25 || r.salvage_health !== 0 || r.reward_count !== 1 || !r.damage_upgrade_selected || Math.abs(r.effective_attack_damage-40.8)>0.0001 || r.direct_position_setter_exposed || r.direct_salvage_health_setter_exposed || r.direct_reward_grant_exposed || r.direct_upgrade_grant_exposed || r.post_physics_arena_clamp || !r.observation_copy_isolated || !r.stayed_inside_arena || r.timed_out || r.rendered_frames < 1) process.exit(1);' "$RESULT"
+          node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(!r.passed || !r.external_input_executed || !r.rendered_window_executed || !r.gameplay_attack_action_executed || !r.gameplay_interact_action_executed || r.movement_press_callbacks < 3 || r.movement_release_callbacks < 3 || r.attack_press_callbacks < 1 || r.attack_release_callbacks < 1 || r.interact_press_callbacks < 1 || r.interact_release_callbacks < 1 || r.attack_distance_m > 1.8 || r.pickup_distance_m > 1.25 || r.salvage_health !== 0 || r.reward_count !== 1 || !r.damage_upgrade_selected || Math.abs(r.effective_attack_damage-40.8)>0.0001 || r.direct_position_setter_exposed || r.direct_salvage_health_setter_exposed || r.direct_reward_grant_exposed || r.direct_upgrade_grant_exposed || r.post_physics_arena_clamp || !r.observation_copy_isolated || !r.stayed_inside_arena || r.timed_out || r.rendered_frames < 1) process.exit(1);' "$RESULT"
           test -s "$CANDIDATE/evidence/before-progression.png"
           test -s "$CANDIDATE/evidence/after-progression.png"
           sha256sum "$CANDIDATE/pom.xml" "$CANDIDATE/src/main/java/com/byjtt/lab/RenderedProgressionGate.java" "$CANDIDATE/evidence/environment.txt" "$CANDIDATE/evidence/dependency-tree.txt" "$CANDIDATE/evidence/glxinfo.txt" "$CANDIDATE/evidence/window-diagnostics.txt" "$CANDIDATE/evidence/runtime.log" "$RESULT" "$CANDIDATE/evidence/before-progression.png" "$CANDIDATE/evidence/after-progression.png" > "$CANDIDATE/evidence/sha256.txt"
