@@ -264,6 +264,7 @@ function renderFailedAttempt(result, { recovered = false } = {}) {
   panel.classList.remove('hidden');
   if (recovered) {
     restoreFailedJourney(result);
+    document.querySelector('[data-view="local-run"]')?.click();
     const message = document.querySelector('#run-message');
     if (message) {
       message.className = 'notice fail';
