@@ -1,0 +1,83 @@
+name: BYJTT-LAB-001 PlayCanvas progression gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/playcanvas/progression-gate/**'
+      - '.github/workflows/benchmark-001-playcanvas-progression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/playcanvas/progression-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+          mkdir -p "$CANDIDATE_DIR/evidence"
+          {
+            echo "candidate_head=$CANDIDATE_HEAD_SHA"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+          } | tee "$CANDIDATE_DIR/evidence/environment.txt"
+      - name: Verify exact dependency graph
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          OBSERVED="$(sha256sum package-lock.json | awk '{print $1}')"
+          EXPECTED="$(tr -d '[:space:]' < expected-package-lock.sha256)"
+          cp package-lock.json evidence/package-lock.json
+          printf '%s\n' "$OBSERVED" | tee evidence/package-lock.sha256
+          if [ "$EXPECTED" = "UNSET" ]; then
+            echo "dependency provenance bootstrap: expected hash intentionally unset" | tee evidence/dependency-bootstrap.txt
+            exit 42
+          fi
+          test "$OBSERVED" = "$EXPECTED"
+          npm ci --ignore-scripts
+          npm ls --all | tee evidence/npm-tree.txt
+      - name: Strict typecheck and production build
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+          npm run build 2>&1 | tee evidence/build.log
+      - name: Install Chromium
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+      - name: Execute progression proof
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 120s npm run proof 2>&1 | tee evidence/runtime.log
+          test -s runtime-result.json
+          test -s progression.png
+          node -e 'const r=require("./runtime-result.json"); if(!r.passed || !r.externalInputExecuted || r.salvageHealth!==0 || r.rewardCount!==1 || r.selectedUpgrades[0]!=="damage-up-1" || Math.abs(r.effectiveDamage-40.8)>1e-6 || !r.observationMutationIsolation || r.directPositionMutationSurface || r.directSalvageHealthMutationSurface || r.directRewardMutationSurface || r.directUpgradeMutationSurface || r.testOnlyGameplayMutationShortcut || r.postPhysicsArenaClamp || r.pageErrors.length || r.consoleErrors.length) process.exit(1)'
+          cp runtime-result.json progression.png vite.log evidence/
+          sha256sum evidence/* | sort > evidence/sha256.txt
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-playcanvas-progression-${{ env.CANDIDATE_HEAD_SHA }}
+          path: experiments/BYJTT-LAB-001/candidates/playcanvas/progression-gate/evidence
+          if-no-files-found: error
