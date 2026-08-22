@@ -119,16 +119,23 @@ try {
   await page.keyboard.up('KeyD');
   const activeSamples = await activeSamplesPromise;
 
-  const released = await snapshot();
-  const releasePosition = released['player.position'];
-  await page.waitForTimeout(450);
-  const settled = await snapshot();
-  const settledPosition = settled['player.position'];
-
+  const keyReleaseSnapshot = await snapshot();
+  const keyReleasePosition = keyReleaseSnapshot['player.position'];
   const moved = Math.hypot(
-    releasePosition.x - beforePosition.x,
-    releasePosition.z - beforePosition.z
+    keyReleasePosition.x - beforePosition.x,
+    keyReleasePosition.z - beforePosition.z
   );
+
+  // The shared movement contract includes finite deceleration (22 m/s²), so
+  // immediate post-keyup travel is expected gameplay. Measure stability only
+  // after a bounded 600 ms settle interval, matching the existing human-alpha
+  // proof pattern, then observe a second 600 ms no-input window.
+  await page.waitForTimeout(600);
+  const releaseBaseline = await snapshot();
+  const releasePosition = releaseBaseline['player.position'];
+  await page.waitForTimeout(600);
+  const stable = await snapshot();
+  const settledPosition = stable['player.position'];
   const releaseDrift = Math.hypot(
     settledPosition.x - releasePosition.x,
     settledPosition.z - releasePosition.z
@@ -142,7 +149,7 @@ try {
   if (idle.samples < 60) failures.push(`insufficient idle frame samples: ${idle.samples}`);
   if (active.samples < 60) failures.push(`insufficient active frame samples: ${active.samples}`);
   if (!(moved > 0.5)) failures.push(`normal input did not move engine-owned player enough: ${moved}`);
-  if (releaseDrift > 0.05) failures.push(`release drift exceeded 0.05 m: ${releaseDrift}`);
+  if (releaseDrift > 0.05) failures.push(`post-deceleration release drift exceeded 0.05 m: ${releaseDrift}`);
   if (consoleErrors.length) failures.push(`browser errors: ${consoleErrors.join(' | ')}`);
 
   const result = {
@@ -160,6 +167,12 @@ try {
     idle,
     active_input: active,
     player_movement_metres: moved,
+    post_keyup_deceleration_metres: Math.hypot(
+      releasePosition.x - keyReleasePosition.x,
+      releasePosition.z - keyReleasePosition.z
+    ),
+    release_settle_ms: 600,
+    release_observation_ms: 600,
     release_drift_metres: releaseDrift,
     target_comparison: {
       idle_median_meets_60fps_target: (idle.median_fps ?? 0) >= 60,
@@ -174,7 +187,8 @@ try {
     notes: [
       'Measurements are execution evidence from a GitHub-hosted Linux Chrome runner at the shared 390x844 viewport.',
       'The shared 60 FPS target is compared but not promoted into a device/mobile performance-readiness claim.',
-      'Normal physical keyboard movement and camera input are used during the active sampling window; no gameplay mutation shortcut is exposed.'
+      'Normal physical keyboard movement and camera input are used during the active sampling window; no gameplay mutation shortcut is exposed.',
+      'Release stability is measured after a 600 ms no-input deceleration interval because the unchanged shared player contract specifies finite 22 m/s² deceleration.'
     ]
   };
 
