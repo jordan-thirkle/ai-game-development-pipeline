@@ -1,5 +1,5 @@
 import { recoverableBriefValues } from './latest-run-recovery.mjs';
-import { portableStarterManifestTextFromBundleFile } from './portable-starter-bundle.mjs';
+import { verifiedPortableStarterImportFromBundleFile } from './portable-starter-bundle.mjs';
 
 const FAILED_RUN_SESSION_KEY = 'byjtt:studio:failed-run:v1';
 const RETRY_DRAFT_SESSION_KEY = 'byjtt:studio:failed-retry-draft:v1';
@@ -473,10 +473,11 @@ function ensurePortableStarterImport() {
     if (!file) return;
     try {
       if (document.querySelector('#run-brief')?.disabled || document.querySelector('#run-sample')?.disabled) throw new Error('Wait for the current local run to finish before loading a starter bundle.');
-      const manifestText = await portableStarterManifestTextFromBundleFile(file);
-      const brief = parsePortableStarterBriefText(manifestText);
+      const imported = await verifiedPortableStarterImportFromBundleFile(file);
+      const brief = parsePortableStarterBriefText(imported.manifestText);
       applyPortableBrief(brief);
-      portableImportMessage('pass', `Planning intent loaded locally from ${file.name}. Studio decompressed the bounded archive in this browser and read only starter/project.manifest.json; project source was not uploaded or executed and historical build/QA/release evidence was not imported.`);
+      const proof = imported.verification;
+      portableImportMessage('pass', `Verified bundle checked locally before continuation. Build: ${proof.buildStatus}; QA: ${proof.qaStatus}; release candidate: ${proof.releaseCandidateStatus}; publication: ${proof.publicationStatus}; secrets: ${proof.secretsStatus}; artifact: ${proof.artifactPath} ${proof.artifactSha256}; destination: ${proof.destination}. Planning intent loaded from ${file.name}, but historical evidence was not imported as execution authority. Nothing was uploaded or executed; review the four Creator fields before explicitly running again.`);
     } catch (error) {
       portableImportMessage('fail', `Starter bundle was not loaded: ${error.message}`);
     } finally {
