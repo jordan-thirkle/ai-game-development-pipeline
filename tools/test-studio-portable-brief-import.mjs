@@ -3,10 +3,15 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   parsePortableStarterBriefText,
-  portableStarterBriefFromManifest
+  portableStarterBriefFromManifest,
+  portableStarterManifestFileFromSelection
 } from '../apps/studio/failed-run-retry.mjs';
 
 const sampleManifest = JSON.parse(await readFile(new URL('../examples/sample-game/project.manifest.json', import.meta.url), 'utf8'));
+
+function mockFile(path, size = 128) {
+  return { webkitRelativePath: path, size };
+}
 
 test('imports planning intent from the real sample manifest without execution authority', () => {
   const brief = portableStarterBriefFromManifest(sampleManifest);
@@ -29,6 +34,43 @@ test('parses JSON text through the same fail-closed contract', () => {
     portableStarterBriefFromManifest(sampleManifest)
   );
   assert.throws(() => parsePortableStarterBriefText('{bad json'), /valid JSON/i);
+});
+
+test('selects exactly the reviewed manifest from an extracted starter folder inventory', () => {
+  const manifest = mockFile('verified-starter/starter/project.manifest.json', 512);
+  const selected = portableStarterManifestFileFromSelection([
+    mockFile('verified-starter/OPEN_PROJECT.html'),
+    mockFile('verified-starter/VERIFICATION.html'),
+    manifest,
+    mockFile('verified-starter/starter/dist/index.html')
+  ]);
+  assert.equal(selected, manifest);
+});
+
+test('folder selection fails closed on missing, ambiguous, unsafe, or oversized inventories', () => {
+  assert.throws(() => portableStarterManifestFileFromSelection([]), /choose the extracted verified starter folder/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('verified-starter/OPEN_PROJECT.html')
+  ]), /exactly one starter\/project\.manifest\.json/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('a/starter/project.manifest.json'),
+    mockFile('b/starter/project.manifest.json')
+  ]), /more than one/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('verified-starter/../starter/project.manifest.json')
+  ]), /unsafe relative path/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('verified-starter\\starter\\project.manifest.json')
+  ]), /unsupported path separator/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('verified-starter/starter/project.manifest.json', 0)
+  ]), /between 1 byte/i);
+  assert.throws(() => portableStarterManifestFileFromSelection([
+    mockFile('verified-starter/starter/project.manifest.json', 64 * 1024 + 1)
+  ]), /between 1 byte/i);
+  assert.throws(() => portableStarterManifestFileFromSelection(
+    Array.from({ length: 257 }, (_, index) => mockFile(`verified-starter/file-${index}.txt`))
+  ), /no more than 256 files/i);
 });
 
 test('rejects native or unsupported execution claims', () => {
