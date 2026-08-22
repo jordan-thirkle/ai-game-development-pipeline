@@ -1,0 +1,75 @@
+name: BYJTT-LAB-001 Babylon progression gate
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/babylonjs/progression-gate/**'
+      - '.github/workflows/benchmark-001-babylon-progression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_DIR: experiments/BYJTT-LAB-001/candidates/babylonjs/progression-gate
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+          mkdir -p "$CANDIDATE_DIR/evidence"
+          {
+            echo "candidate_head=$CANDIDATE_HEAD_SHA"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+          } | tee "$CANDIDATE_DIR/evidence/environment.txt"
+      - name: Materialize exact direct dependency graph
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          npm ls --all | tee evidence/npm-tree.txt
+          sha256sum package-lock.json | tee evidence/package-lock.sha256
+      - name: Strict typecheck and production build
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck 2>&1 | tee evidence/typecheck.log
+          npm run build 2>&1 | tee evidence/build.log
+      - name: Install Chromium
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+      - name: Execute real browser progression proof
+        working-directory: ${{ env.CANDIDATE_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 120s npm run proof 2>&1 | tee evidence/runtime.log
+          test -s runtime-result.json
+          test -s progression.png
+          node -e 'const r=require("./runtime-result.json"); if(!r.passed) process.exit(1); if(!r.externalInputExecuted) process.exit(1); if(r.directGameplayMutationShortcut) process.exit(1); if(r.rewardCount!==1 || r.selectedUpgrades[0]!=="damage-up-1") process.exit(1);'
+          cp runtime-result.json progression.png vite.log evidence/
+          sha256sum evidence/* | sort > evidence/sha256.txt
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: byjtt-babylon-progression-${{ env.CANDIDATE_HEAD_SHA }}
+          path: experiments/BYJTT-LAB-001/candidates/babylonjs/progression-gate/evidence
+          if-no-files-found: error
