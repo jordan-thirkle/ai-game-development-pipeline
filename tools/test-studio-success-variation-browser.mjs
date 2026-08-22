@@ -122,6 +122,34 @@ try {
   assert.doesNotMatch(await page.locator('#run-message').textContent(), /Verified brief copied/i);
   assert.equal(pipelinePosts, 2, 'invalid variation recovery must not execute the pipeline');
 
+  await page.evaluate((key) => sessionStorage.setItem(key, '{not-json'), variationKey);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), variationKey), null, 'malformed variation draft was not removed');
+  assert.equal(await page.locator('#play-result').isVisible(), false, 'malformed variation draft exposed playable authority');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(), false, 'malformed variation draft exposed evidence authority');
+  assert.doesNotMatch(await page.locator('#run-message').textContent(), /Verified brief copied/i);
+  assert.equal(pipelinePosts, 2, 'malformed variation recovery must not execute the pipeline');
+
+  await page.evaluate((key) => {
+    const oversized = JSON.stringify({
+      brief: {
+        name: 'Oversized variation',
+        objective: 'x'.repeat(5000),
+        targetPlatform: 'web',
+        mechanic: 'collect'
+      }
+    });
+    sessionStorage.setItem(key, oversized);
+  }, variationKey);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-view="local-run"]').click();
+  assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), variationKey), null, 'oversized variation draft was not removed');
+  assert.equal(await page.locator('#play-result').isVisible(), false, 'oversized variation draft exposed playable authority');
+  assert.equal(await page.locator('#run-evidence-panel').isVisible(), false, 'oversized variation draft exposed evidence authority');
+  assert.doesNotMatch(await page.locator('#run-message').textContent(), /Verified brief copied/i);
+  assert.equal(pipelinePosts, 2, 'oversized variation recovery must not execute the pipeline');
+
   assert.deepEqual(externalRequests, [], 'variation journey made external HTTP(S) requests');
   assert.deepEqual(errors, []);
   await page.screenshot({ path: `${artifacts}/verified-brief-variation.png`, fullPage: true });
@@ -134,12 +162,14 @@ try {
     priorArtifactHandlesInvalidated: true,
     staleVariationDraftRejectedInFavorOfVerifiedRun: true,
     invalidVariationDraftRejected: true,
+    malformedVariationDraftRejected: true,
+    oversizedVariationDraftRejected: true,
     publicationExecuted: false,
     secretsUsed: false,
     externalHttpRequests: externalRequests.length
   };
   await writeFile(`${artifacts}/verified-brief-variation.json`, `${JSON.stringify(evidence, null, 2)}\n`);
-  console.log('Verified brief variation dogfood passed: one-click planning continuity caused zero execution, invalidated stale success authority, and only the explicit edited submission created one new local dry-run pipeline execution.');
+  console.log('Verified brief variation dogfood passed: one-click planning continuity caused zero execution, invalidated stale success authority, rejected malformed/oversized drafts, and only the explicit edited submission created one new local dry-run pipeline execution.');
 } finally {
   await browser.close();
 }
