@@ -61,6 +61,7 @@ test('summarizes only consistent passing local evidence', () => {
   assert.equal(facts.Build, 'executed · pass');
   assert.equal(facts.QA, 'executed · pass');
   assert.equal(facts['Release candidate'], 'dry-run only');
+  assert.equal(facts['QA artifact proof'], `build ${HASH} · QA ${HASH} · promoted ${HASH} · same verified bytes`);
   assert.equal(facts.Publication, 'not executed');
   assert.equal(facts.Secrets, 'not used');
   assert.equal(facts.Destination, 'local://planned/sample-game');
@@ -120,10 +121,32 @@ test('rejects failed or unexecuted QA', () => {
   assert.throws(() => buildInlineVerificationFacts(unexecuted), /QA evidence/i);
 });
 
-test('rejects artifact hash disagreement across build, QA, and release evidence', () => {
-  const result = safeResult();
-  result.evidence.releaseCandidate.build.outputSha256 = `sha256:${'d'.repeat(64)}`;
-  assert.throws(() => buildInlineVerificationFacts(result), /revision-consistent/i);
+test('rejects independent build, QA, or promoted-candidate artifact disagreement', () => {
+  for (const [label, mutate] of [
+    ['build', (result) => { result.evidence.build.artifactSha256 = `sha256:${'d'.repeat(64)}`; }],
+    ['QA', (result) => { result.evidence.qa.artifactSha256 = `sha256:${'e'.repeat(64)}`; }],
+    ['promoted candidate', (result) => { result.evidence.releaseCandidate.build.outputSha256 = `sha256:${'f'.repeat(64)}`; }]
+  ]) {
+    const result = safeResult();
+    mutate(result);
+    assert.throws(
+      () => buildInlineVerificationFacts(result),
+      /revision-consistent/i,
+      `${label} disagreement must fail closed`
+    );
+  }
+});
+
+test('rejects malformed artifact hashes instead of displaying byte identity', () => {
+  for (const mutate of [
+    (result) => { result.evidence.build.artifactSha256 = 'sha256:not-a-digest'; },
+    (result) => { result.evidence.qa.artifactSha256 = null; },
+    (result) => { result.evidence.releaseCandidate.build.outputSha256 = 'not-a-digest'; }
+  ]) {
+    const result = safeResult();
+    mutate(result);
+    assert.throws(() => buildInlineVerificationFacts(result), /revision-consistent/i);
+  }
 });
 
 test('rejects malformed bundle provenance instead of displaying a verified summary', () => {
