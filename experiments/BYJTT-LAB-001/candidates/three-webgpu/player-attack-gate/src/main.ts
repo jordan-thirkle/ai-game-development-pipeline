@@ -153,7 +153,11 @@ function playerHorizontal(): THREE.Vector2 {
 function separation(): number { return playerHorizontal().distanceTo(new THREE.Vector2(ENEMY_SPAWN.x, ENEMY_SPAWN.z)); }
 
 window.addEventListener('keydown', (event) => {
-  if (event.code === 'KeyS' && !event.repeat) movementKeyDowns += 1;
+  if (event.code === 'KeyS' && !event.repeat) {
+    movementKeyDowns += 1;
+    releasePosition = null;
+    playerReleaseDrift = 0;
+  }
   if (event.code === 'Space' && !event.repeat) {
     attackKeyDowns += 1;
     attackQueued = true;
@@ -164,6 +168,7 @@ window.addEventListener('keyup', (event) => {
   if (event.code === 'KeyS') {
     movementKeyUps += 1;
     releasePosition = playerHorizontal();
+    playerReleaseDrift = 0;
   }
   if (event.code === 'Space') attackKeyUps += 1;
   keys.delete(event.code);
