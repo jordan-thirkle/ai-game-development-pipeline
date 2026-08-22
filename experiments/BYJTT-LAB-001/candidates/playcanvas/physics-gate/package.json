@@ -1,0 +1,25 @@
+{
+  "name": "byjtt-lab-001-playcanvas-physics-gate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "acquire:ammo": "node tools/acquire-ammo.mjs",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "npm run acquire:ammo",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4174",
+    "test:browser": "node tools/browser-proof.mjs"
+  },
+  "dependencies": {
+    "playcanvas": "2.21.3"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.1"
+  }
+}

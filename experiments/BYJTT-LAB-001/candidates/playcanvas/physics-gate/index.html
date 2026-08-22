@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>BYJTT-LAB-001 PlayCanvas Physics Gate</title>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #111820; color: white; font-family: system-ui, sans-serif; }
+      canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+      #hud { position: fixed; inset: 12px 12px auto 12px; display: flex; justify-content: space-between; gap: 12px; pointer-events: none; }
+      #hud > div { background: rgb(0 0 0 / .65); border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+      #start { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); min-width: 160px; min-height: 48px; border: 1px solid #fff6; border-radius: 12px; background: #172c3d; color: white; font: inherit; }
+    </style>
+  </head>
+  <body>
+    <canvas id="application"></canvas>
+    <div id="hud"><div id="status">Booting native physics…</div><div id="coords">x — · y —</div></div>
+    <button id="start" type="button">Start physics gate</button>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
