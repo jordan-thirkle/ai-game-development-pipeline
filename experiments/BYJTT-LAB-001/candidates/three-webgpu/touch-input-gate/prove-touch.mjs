@@ -23,6 +23,7 @@ const failures = [];
 let browser;
 let context;
 let page;
+let cdp;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,31 +52,40 @@ async function waitFor(predicate, label, timeout = 10000) {
   throw new Error(`timed out waiting for ${label}; final=${JSON.stringify(await snapshot())}`);
 }
 
+async function touchPoint(locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('touch target has no visible bounding box');
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
 async function touchDown(locator, pointerId = 1) {
-  await locator.dispatchEvent('pointerdown', {
-    pointerId,
-    pointerType: 'touch',
-    isPrimary: true,
-    buttons: 1,
-    button: 0
+  const point = await touchPoint(locator);
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{
+      x: point.x,
+      y: point.y,
+      id: pointerId,
+      radiusX: 2,
+      radiusY: 2,
+      force: 1
+    }]
   });
 }
 
-async function touchUp(locator, pointerId = 1) {
-  await locator.dispatchEvent('pointerup', {
-    pointerId,
-    pointerType: 'touch',
-    isPrimary: true,
-    buttons: 0,
-    button: 0
+async function touchUp() {
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: []
   });
 }
 
 async function touchTap(locator, pointerId = 1) {
   await touchDown(locator, pointerId);
-  await page.waitForTimeout(35);
-  await touchUp(locator, pointerId);
-  await locator.dispatchEvent('click', { detail: 1 });
+  await page.waitForTimeout(60);
+  await touchUp();
+  await page.waitForTimeout(80);
 }
 
 async function main() {
@@ -88,6 +98,7 @@ async function main() {
     deviceScaleFactor: 1
   });
   page = await context.newPage();
+  cdp = await context.newCDPSession(page);
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
@@ -119,7 +130,7 @@ async function main() {
   const beforeMove = current['player.position'];
   await touchDown(moveRight, 11);
   await page.waitForTimeout(850);
-  await touchUp(moveRight, 11);
+  await touchUp();
   current = await snapshot();
   const movedMetres = Math.hypot(
     current['player.position'].x - beforeMove.x,
@@ -145,8 +156,7 @@ async function main() {
 
   const attack = page.getByRole('button', { name: 'Attack' });
   await touchTap(attack, 14);
-  current = await snapshot();
-  if (!(Number(current['player.attack_cooldown']) > 0)) failures.push('touch attack did not enter attack cooldown');
+  current = await waitFor((state) => Number(state['player.attack_cooldown']) > 0, 'attack cooldown through touch', 1500);
 
   await touchTap(page.getByRole('button', { name: 'Camera left' }), 15);
   await touchTap(page.getByRole('button', { name: 'Camera right' }), 16);
@@ -190,6 +200,7 @@ async function main() {
     viewport: { width: 390, height: 844 },
     has_touch: true,
     mobile_emulation: true,
+    input_transport: 'Chrome DevTools Protocol Input.dispatchTouchEvent',
     touch_pointer_events_executed: true,
     physical_device_executed: false,
     target_device_performance_proven: false,
