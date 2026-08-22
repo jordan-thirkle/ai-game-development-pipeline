@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends xvfb xauth
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdotool x11-utils openbox
 
       - name: Record exact-head environment
         shell: bash
@@ -52,6 +52,8 @@ jobs:
             echo "npm=$(npm --version)"
             echo "chrome=$(google-chrome --version)"
             echo "xvfb_run=$(command -v xvfb-run)"
+            echo "xdotool=$(xdotool version | head -1)"
+            echo "openbox=$(openbox --version | head -1)"
             echo "os=$(uname -a)"
           } | tee "$CANDIDATE/artifacts/focus-input/environment.txt"
 
@@ -81,15 +83,16 @@ jobs:
           set -euo pipefail
           npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/focus-input/phase-a.log"
 
-      - name: Execute production focus-loss probe in headed Chrome
+      - name: Execute production focus-loss probe through X11 window manager
         shell: bash
         run: |
           set -euo pipefail
           cd "$CANDIDATE"
           set +e
-          xvfb-run -a -s '-screen 0 1280x1024x24' node focus-input-gate/probe-focus-loss.mjs 2>&1 | tee artifacts/focus-input/runtime.log
+          xvfb-run -a -s '-screen 0 1280x1024x24' bash -c 'openbox >/tmp/byjtt-openbox.log 2>&1 & exec node focus-input-gate/probe-focus-loss.mjs' 2>&1 | tee artifacts/focus-input/runtime.log
           probe_status=${PIPESTATUS[0]}
           set -e
+          cp /tmp/byjtt-openbox.log artifacts/focus-input/openbox.log 2>/dev/null || true
           node - <<'NODE'
           const fs = require('fs');
           const result = JSON.parse(fs.readFileSync('artifacts/focus-input/runtime-result.json', 'utf8'));
