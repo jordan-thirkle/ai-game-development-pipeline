@@ -163,13 +163,18 @@ function updateCharacter(character: ReturnType<typeof makeCharacter>, velocity: 
 function acquirePath(): void {
   const ep = enemy.GetPosition();
   const pp = player.GetPosition();
-  const start = navQuery.findClosestPoint({ x: ep.GetX(), y: 0, z: ep.GetZ() });
-  const end = navQuery.findClosestPoint({ x: pp.GetX(), y: 0, z: pp.GetZ() });
-  if (!start.success || !end.success) throw new Error('Recast closest-point failed after acquisition');
-  if (start.polyRef === end.polyRef) {
-    pathPoints = [{ ...start.point }, { ...end.point }];
+  const startResult = navQuery.findClosestPoint({ x: ep.GetX(), y: 0, z: ep.GetZ() });
+  if (!startResult.success) throw new Error('Recast enemy closest-point failed after acquisition');
+  const startPoint: Point = { ...startResult.point };
+  const startPolyRef = startResult.polyRef;
+  const endResult = navQuery.findClosestPoint({ x: pp.GetX(), y: 0, z: pp.GetZ() });
+  if (!endResult.success) throw new Error('Recast player closest-point failed after acquisition');
+  const endPoint: Point = { ...endResult.point };
+  const endPolyRef = endResult.polyRef;
+  if (startPolyRef === endPolyRef) {
+    pathPoints = [startPoint, endPoint];
   } else {
-    const result = navQuery.computePath(start.point, end.point);
+    const result = navQuery.computePath(startPoint, endPoint);
     if (!result.success || result.path.length < 2) throw new Error(`Detour path failed after acquisition: ${String(result.error)}`);
     pathPoints = result.path.map((p) => ({ ...p }));
   }
