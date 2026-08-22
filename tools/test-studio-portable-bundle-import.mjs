@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   portableStarterBundleLimits,
-  portableStarterManifestTextFromTarBytes
+  portableStarterManifestTextFromTarBytes,
+  verifiedPortableStarterManifestTextFromTarBytes
 } from '../apps/studio/portable-starter-bundle.mjs';
 import { parsePortableStarterBriefText } from '../apps/studio/failed-run-retry.mjs';
 
@@ -52,6 +54,43 @@ function tar(entries) {
   return concat(...entries, new Uint8Array(1024));
 }
 
+function artifactSha256(indexBody) {
+  const body = Buffer.from(indexBody, 'utf8');
+  const hash = createHash('sha256');
+  hash.update('directory\0\0');
+  hash.update(`file\0index.html\0${body.length}\0`);
+  hash.update(body);
+  return `sha256:${hash.digest('hex')}`;
+}
+
+function verifiedArchive({
+  indexBody = '<!doctype html><title>playable</title>',
+  build = {},
+  qa = {},
+  release = {},
+  publishing = {},
+  includeEvidence = true
+} = {}) {
+  const digest = artifactSha256(indexBody);
+  const baseBuild = { executed: true, status: 'pass', artifactPath: 'dist', artifactSha256: digest };
+  const baseQa = { executed: true, status: 'pass', artifactPath: 'dist', artifactSha256: digest };
+  const baseRelease = { dryRunOnly: true, build: { artifactPath: 'dist', outputSha256: digest } };
+  const basePublishing = { executed: false, secretsUsed: false, destination: { kind: 'local', target: 'local://planned/sample-game' } };
+  const entries = [
+    tarEntry('starter/project.manifest.json', manifestText),
+    tarEntry('starter/dist/index.html', indexBody)
+  ];
+  if (includeEvidence) {
+    entries.push(
+      tarEntry('evidence/build-result.json', JSON.stringify({ ...baseBuild, ...build })),
+      tarEntry('evidence/qa-result.json', JSON.stringify({ ...baseQa, ...qa })),
+      tarEntry('evidence/release-candidate.json', JSON.stringify({ ...baseRelease, ...release })),
+      tarEntry('evidence/publishing-receipt.json', JSON.stringify({ ...basePublishing, ...publishing }))
+    );
+  }
+  return tar(entries);
+}
+
 test('reads only reviewed planning intent from a bounded starter tar', () => {
   const archive = tar([
     tarEntry('OPEN_PROJECT.html', '<!doctype html>'),
@@ -71,7 +110,7 @@ test('reads only reviewed planning intent from a bounded starter tar', () => {
 test('requires the exact canonical manifest path and ignores nested lookalikes', () => {
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('untrusted/starter/project.manifest.json', manifestText)
-  ])), /exactly one starter\/project\.manifest\.json/i);
+  ])), /starter\/project\.manifest\.json/i);
 
   const canonicalWithLookalike = tar([
     tarEntry('starter/project.manifest.json', manifestText),
@@ -81,11 +120,11 @@ test('requires the exact canonical manifest path and ignores nested lookalikes',
 });
 
 test('rejects duplicate, missing, unsafe and non-regular canonical manifest entries', () => {
-  assert.throws(() => portableStarterManifestTextFromTarBytes(tar([tarEntry('OPEN_PROJECT.html', 'x')])), /exactly one starter\/project\.manifest\.json/i);
+  assert.throws(() => portableStarterManifestTextFromTarBytes(tar([tarEntry('OPEN_PROJECT.html', 'x')])), /starter\/project\.manifest\.json/i);
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('starter/project.manifest.json', manifestText),
     tarEntry('starter/project.manifest.json', manifestText)
-  ])), /more than one/i);
+  ])), /duplicate archive path/i);
   assert.throws(() => portableStarterManifestTextFromTarBytes(tar([
     tarEntry('../starter/project.manifest.json', manifestText)
   ])), /unsafe archive path/i);
@@ -131,9 +170,41 @@ test('rejects corrupt checksums, truncated archives and unsafe size/count bounds
   ])), /between 1 byte/i);
 });
 
-test('does not upgrade historical execution or publication authority', () => {
-  const archive = tar([tarEntry('starter/project.manifest.json', manifestText)]);
-  const brief = parsePortableStarterBriefText(portableStarterManifestTextFromTarBytes(archive));
+test('accepts a verified local bundle only when build, QA, release and packaged artifact bytes agree', async () => {
+  const text = await verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive());
+  assert.equal(text, manifestText);
+  assert.deepEqual(parsePortableStarterBriefText(text), {
+    name: 'Pipeline Sample Game',
+    objective: 'Prove a dependency-free build, QA, release-candidate, and publishing dry run.',
+    targetPlatform: 'web',
+    mechanic: 'collect'
+  });
+});
+
+test('rejects manifest-shaped archives that are not verified local starter bundles', async () => {
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ includeEvidence: false })), /evidence\/build-result\.json/i);
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ build: { executed: false } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ qa: { status: 'fail' } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ release: { dryRunOnly: false } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ publishing: { executed: true } })), /verified local dry-run contract/i);
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive({ publishing: { destination: { kind: 'remote', target: 'https://example.com' } } })), /verified local dry-run contract/i);
+});
+
+test('rejects a bundle whose packaged playable bytes no longer match the retained evidence', async () => {
+  const originalBody = '<!doctype html><title>playable</title>';
+  const tamperedBody = '<!doctype html><title>tampered playable</title>';
+  const digest = artifactSha256(originalBody);
+  const archive = verifiedArchive({
+    indexBody: tamperedBody,
+    build: { artifactSha256: digest },
+    qa: { artifactSha256: digest },
+    release: { build: { artifactPath: 'dist', outputSha256: digest } }
+  });
+  await assert.rejects(() => verifiedPortableStarterManifestTextFromTarBytes(archive), /artifact bytes do not match/i);
+});
+
+test('does not upgrade historical execution or publication authority', async () => {
+  const brief = parsePortableStarterBriefText(await verifiedPortableStarterManifestTextFromTarBytes(verifiedArchive()));
   assert.deepEqual(Object.keys(brief).sort(), ['mechanic', 'name', 'objective', 'targetPlatform']);
   assert.equal('build' in brief, false);
   assert.equal('qa' in brief, false);
