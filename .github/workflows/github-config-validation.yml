@@ -7,6 +7,7 @@ on:
       - '.github/workflows/**'
       - 'config/github-governance.json'
       - 'tools/validate-github-config.mjs'
+      - 'tools/test-github-required-check-contexts.mjs'
       - 'tools/validate-action-pins.mjs'
       - 'package.json'
   push:
@@ -16,6 +17,7 @@ on:
       - '.github/workflows/**'
       - 'config/github-governance.json'
       - 'tools/validate-github-config.mjs'
+      - 'tools/test-github-required-check-contexts.mjs'
       - 'tools/validate-action-pins.mjs'
       - 'package.json'
 
@@ -38,3 +40,5 @@ jobs:
         run: node tools/validate-action-pins.mjs
       - name: Validate GitHub configuration
         run: npm run validate:github-config
+      - name: Adversarially validate required check context names
+        run: node --test tools/test-github-required-check-contexts.mjs
