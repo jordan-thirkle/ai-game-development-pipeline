@@ -44,7 +44,7 @@ async function runCase(name, domExceptionName) {
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__?.snapshot?.()?.['runtime.ready'] === true, null, { timeout: 15000 });
   const snap = () => page.evaluate(() => window.__BYJTT_BENCHMARK__.snapshot());
   const before = await snap();
-  const defaultProgression = before['reward.count'] === 0 && Array.isArray(before['upgrade.selected_ids']) && before['upgrade.selected_ids'].length === 0 && before['player.attack_damage'] === 34;
+  const defaultProgression = before['reward.count'] === 0 && Array.isArray(before['upgrade.selected_ids']) && before['upgrade.selected_ids'].length === 0 && before['player.effective_attack_damage'] === 34;
 
   const readFaultRemovedAfterStartup = await page.evaluate(() => {
     const original = window.__BYJTT_ORIGINAL_STORAGE_GET_ITEM__;
