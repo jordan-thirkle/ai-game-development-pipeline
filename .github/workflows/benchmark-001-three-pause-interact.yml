@@ -1,0 +1,110 @@
+name: Benchmark 001 Three WebGPU Pause Interact
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/BYJTT-LAB-001/candidates/three-webgpu/pause-interact-gate/**'
+      - '.github/workflows/benchmark-001-three-pause-interact.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pause-interact:
+    name: pause-interact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE: experiments/BYJTT-LAB-001/candidates/three-webgpu
+      CANDIDATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: experiments/BYJTT-LAB-001/candidates/three-webgpu/package.json
+
+      - name: Record exact-head environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE/artifacts/pause-interact"
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$CANDIDATE_HEAD_SHA"
+          {
+            echo "candidate_head_sha=$CANDIDATE_HEAD_SHA"
+            echo "actual_head_sha=$actual_head"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "chrome=$(google-chrome --version)"
+            echo "os=$(uname -a)"
+          } | tee "$CANDIDATE/artifacts/pause-interact/environment.txt"
+
+      - name: Materialize and verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          observed="$(sha256sum package-lock.json | awk '{print $1}')"
+          expected="$(tr -d '[:space:]' < pause-interact-gate/expected-lock-sha256.txt)"
+          printf '%s\n' "$observed" | tee artifacts/pause-interact/observed-lock-sha256.txt
+          test "$observed" = "$expected"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > artifacts/pause-interact/dependency-tree.json || true
+
+      - name: Syntax-check correctness harness
+        run: node --check "$CANDIDATE/pause-interact-gate/probe.mjs"
+
+      - name: Build production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run build 2>&1 | tee "$CANDIDATE/artifacts/pause-interact/build.log"
+
+      - name: Re-run unchanged 13-step Phase A browser playthrough
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix "$CANDIDATE" run test:phase-a 2>&1 | tee "$CANDIDATE/artifacts/pause-interact/phase-a.log"
+
+      - name: Execute paused-interact correctness proof
+        shell: bash
+        run: |
+          set -o pipefail
+          cd "$CANDIDATE"
+          node pause-interact-gate/probe.mjs 2>&1 | tee artifacts/pause-interact/runtime.log
+
+      - name: Hash retained evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CANDIDATE"
+          mkdir -p artifacts/pause-interact
+          {
+            find artifacts/pause-interact -type f ! -name 'evidence.sha256' -print0
+            find artifacts/phase-a -type f -print0 2>/dev/null || true
+            printf '%s\0' package-lock.json
+          } | sort -z | xargs -0 -r sha256sum > artifacts/pause-interact/evidence.sha256
+
+      - name: Upload exact-head pause-interact evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: byjtt-lab-001-three-pause-interact-${{ github.run_id }}
+          path: |
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/pause-interact/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/artifacts/phase-a/**
+            experiments/BYJTT-LAB-001/candidates/three-webgpu/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
