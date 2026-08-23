@@ -84,6 +84,9 @@ try {
 
   await page.locator('#brief-name').fill('Harbour Draft');
   await page.locator('#brief-objective').fill('Build a small dodge-focused starter whose unsent Creator brief survives refresh and then executes only after explicit submission.');
+  if (!(await page.locator('#creator-advanced').evaluate((element) => element.open))) {
+    await page.locator('#creator-advanced summary').click();
+  }
   await page.locator('#brief-target').selectOption('mobile');
   await page.locator('#brief-mechanic').selectOption('dodge');
   assert.notEqual(await page.evaluate((key) => sessionStorage.getItem(key), draftKey), null, 'valid initial draft was not persisted before explicit run');
