@@ -24,10 +24,20 @@ const NAME_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F-\u009F]/;
 const MULTILINE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
 const FRESH_RUN_PATHS = new Set(['/api/pipeline/runs', '/api/pipeline/brief-runs']);
 const VARIATION_SESSION_KEY = 'byjtt:studio:verified-variation:v1';
+const INITIAL_BRIEF_SESSION_KEY = 'byjtt:studio:initial-brief:v1';
+const BLOCKING_RECOVERY_SESSION_KEYS = [
+  VARIATION_SESSION_KEY,
+  'byjtt:studio:failed-run:v1',
+  'byjtt:studio:failed-retry-draft:v1',
+  'byjtt:studio:verified-bundle-planning:v1'
+];
 const MAX_VARIATION_BYTES = 4096;
+const MAX_INITIAL_BRIEF_BYTES = 4096;
 let pendingFreshRun = null;
 let variationDraftListenersInstalled = false;
 let variationDraftPersistenceActive = false;
+let initialBriefListenersInstalled = false;
+let initialBriefPersistenceActive = false;
 
 export function recoverableBriefValues(result) {
   const brief = result?.brief;
@@ -207,6 +217,99 @@ function restoreBriefForm(result) {
   applyBriefValues(values, `Starter shape: ${MECHANIC_LABELS[values.mechanic]} · restored from the latest verified run.`);
 }
 
+function clearInitialBriefDraft() {
+  initialBriefPersistenceActive = false;
+  try { window.sessionStorage.removeItem(INITIAL_BRIEF_SESSION_KEY); } catch {}
+}
+
+function hasHigherAuthorityRecoveryState() {
+  try { return BLOCKING_RECOVERY_SESSION_KEYS.some((key) => window.sessionStorage.getItem(key)); }
+  catch { return true; }
+}
+
+function serializeInitialBriefDraft(brief) {
+  const validated = recoverableBriefValues({ brief });
+  const serialized = JSON.stringify({ brief: validated });
+  if (serialized.length > MAX_INITIAL_BRIEF_BYTES) throw new Error('Creator brief is too large to preserve safely.');
+  return serialized;
+}
+
+function writeInitialBriefDraft(brief) {
+  const serialized = serializeInitialBriefDraft(brief);
+  try { window.sessionStorage.setItem(INITIAL_BRIEF_SESSION_KEY, serialized); }
+  catch { throw new Error('Creator brief could not be preserved in this browser session.'); }
+}
+
+function readInitialBriefDraft() {
+  let serialized;
+  try { serialized = window.sessionStorage.getItem(INITIAL_BRIEF_SESSION_KEY); }
+  catch { return null; }
+  if (!serialized) return null;
+  if (serialized.length > MAX_INITIAL_BRIEF_BYTES) {
+    clearInitialBriefDraft();
+    return null;
+  }
+  try {
+    const record = JSON.parse(serialized);
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('Malformed initial brief draft.');
+    return recoverableBriefValues({ brief: record.brief });
+  } catch {
+    clearInitialBriefDraft();
+    return null;
+  }
+}
+
+function currentInitialBrief() {
+  const controls = briefControls();
+  if (!controls) return null;
+  return recoverableBriefValues({
+    brief: {
+      name: controls.name.value,
+      objective: controls.objective.value,
+      targetPlatform: controls.target.value,
+      mechanic: controls.mechanic.value
+    }
+  });
+}
+
+function persistInitialBriefFromControls() {
+  if (!initialBriefPersistenceActive || hasHigherAuthorityRecoveryState()) return;
+  try {
+    const brief = currentInitialBrief();
+    if (brief) writeInitialBriefDraft(brief);
+  } catch {
+    // Keep the last valid bounded draft while the user is between valid edits.
+  }
+}
+
+function installInitialBriefPersistence() {
+  if (initialBriefListenersInstalled) {
+    initialBriefPersistenceActive = true;
+    return;
+  }
+  const controls = briefControls();
+  if (!controls) return;
+  initialBriefListenersInstalled = true;
+  initialBriefPersistenceActive = true;
+  for (const control of [controls.name, controls.objective, controls.target, controls.mechanic]) {
+    control.addEventListener('input', persistInitialBriefFromControls);
+    control.addEventListener('change', persistInitialBriefFromControls);
+  }
+}
+
+function restoreInitialBriefDraft() {
+  const brief = readInitialBriefDraft();
+  if (!brief) return false;
+  if (!applyBriefValues(brief, `Starter shape: ${MECHANIC_LABELS[brief.mechanic]} · recovered from your unsent Creator brief.`)) return false;
+  document.querySelector('[data-view="local-run"]')?.click();
+  const message = document.querySelector('#run-message');
+  if (message) {
+    message.className = 'notice';
+    message.textContent = 'Recovered your unsent Creator brief from this browser tab. Nothing has run yet; review it, then explicitly choose Create playable starter.';
+  }
+  return true;
+}
+
 function clearVariationDraft() {
   variationDraftPersistenceActive = false;
   try { window.sessionStorage.removeItem(VARIATION_SESSION_KEY); } catch {}
@@ -287,6 +390,7 @@ function installVariationDraftPersistence() {
 function restoreVariationDraft() {
   const brief = readVariationDraft();
   if (!brief) return false;
+  clearInitialBriefDraft();
   if (!applyBriefValues(brief, `Starter shape: ${MECHANIC_LABELS[brief.mechanic]} · copied from the latest verified run for a new variation.`)) return false;
   variationDraftPersistenceActive = true;
   installVariationDraftPersistence();
@@ -372,6 +476,7 @@ function ensureStartNewProjectAction() {
   button.style.marginRight = '8px';
   button.addEventListener('click', async () => {
     button.disabled = true;
+    clearInitialBriefDraft();
     clearVariationDraft();
     const message = document.querySelector('#run-message');
     try {
@@ -407,6 +512,7 @@ function ensureMakeVariationAction(result) {
     button.disabled = true;
     const message = document.querySelector('#run-message');
     try {
+      clearInitialBriefDraft();
       writeVariationDraft(result);
       await resetLatestRun();
       location.reload();
@@ -425,10 +531,17 @@ function ensureMakeVariationAction(result) {
 async function recoverLatestRun() {
   const envelope = await fetchLatestRun();
   if (envelope?.available === false) {
-    restoreVariationDraft();
+    if (restoreVariationDraft()) return;
+    if (hasHigherAuthorityRecoveryState()) {
+      clearInitialBriefDraft();
+      return;
+    }
+    restoreInitialBriefDraft();
+    installInitialBriefPersistence();
     return;
   }
   if (envelope?.available !== true || !envelope.run) throw new Error('Latest-run recovery response was malformed.');
+  clearInitialBriefDraft();
   clearVariationDraft();
   const result = envelope.run;
   const { playable, download } = assertRecoverableRun(result);
@@ -464,7 +577,10 @@ function installFreshRunCapture() {
       return originalFetch(input, init);
     }
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
-    if (method === 'POST' && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) clearVariationDraft();
+    if (method === 'POST' && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) {
+      clearInitialBriefDraft();
+      clearVariationDraft();
+    }
     const response = await originalFetch(input, init);
     if (method === 'POST' && response.ok && url.origin === location.origin && FRESH_RUN_PATHS.has(url.pathname)) {
       pendingFreshRun = response.clone().json().then((result) => {
