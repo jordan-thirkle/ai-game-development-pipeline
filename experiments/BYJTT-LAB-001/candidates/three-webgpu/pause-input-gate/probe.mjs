@@ -12,6 +12,7 @@ fs.mkdirSync(artifactsDir, { recursive: true });
 const expectedHead = process.env.CANDIDATE_HEAD_SHA || '';
 const url = 'http://127.0.0.1:4178';
 const errors = [];
+const heldMovementKeys = new Set();
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
@@ -39,29 +40,64 @@ let browser;
 let result;
 try {
   await waitForServer();
-  browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--enable-unsafe-webgpu', '--use-angle=swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  // Match the already-proven Phase A browser transport rather than forcing a separate WebGPU backend.
+  browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
   page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
   page.on('pageerror', (error) => errors.push(`page:${error.message}`));
-  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__?.snapshot?.()['runtime.ready'] === true, null, { timeout: 30000 });
 
   const snapshot = () => page.evaluate(() => window.__BYJTT_BENCHMARK__.snapshot());
   const initial = await snapshot();
 
-  // Enter legitimate salvage attack range through normal held movement only.
-  await page.keyboard.down('KeyS');
-  await sleep(2500);
-  await page.keyboard.up('KeyS');
-  await sleep(300);
-  await page.keyboard.down('KeyD');
-  await sleep(1200);
-  await page.keyboard.up('KeyD');
-  await sleep(500);
+  async function applyMovementIntent(codes) {
+    const next = new Set(codes.filter(Boolean));
+    for (const code of [...heldMovementKeys]) {
+      if (!next.has(code)) {
+        await page.keyboard.up(code);
+        heldMovementKeys.delete(code);
+      }
+    }
+    for (const code of next) {
+      if (!heldMovementKeys.has(code)) {
+        await page.keyboard.down(code);
+        heldMovementKeys.add(code);
+      }
+    }
+  }
 
-  const beforePause = await snapshot();
+  async function releaseMovementIntent() {
+    for (const code of [...heldMovementKeys]) {
+      await page.keyboard.up(code);
+      heldMovementKeys.delete(code);
+    }
+  }
+
+  // Reuse the production coordinate/input mapping already exercised by Phase A,
+  // but stop at 1.35 m so the paused attack is definitely legitimate if replayed.
+  const driveStarted = Date.now();
+  let beforePause = await snapshot();
+  while (Date.now() - driveStarted < 15000) {
+    beforePause = await snapshot();
+    if (!beforePause['player.alive']) throw new Error('player died before pause-input proof reached salvage');
+    const p = beforePause['player.position'];
+    const dx = 5 - p.x;
+    const dz = 0 - p.z;
+    if (Math.hypot(dx, dz) <= 1.35) break;
+    const axisX = Math.abs(dx) >= 0.2 ? (dx > 0 ? 'KeyD' : 'KeyA') : null;
+    const axisZ = Math.abs(dz) >= 0.2 ? (dz > 0 ? 'KeyS' : 'KeyW') : null;
+    await applyMovementIntent([axisX, axisZ]);
+    await sleep(90);
+  }
+  await releaseMovementIntent();
+  await sleep(300);
+  beforePause = await snapshot();
   const position = beforePause['player.position'];
-  const salvageDistance = Math.hypot(position.x - 5, position.z - 0);
+  const salvageDistance = Math.hypot(position.x - 5, position.z);
 
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__BYJTT_BENCHMARK__.snapshot().paused === true, null, { timeout: 3000 });
