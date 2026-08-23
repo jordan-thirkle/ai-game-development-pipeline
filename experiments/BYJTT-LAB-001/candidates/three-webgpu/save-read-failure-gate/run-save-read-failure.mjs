@@ -31,6 +31,7 @@ async function runCase(name, domExceptionName) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.addInitScript(({ key, exceptionName }) => {
     const original = Storage.prototype.getItem;
+    Object.defineProperty(window, '__BYJTT_ORIGINAL_STORAGE_GET_ITEM__', { value: original, configurable: true });
     Storage.prototype.getItem = function(k) {
       if (k === key) throw new DOMException('Injected persistence read failure', exceptionName);
       return original.call(this, k);
@@ -44,6 +45,14 @@ async function runCase(name, domExceptionName) {
   const snap = () => page.evaluate(() => window.__BYJTT_BENCHMARK__.snapshot());
   const before = await snap();
   const defaultProgression = before['reward.count'] === 0 && Array.isArray(before['upgrade.selected_ids']) && before['upgrade.selected_ids'].length === 0 && before['player.attack_damage'] === 34;
+
+  const readFaultRemovedAfterStartup = await page.evaluate(() => {
+    const original = window.__BYJTT_ORIGINAL_STORAGE_GET_ITEM__;
+    if (typeof original !== 'function') return false;
+    Storage.prototype.getItem = original;
+    delete window.__BYJTT_ORIGINAL_STORAGE_GET_ITEM__;
+    return true;
+  });
 
   const start = before['player.position'];
   await page.keyboard.down('KeyD');
@@ -62,7 +71,7 @@ async function runCase(name, domExceptionName) {
   await page.waitForTimeout(120);
   const banner = await page.locator('#banner').textContent();
   const afterSave = await snap();
-  const persistedRaw = await page.evaluate(key => Storage.prototype.getItem.call(localStorage, key), SAVE_KEY);
+  const persistedRaw = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
   const persisted = persistedRaw ? JSON.parse(persistedRaw) : null;
 
   const result = {
@@ -70,6 +79,7 @@ async function runCase(name, domExceptionName) {
     exception: domExceptionName,
     runtime_ready: before['runtime.ready'] === true,
     recovered_to_default_progression: defaultProgression,
+    read_fault_removed_after_startup: readFaultRemovedAfterStartup,
     movement_metres_after_read_failure: movement,
     release_drift_metres: releaseDrift,
     banner_after_save: banner,
@@ -78,7 +88,7 @@ async function runCase(name, domExceptionName) {
     runtime_ready_after: afterSave['runtime.ready'] === true,
     player_alive_after: afterSave['player.alive'] === true
   };
-  result.passed = result.runtime_ready && result.recovered_to_default_progression && movement > 0.5 && releaseDrift <= 0.03 && banner === 'Progress saved' && result.save_schema_after_recovery === 1 && result.persisted_schema_after_recovery === 1 && result.runtime_ready_after && result.player_alive_after;
+  result.passed = result.runtime_ready && result.recovered_to_default_progression && result.read_fault_removed_after_startup && movement > 0.5 && releaseDrift <= 0.03 && banner === 'Progress saved' && result.save_schema_after_recovery === 1 && result.persisted_schema_after_recovery === 1 && result.runtime_ready_after && result.player_alive_after;
   if (!result.passed) failures.push(`${name}: ${JSON.stringify(result)}`);
   await page.screenshot({ path: path.join(artifacts, `${name}.png`), fullPage: true });
   cases.push(result);
