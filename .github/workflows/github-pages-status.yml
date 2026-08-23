@@ -1,8 +1,10 @@
 name: Publish public status to GitHub Pages
 
-# Required PR checks must always emit a result. Keep deployment itself main-push-only.
 on:
   pull_request:
+    paths:
+      - 'site/**'
+      - '.github/workflows/github-pages-status.yml'
   push:
     branches: [main]
     paths:
