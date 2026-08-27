@@ -12,7 +12,7 @@
     {
       "workflow": "Validate lab structure",
       "job": "validate",
-      "context": "Validate lab structure / validate"
+      "context": "validate"
     },
     {
       "workflow": "Control plane browser QA",
