@@ -189,7 +189,9 @@ function validateGovernance(governance, path, workflowsByName) {
       continue;
     }
 
-    const derivedContext = `${workflow.name} / ${job.name || check.job}`;
+    // GitHub rulesets require a normal Actions workflow by its check-run/job name,
+    // not a synthetic "workflow / job" display label.
+    const derivedContext = job.name || check.job;
     if (check.context !== derivedContext) failures.push(`${prefix}: context must be ${derivedContext}`);
 
     const prTrigger = pullRequestTrigger(workflow);
