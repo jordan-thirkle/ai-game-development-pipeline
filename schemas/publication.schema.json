@@ -1,0 +1,36 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://byjtt.com/schemas/publication.schema.json",
+  "title":"By JTT Publication",
+  "type":"object",
+  "required":["schemaVersion","id","canonicalUrl","title","type","verticals","topics","audience","status","updatedAt","lastVerifiedAt","nextReviewAt","claims","sources","evidenceIds","imageManifest","shareVariants","relatedContent","author","readingTimeMinutes"],
+  "properties":{
+    "schemaVersion":{"type":"string","const":"0.1"},
+    "id":{"type":"string","minLength":1},
+    "canonicalUrl":{"type":"string","format":"uri"},
+    "title":{"type":"string","minLength":1,"maxLength":160},
+    "description":{"type":"string","maxLength":320},
+    "type":{"enum":["research","guide","tutorial","benchmark","comparison","case-study","trend","standard","opinion","news"]},
+    "verticals":{"type":"array","items":{"enum":["games","design","development"]},"minItems":1,"uniqueItems":true},
+    "topics":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"uniqueItems":true},
+    "audience":{"type":"array","items":{"enum":["beginner","indie","professional","designer","developer","studio"]},"minItems":1,"uniqueItems":true},
+    "status":{"enum":["draft","review","published","superseded","held"]},
+    "author":{"type":"object","required":["name"],"properties":{"name":{"type":"string","minLength":1},"url":{"type":["string","null"],"format":"uri"}},"additionalProperties":false},
+    "readingTimeMinutes":{"type":"integer","minimum":1,"maximum":180},
+    "publishedAt":{"type":["string","null"],"format":"date-time"},
+    "updatedAt":{"type":"string","format":"date-time"},
+    "lastVerifiedAt":{"type":["string","null"],"format":"date-time"},
+    "nextReviewAt":{"type":["string","null"],"format":"date-time"},
+    "claims":{"type":"array","items":{"$ref":"publication-claim.schema.json"},"uniqueItems":true},
+    "sources":{"type":"array","items":{"type":"object","required":["id","kind","title","url","accessedAt"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["first-party","official","standard","research","community","secondary"]},"title":{"type":"string","minLength":1},"url":{"type":"string","format":"uri"},"accessedAt":{"type":"string","format":"date-time"},"revision":{"type":["string","null"]}},"additionalProperties":false},"uniqueItems":true},
+    "evidenceIds":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},
+    "imageManifest":{"type":"array","items":{"$ref":"article-media.schema.json"},"uniqueItems":true},
+    "shareVariants":{"$ref":"share-variants.schema.json"},
+    "relatedContent":{"type":"array","items":{"type":"object","required":["id","relationship"],"properties":{"id":{"type":"string"},"relationship":{"enum":["related","prerequisite","follow-up","benchmark","standard","case-study"]}},"additionalProperties":false},"uniqueItems":true}
+  },
+  "allOf":[
+    {"if":{"properties":{"status":{"const":"published"}},"required":["status"]},"then":{"properties":{"publishedAt":{"type":"string","format":"date-time"},"lastVerifiedAt":{"type":"string","format":"date-time"},"nextReviewAt":{"type":"string","format":"date-time"},"claims":{"minItems":1},"sources":{"minItems":1}}}},
+    {"if":{"properties":{"status":{"const":"superseded"}},"required":["status"]},"then":{"properties":{"nextReviewAt":{"const":null}}}}
+  ],
+  "additionalProperties":false
+}

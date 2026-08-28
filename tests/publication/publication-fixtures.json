@@ -1,0 +1,80 @@
+[
+  {
+    "name": "valid-research",
+    "valid": true,
+    "record": {
+      "schemaVersion": "0.1",
+      "id": "research.ai-game-development-pipeline",
+      "canonicalUrl": "https://games.byjtt.com/research/ai-game-development-pipeline",
+      "title": "How to Build an Evidence-Driven AI Game Development Pipeline",
+      "type": "research",
+      "verticals": ["games", "development"],
+      "topics": ["ai-game-development", "agents", "vibe-coding"],
+      "audience": ["beginner", "indie", "professional"],
+      "status": "published",
+      "publishedAt": "2026-08-27T20:00:00Z",
+      "updatedAt": "2026-08-27T20:00:00Z",
+      "lastVerifiedAt": "2026-08-27T20:00:00Z",
+      "nextReviewAt": "2026-09-27T20:00:00Z",
+      "claims": [
+        {
+          "id": "C001",
+          "statement": "Runtime behaviour requires execution evidence rather than code inspection alone.",
+          "status": "verified",
+          "evidenceIds": ["E001"],
+          "sourceIds": ["S001"]
+        }
+      ],
+      "sources": [
+        {
+          "id": "S001",
+          "kind": "first-party",
+          "title": "By JTT pipeline operating contract",
+          "url": "https://github.com/jordan-thirkle/ai-game-development-pipeline/blob/main/AGENTS.md",
+          "accessedAt": "2026-08-27T20:00:00Z"
+        }
+      ],
+      "evidenceIds": ["E001"],
+      "imageManifest": [],
+      "shareVariants": {
+        "x": "Evidence-driven AI game development is becoming a real production discipline.",
+        "linkedin": "A practical look at evidence-driven AI game development workflows.",
+        "reddit": "We documented an evidence-driven AI game development workflow and the reasoning behind it."
+      },
+      "relatedContent": []
+    }
+  },
+  {
+    "name": "unsupported-claim",
+    "valid": false,
+    "record": {
+      "schemaVersion": "0.1",
+      "id": "research.invalid",
+      "canonicalUrl": "https://games.byjtt.com/research/invalid",
+      "title": "Unsupported claim",
+      "type": "research",
+      "verticals": ["games"],
+      "topics": ["ai-game-development"],
+      "audience": ["beginner"],
+      "status": "published",
+      "publishedAt": "2026-08-27T20:00:00Z",
+      "updatedAt": "2026-08-27T20:00:00Z",
+      "lastVerifiedAt": "2026-08-27T20:00:00Z",
+      "nextReviewAt": "2026-09-27T20:00:00Z",
+      "claims": [
+        {
+          "id": "C001",
+          "statement": "AI makes every game 10x better.",
+          "status": "verified",
+          "evidenceIds": [],
+          "sourceIds": []
+        }
+      ],
+      "sources": [],
+      "evidenceIds": [],
+      "imageManifest": [],
+      "shareVariants": {},
+      "relatedContent": []
+    }
+  }
+]

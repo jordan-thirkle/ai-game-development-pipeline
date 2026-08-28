@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byjtt.com/schemas/publication-claim.schema.json",
+  "title": "Publication Claim",
+  "type": "object",
+  "required": ["id", "statement", "status", "evidenceIds", "sourceIds"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "statement": {"type": "string", "minLength": 1},
+    "status": {"enum": ["verified", "qualified", "community-signal", "unverified", "superseded"]},
+    "evidenceIds": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "sourceIds": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "lastVerifiedAt": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "verified"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "evidenceIds": {"minItems": 1},
+          "sourceIds": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

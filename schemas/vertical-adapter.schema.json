@@ -1,0 +1,18 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://byjtt.com/schemas/vertical-adapter.schema.json",
+  "title":"By JTT Public Vertical Adapter",
+  "type":"object",
+  "required":["schemaVersion","id","label","host","description","domains","indexPath","canonicalPolicy"],
+  "properties":{
+    "schemaVersion":{"type":"string","const":"0.1"},
+    "id":{"enum":["games","design","development"]},
+    "label":{"type":"string","minLength":1},
+    "host":{"type":"string","minLength":1},
+    "description":{"type":"string","minLength":1},
+    "domains":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"uniqueItems":true},
+    "indexPath":{"type":"string","pattern":"^/"},
+    "canonicalPolicy":{"enum":["shared-canonical","vertical-canonical"]}
+  },
+  "additionalProperties":false
+}

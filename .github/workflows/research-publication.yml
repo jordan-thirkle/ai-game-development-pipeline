@@ -1,0 +1,31 @@
+name: Research Publication
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-research-publication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert candidate revision
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.1.0
+        with:
+          node-version: 26.7.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --test tools/test-research-intelligence-slices.mjs tools/test-publication-rendering.mjs tools/test-public-verticals.mjs tools/test-research-publication-ci.mjs
+      - run: node tools/research-publication.mjs
+      - run: node tools/build-public-verticals.mjs
