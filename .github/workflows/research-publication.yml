@@ -22,10 +22,10 @@ jobs:
         if: github.event_name == 'pull_request'
         shell: bash
         run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.7.0
-      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test tools/test-research-intelligence-slices.mjs tools/test-publication-rendering.mjs tools/test-public-verticals.mjs tools/test-research-publication-ci.mjs tools/test-editorial-seo-gates.mjs
       - run: node tools/research-publication.mjs
       - run: node tools/build-public-verticals.mjs
