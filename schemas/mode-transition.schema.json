@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byjtt.com/schemas/mode-transition.schema.json",
+  "title": "Creator-Pro Mode Transition Evidence",
+  "type": "object",
+  "required": ["schemaVersion","id","projectId","sourceMode","targetMode","sourceRevision","targetRevision","transitionClass","actor","recordedAt","capabilities","provenanceStatus","evidenceMapping"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "0.1" },
+    "id": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "sourceMode": { "type": "string", "enum": ["creator", "pro", "other"] },
+    "targetMode": { "type": "string", "enum": ["creator", "pro", "other"] },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-fA-F]{40}$" },
+    "targetRevision": { "type": "string", "pattern": "^[0-9a-fA-F]{40}$" },
+    "transitionClass": { "type": "string", "enum": ["reversible","one_way_handoff","lossy_handoff","copy"] },
+    "actor": { "type": "object", "required": ["kind","id"], "properties": { "kind": { "type": "string", "enum": ["human","agent","system"] }, "id": { "type": "string", "minLength": 1 }, "role": { "type": ["string","null"] } }, "additionalProperties": false },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "checkpoint": { "type": ["object","null"], "required": ["created","revision"], "properties": { "created": { "type": "boolean" }, "revision": { "type": ["string","null"], "pattern": "^[0-9a-fA-F]{40}$" }, "uri": { "type": ["string","null"], "format": "uri" } }, "additionalProperties": false },
+    "capabilities": { "type": "object", "required": ["preserved","added","removed","transformed","unavailable"], "properties": { "preserved": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }, "added": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }, "removed": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }, "transformed": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }, "unavailable": { "type": "array", "items": { "type": "string" }, "uniqueItems": true } }, "additionalProperties": false },
+    "provenanceStatus": { "type": "object", "required": ["code","losses"], "properties": { "code": { "type": "string", "enum": ["preserved","partially_preserved","lost","unknown"] }, "losses": { "type": "array", "items": { "type": "string" }, "uniqueItems": true } }, "additionalProperties": false },
+    "evidenceMapping": { "type": "object", "required": ["carriedForward","superseded","unmapped"], "properties": { "carriedForward": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }, "superseded": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }, "unmapped": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true } }, "additionalProperties": false },
+    "verification": { "type": ["object","null"], "required": ["status","evidenceIds"], "properties": { "status": { "type": "string", "enum": ["not_run","pass","fail","no_verdict"] }, "evidenceIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }, "notes": { "type": "string" } }, "additionalProperties": false },
+    "notes": { "type": ["string","null"] }
+  },
+  "allOf": [
+    { "if": { "properties": { "transitionClass": { "const": "reversible" } }, "required": ["transitionClass"] }, "then": { "required": ["verification"], "properties": { "verification": { "type": "object", "properties": { "status": { "const": "pass" }, "evidenceIds": { "minItems": 1 } } } } } },
+    { "if": { "properties": { "checkpoint": { "type": "object" } }, "required": ["checkpoint"] }, "then": { "properties": { "checkpoint": { "properties": { "created": { "const": true } } } } } }
+  ],
+  "additionalProperties": false
+}
