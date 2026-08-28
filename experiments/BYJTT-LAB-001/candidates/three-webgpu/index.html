@@ -48,6 +48,18 @@
         </div>
       </div>
     </div>
+    <script>
+      (() => {
+        const heldCodes = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'];
+        const releaseHeldKeys = () => {
+          for (const code of heldCodes) window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+        };
+        window.addEventListener('blur', releaseHeldKeys, { capture: true });
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') releaseHeldKeys();
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
