@@ -1,0 +1,36 @@
+name: Bootstrap root npm lockfile
+
+on:
+  push:
+    branches:
+      - chore/366-root-lockfile
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5d7e3f4f1d0c8e6c8b7b6a5d4c3b2a190 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@8207627861f8e4a6c4b2d0f9e8d7c6b5a4f3e2d1 # v7.0.0
+          
+      - name: Generate lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit generated lockfile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already current"
+            exit 0
+          fi
+          git add package-lock.json
+          git commit -m "chore: add root npm lockfile"
+          git push origin HEAD:chore/366-root-lockfile
