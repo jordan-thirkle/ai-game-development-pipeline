@@ -26,6 +26,6 @@ jobs:
         with:
           node-version: 26.7.0
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - run: node --test tools/test-research-intelligence-slices.mjs tools/test-publication-rendering.mjs tools/test-public-verticals.mjs tools/test-research-publication-ci.mjs
+      - run: node --test tools/test-research-intelligence-slices.mjs tools/test-publication-rendering.mjs tools/test-public-verticals.mjs tools/test-research-publication-ci.mjs tools/test-editorial-seo-gates.mjs
       - run: node tools/research-publication.mjs
       - run: node tools/build-public-verticals.mjs
