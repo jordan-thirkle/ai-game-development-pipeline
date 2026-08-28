@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://byjtt.com/schemas/article-media.schema.json",
+  "title":"By JTT Article Media",
+  "type":"object",
+  "required":["schemaVersion","id","role","sourceKind","alt","pathOrUrl","credit","licence","dimensions"],
+  "properties":{
+    "schemaVersion":{"type":"string","const":"0.1"},
+    "id":{"type":"string","minLength":1},
+    "role":{"enum":["hero","inline","evidence","diagram","benchmark","social"]},
+    "sourceKind":{"enum":["first-party","generated","external"]},
+    "alt":{"type":"string","minLength":1},
+    "caption":{"type":["string","null"]},
+    "pathOrUrl":{"type":"string","minLength":1},
+    "credit":{"type":"string","minLength":1},
+    "licence":{"type":["string","null"]},
+    "sourceUrl":{"type":["string","null"],"format":"uri"},
+    "contentHash":{"type":["string","null"]},
+    "dimensions":{"type":"object","required":["width","height"],"properties":{"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1}},"additionalProperties":false},
+    "mimeType":{"type":["string","null"]}
+  },
+  "additionalProperties":false
+}

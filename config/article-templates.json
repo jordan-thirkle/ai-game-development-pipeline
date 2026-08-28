@@ -1,0 +1,14 @@
+{
+  "schemaVersion":"0.1",
+  "sharedSections":["answer","whyItMatters","methodology","evidence","analysis","limitations","conclusion","sources","relatedResearch"],
+  "templates":{
+    "research":["answer","whyItMatters","whatWeInvestigated","evidence","analysis","limitations","conclusion","sources","relatedResearch"],
+    "guide":["answer","prerequisites","steps","commonMistakes","verification","sources","relatedResearch"],
+    "tutorial":["goal","prerequisites","steps","verification","troubleshooting","sources","relatedResearch"],
+    "benchmark":["answer","methodology","fixtures","results","failureModes","analysis","limitations","reproduction","sources"],
+    "comparison":["answer","criteria","comparison","tradeoffs","recommendation","limitations","sources"],
+    "trend":["whatChanged","whyItMatters","signalSummary","verification","analysis","whatToWatch","sources"],
+    "news":["whatHappened","whyItMatters","whatIsConfirmed","whatIsNotConfirmed","sources"]
+  },
+  "metadata":["publishedAt","updatedAt","lastVerifiedAt","nextReviewAt","author","canonicalUrl","readingTime","topics","verticals"]
+}

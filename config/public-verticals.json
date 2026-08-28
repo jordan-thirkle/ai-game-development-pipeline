@@ -1,0 +1,9 @@
+{
+  "$schema":"https://byjtt.com/schemas/vertical-adapter.schema.json",
+  "schemaVersion":"0.1",
+  "verticals":[
+    {"schemaVersion":"0.1","id":"games","label":"Games","host":"games.byjtt.com","description":"Game development, AI game development, games research, tools, benchmarks and standards.","domains":["games"],"indexPath":"/research","canonicalPolicy":"shared-canonical"},
+    {"schemaVersion":"0.1","id":"design","label":"Design","host":"design.byjtt.com","description":"Web, product, UX, UI, AI design systems and design research.","domains":["design","web"],"indexPath":"/research","canonicalPolicy":"shared-canonical"},
+    {"schemaVersion":"0.1","id":"development","label":"Development","host":"byjtt.com","description":"Web, app, software and AI development research, guides, tools and engineering practice.","domains":["software","web","apps"],"indexPath":"/research","canonicalPolicy":"shared-canonical"}
+  ]
+}

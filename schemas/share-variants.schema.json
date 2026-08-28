@@ -1,0 +1,15 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://byjtt.com/schemas/share-variants.schema.json",
+  "title":"By JTT Share Variants",
+  "type":"object",
+  "required":["x","linkedin","reddit","facebook","citation"],
+  "properties":{
+    "x":{"type":"string","minLength":1,"maxLength":1000},
+    "linkedin":{"type":"string","minLength":1,"maxLength":3000},
+    "reddit":{"type":"string","minLength":1,"maxLength":3000},
+    "facebook":{"type":"string","minLength":1,"maxLength":2000},
+    "citation":{"type":"string","minLength":1,"maxLength":1000}
+  },
+  "additionalProperties":false
+}
